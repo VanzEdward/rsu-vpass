@@ -1,0 +1,16 @@
+{
+  "name": "rsuv-vpass",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RSU VPASS - Vehicle Registration and Pass Management System for Romblon State University (PASO)",
+  "scripts": {
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "build:client": "cd client && npm run build",
+    "build": "npm run build:client",
+    "start": "cd server && npm start"
+  },
+  "keywords": ["vpass", "vehicle-registration", "rsu", "paso"],
+  "author": "RSU PASO Dev Team",
+  "license": "ISC"
+}
