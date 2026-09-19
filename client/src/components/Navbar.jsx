@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ShieldCheck, LogOut, User } from 'lucide-react';
 
@@ -57,7 +58,12 @@ export default function Navbar() {
               </button>
             </div>
           ) : (
-            <span className="text-xs text-slate-400">Not authenticated</span>
+            <Link
+              to="/login"
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-xs"
+            >
+              Sign In
+            </Link>
           )}
         </div>
       </div>

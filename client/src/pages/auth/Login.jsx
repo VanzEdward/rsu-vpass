@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { apiRequest } from '../../api/client';
 import { ShieldCheck, ArrowRight, UserCheck, ShieldAlert, KeyRound } from 'lucide-react';
 
 export default function Login() {
@@ -9,31 +10,32 @@ export default function Login() {
   const [identifier, setIdentifier] = useState('2026-00001');
   const [password, setPassword] = useState('client123');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
+    setSubmitting(true);
 
-    // Instant demo login logic for structure demonstration
-    if (identifier.includes('admin') || identifier.includes('PASO')) {
-      login(
-        { id: 2, school_id: 'PASO-ADMIN-01', full_name: 'PASO Administrator', role: 'PASO_ADMIN', email: 'paso@rsu.edu.ph' },
-        'demo_admin_jwt_token'
-      );
-      navigate('/admin/dashboard');
-    } else if (identifier.includes('guard') || identifier.includes('GUARD')) {
-      login(
-        { id: 3, school_id: 'GUARD-GATE-01', full_name: 'Officer Santos', role: 'GUARD', email: 'guard@rsu.edu.ph' },
-        'demo_guard_jwt_token'
-      );
-      navigate('/guard/scanner');
-    } else {
-      // Default Client (Juan Dela Cruz)
-      login(
-        { id: 1, school_id: '2026-00001', full_name: 'Juan Dela Cruz', role: 'CLIENT', email: 'juan.delacruz@rsu.edu.ph' },
-        'demo_client_jwt_token'
-      );
-      navigate('/client/dashboard');
+    try {
+      const res = await apiRequest('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ identifier, password })
+      });
+
+      login(res.user, res.token);
+
+      if (res.user.role === 'PASO_ADMIN') {
+        navigate('/admin/dashboard');
+      } else if (res.user.role === 'GUARD') {
+        navigate('/guard/scanner');
+      } else {
+        navigate('/client/dashboard');
+      }
+    } catch (err) {
+      setError(err.message || 'Login failed. Please check your credentials.');
+    } finally {
+      setSubmitting(false);
     }
   };
 

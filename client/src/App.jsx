@@ -19,6 +19,21 @@ import Profile from './pages/client/Profile';
 
 import AdminDashboard from './pages/admin/AdminDashboard';
 import GuardScanner from './pages/guard/GuardScanner';
+import { useAuth } from './context/AuthContext';
+
+function ProtectedRoute({ children, allowedRoles }) {
+  const { user } = useAuth();
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    // If logged in as another role, redirect to their home
+    if (user.role === 'PASO_ADMIN') return <Navigate to="/admin/dashboard" replace />;
+    if (user.role === 'GUARD') return <Navigate to="/guard/scanner" replace />;
+    return <Navigate to="/client/dashboard" replace />;
+  }
+  return children;
+}
 
 function AppRoutes() {
   return (
@@ -28,7 +43,14 @@ function AppRoutes() {
       <Route path="/" element={<Navigate to="/login" replace />} />
 
       {/* Client Portal */}
-      <Route path="/client" element={<ClientLayout />}>
+      <Route
+        path="/client"
+        element={
+          <ProtectedRoute allowedRoles={['CLIENT']}>
+            <ClientLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<Navigate to="/client/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="my-vehicle" element={<MyVehicle />} />
@@ -39,7 +61,14 @@ function AppRoutes() {
       </Route>
 
       {/* PASO Admin Portal */}
-      <Route path="/admin" element={<AdminLayout />}>
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute allowedRoles={['PASO_ADMIN']}>
+            <AdminLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboard />} />
         <Route path="applications" element={<AdminDashboard />} />
@@ -48,7 +77,14 @@ function AppRoutes() {
       </Route>
 
       {/* Guard Security Gate Portal */}
-      <Route path="/guard" element={<GuardLayout />}>
+      <Route
+        path="/guard"
+        element={
+          <ProtectedRoute allowedRoles={['GUARD']}>
+            <GuardLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<Navigate to="/guard/scanner" replace />} />
         <Route path="scanner" element={<GuardScanner />} />
       </Route>

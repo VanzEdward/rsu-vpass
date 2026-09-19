@@ -22,6 +22,7 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
     localStorage.removeItem('vpass_user');
     localStorage.removeItem('vpass_token');
+    window.location.href = '/login';
   };
 
   return (
