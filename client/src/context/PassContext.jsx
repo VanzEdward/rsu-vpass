@@ -63,6 +63,12 @@ export const PassProvider = ({ children }) => {
     ];
   });
 
+  // Auto-saved In-Progress Draft Application
+  const [draftApplication, setDraftApplication] = useState(() => {
+    const saved = localStorage.getItem('vpass_registration_draft');
+    return saved ? JSON.parse(saved) : null;
+  });
+
   // Sync to localStorage
   useEffect(() => {
     localStorage.setItem('vpass_applications', JSON.stringify(applications));
@@ -71,6 +77,31 @@ export const PassProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem('vpass_vehicles', JSON.stringify(vehicles));
   }, [vehicles]);
+
+  useEffect(() => {
+    if (draftApplication) {
+      localStorage.setItem('vpass_registration_draft', JSON.stringify(draftApplication));
+    } else {
+      localStorage.removeItem('vpass_registration_draft');
+    }
+  }, [draftApplication]);
+
+  // Save/Update Draft
+  const saveDraft = (data, step = 1) => {
+    const updatedDraft = {
+      step,
+      data,
+      lastSaved: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      dateFormatted: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    };
+    setDraftApplication(updatedDraft);
+  };
+
+  // Discard Draft
+  const clearDraft = () => {
+    setDraftApplication(null);
+    localStorage.removeItem('vpass_registration_draft');
+  };
 
   // Submit new registration (Milestone 1)
   const submitApplication = (formData) => {
@@ -185,6 +216,9 @@ export const PassProvider = ({ children }) => {
       value={{
         applications,
         vehicles,
+        draftApplication,
+        saveDraft,
+        clearDraft,
         submitApplication,
         reviewApplication,
         submitReceiptPayment,

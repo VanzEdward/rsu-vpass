@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { usePass } from '../../context/PassContext';
 import { useAuth } from '../../context/AuthContext';
 import CameraCaptureModal from '../../components/CameraCaptureModal';
@@ -16,20 +16,27 @@ import {
   ShieldCheck, 
   RefreshCw,
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  FileEdit,
+  Trash2,
+  Clock,
+  Save
 } from 'lucide-react';
 
 export default function MyVehicle() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
-  const { vehicles, submitApplication } = usePass();
+  const { vehicles, submitApplication, draftApplication, saveDraft, clearDraft } = usePass();
 
   const [showWizard, setShowWizard] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  const [returnTo, setReturnTo] = useState(null);
 
-  // Form State
-  const [formData, setFormData] = useState({
+  const initialFormState = {
     classification: 'Student', // 'Student' | 'Employee'
     applicant_name: user?.full_name || 'Juan Dela Cruz',
     school_id: user?.school_id || '2026-00001',
@@ -44,14 +51,64 @@ export default function MyVehicle() {
     year: '2024',
     driverLicense: null,
     orCr: null,
-  });
+  };
 
+  // Form State
+  const [formData, setFormData] = useState(initialFormState);
   const [errors, setErrors] = useState({});
 
+  // Auto-resume draft if navigated with ?resume=true or if draft exists
+  useEffect(() => {
+    if (searchParams.get('resume') === 'true' && draftApplication) {
+      const from = searchParams.get('from');
+      if (from) {
+        setReturnTo(from);
+      }
+      setFormData(draftApplication.data || initialFormState);
+      setCurrentStep(draftApplication.step || 1);
+      setShowWizard(true);
+      setSearchParams({}, { replace: true });
+      showToastNotification(`Resumed your draft from Step ${draftApplication.step}!`);
+    }
+  }, [searchParams, draftApplication]);
+
+  const showToastNotification = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage('');
+    }, 4000);
+  };
+
   const handleFieldChange = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      const updated = { ...prev, [field]: value };
+      // Auto-save draft on change
+      saveDraft(updated, currentStep);
+      return updated;
+    });
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  const handleCloseWizard = () => {
+    // Auto-save progress before closing
+    saveDraft(formData, currentStep);
+    setShowWizard(false);
+
+    if (returnTo === 'applications') {
+      navigate('/client/applications');
+    } else {
+      showToastNotification('Draft auto-saved! You can resume anytime from Requests or My Vehicle.');
+    }
+  };
+
+  const handleStartFresh = () => {
+    if (window.confirm('Discard the current draft and start a new vehicle application?')) {
+      clearDraft();
+      setFormData(initialFormState);
+      setCurrentStep(1);
+      setShowWizard(true);
     }
   };
 
@@ -105,12 +162,16 @@ export default function MyVehicle() {
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
-      setCurrentStep((prev) => Math.min(prev + 1, 5));
+      const nextStep = Math.min(currentStep + 1, 5);
+      setCurrentStep(nextStep);
+      saveDraft(formData, nextStep);
     }
   };
 
   const handlePrev = () => {
-    setCurrentStep((prev) => Math.max(prev - 1, 1));
+    const prevStep = Math.max(currentStep - 1, 1);
+    setCurrentStep(prevStep);
+    saveDraft(formData, prevStep);
   };
 
   const handleSubmit = (e) => {
@@ -122,6 +183,9 @@ export default function MyVehicle() {
 
     // Submit to store
     submitApplication(formData);
+
+    // Clear saved draft once successfully submitted
+    clearDraft();
 
     // Close wizard and redirect to Applications tracker
     setShowWizard(false);
@@ -138,6 +202,17 @@ export default function MyVehicle() {
 
   return (
     <div className="space-y-6 max-w-5xl">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="p-3.5 rounded-2xl bg-emerald-600 text-white font-bold text-xs flex items-center justify-between shadow-lg animate-bounce">
+          <div className="flex items-center space-x-2">
+            <Check className="w-4 h-4" />
+            <span>{toastMessage}</span>
+          </div>
+          <span className="text-[10px] bg-emerald-800 px-2 py-0.5 rounded-full">DRAFT READY</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -148,8 +223,13 @@ export default function MyVehicle() {
         </div>
         <button
           onClick={() => {
-            setCurrentStep(1);
-            setShowWizard(true);
+            if (draftApplication) {
+              setShowResumeModal(true);
+            } else {
+              setFormData(initialFormState);
+              setCurrentStep(1);
+              setShowWizard(true);
+            }
           }}
           className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs cursor-pointer transition-colors"
         >
@@ -191,19 +271,26 @@ export default function MyVehicle() {
 
       {/* 5-Step Milestone Registration Modal */}
       {showWizard && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-6 max-h-[92vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-2xl w-full p-4 sm:p-8 shadow-2xl space-y-5 sm:space-y-6 max-h-[94vh] overflow-y-auto">
+            {/* Modal Header with Auto-Save Indicator */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 sm:pb-4">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                  Step-by-Step Registration
-                </span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                    Step-by-Step Registration
+                  </span>
+                  <span className="inline-flex items-center space-x-1 text-[10px] text-emerald-700 font-semibold bg-emerald-50/80 px-2 py-0.5 rounded-md">
+                    <Save className="w-3 h-3 text-emerald-600" />
+                    <span>Auto-saving</span>
+                  </span>
+                </div>
                 <h3 className="text-lg font-black text-slate-900 mt-1">RSU Vehicle Pass Application</h3>
               </div>
               <button
-                onClick={() => setShowWizard(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-full cursor-pointer text-sm"
+                onClick={handleCloseWizard}
+                title="Save Draft & Close"
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full cursor-pointer transition-colors text-base"
               >
                 ✕
               </button>
@@ -640,10 +727,10 @@ export default function MyVehicle() {
               ) : (
                 <button
                   type="button"
-                  onClick={() => setShowWizard(false)}
+                  onClick={handleCloseWizard}
                   className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-100 text-xs font-semibold cursor-pointer"
                 >
-                  Cancel
+                  Save Draft & Exit
                 </button>
               )}
 
@@ -666,6 +753,61 @@ export default function MyVehicle() {
                   <span>Submit Request to PASO</span>
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Resume Draft or Start Fresh Dialog */}
+      {showResumeModal && draftApplication && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl space-y-4 animate-scaleUp">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 mx-auto flex items-center justify-center shadow-xs">
+              <FileEdit className="w-6 h-6 text-emerald-600" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-slate-900">Unfinished Registration Found</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                You have a saved draft on <strong>Step {draftApplication.step} of 5</strong>
+                {draftApplication.data?.make ? ` for ${draftApplication.data.make} ${draftApplication.data.model || ''}` : ''}.
+              </p>
+            </div>
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowResumeModal(false);
+                  setFormData(draftApplication.data || initialFormState);
+                  setCurrentStep(draftApplication.step || 1);
+                  setShowWizard(true);
+                }}
+                className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center space-x-2 shadow-sm cursor-pointer"
+              >
+                <FileEdit className="w-4 h-4" />
+                <span>Resume Draft (Step {draftApplication.step})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowResumeModal(false);
+                  clearDraft();
+                  setFormData(initialFormState);
+                  setCurrentStep(1);
+                  setShowWizard(true);
+                }}
+                className="w-full py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-xs cursor-pointer"
+              >
+                Discard & Start Fresh
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowResumeModal(false)}
+                className="w-full py-2 text-slate-400 hover:text-slate-600 font-medium text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>

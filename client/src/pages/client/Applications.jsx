@@ -10,11 +10,14 @@ import {
   QrCode, 
   ShieldCheck, 
   AlertCircle,
-  User
+  User,
+  FileEdit,
+  Trash2,
+  Car
 } from 'lucide-react';
 
 export default function Applications() {
-  const { applications } = usePass();
+  const { applications, draftApplication, clearDraft } = usePass();
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -72,6 +75,83 @@ export default function Applications() {
           Track the progress of your vehicle submissions through each university milestone.
         </p>
       </div>
+
+      {/* In-Progress Draft Application Card (Auto-saved) */}
+      {draftApplication && (
+        <div className="bg-gradient-to-r from-emerald-50/90 via-white to-amber-50/50 rounded-3xl border-2 border-dashed border-emerald-400 p-5 sm:p-6 shadow-sm space-y-4 animate-fadeIn">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-100/80 pb-3">
+            <div className="flex items-center space-x-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-extrabold tracking-wide border border-emerald-300">
+                IN-PROGRESS DRAFT • STEP {draftApplication.step} OF 5
+              </span>
+              <span className="text-xs text-slate-400 hidden sm:inline">•</span>
+              <span className="text-[11px] text-slate-500">Auto-saved at {draftApplication.lastSaved}</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Discard this draft and start over?')) {
+                  clearDraft();
+                }
+              }}
+              className="inline-flex items-center space-x-1 text-xs text-slate-400 hover:text-rose-600 transition-colors self-end sm:self-auto cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Discard Draft</span>
+            </button>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start space-x-3">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 shadow-xs">
+                <Car className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-900">
+                  {draftApplication.data?.make || draftApplication.data?.model 
+                    ? `${draftApplication.data?.make || ''} ${draftApplication.data?.model || ''}`.trim()
+                    : 'Unfinished Vehicle Registration'}
+                  {draftApplication.data?.plateNumber && (
+                    <span className="font-mono text-emerald-700 ml-1.5 font-bold">({draftApplication.data.plateNumber})</span>
+                  )}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Your inputs and uploaded files are safely preserved. Pick up exactly where you left off.
+                </p>
+
+                {/* Progress bar */}
+                <div className="mt-2.5 flex items-center space-x-2">
+                  <div className="w-36 sm:w-48 bg-slate-200 h-2 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-emerald-600 h-full rounded-full transition-all duration-300"
+                      style={{ width: `${(draftApplication.step / 5) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-700">
+                    Step {draftApplication.step} of 5
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="shrink-0 flex items-center space-x-2">
+              <Link
+                to={`/client/my-vehicle?resume=true&from=applications`}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm inline-flex items-center justify-center space-x-1.5 transition-transform active:scale-95 cursor-pointer"
+              >
+                <FileEdit className="w-4 h-4" />
+                <span>Resume Application (Step {draftApplication.step})</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-4">
         {applications.map((app) => {
