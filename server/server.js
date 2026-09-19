@@ -9,7 +9,11 @@ import vehicleRoutes from './routes/vehicleRoutes.js';
 import pasoRoutes from './routes/pasoRoutes.js';
 import passRoutes from './routes/passRoutes.js';
 import guardRoutes from './routes/guardRoutes.js';
-import { testConnection } from './config/db.js';
+import { testConnection, checkDatabaseHealth } from './config/db.js';
+import requestLogger from './middleware/requestLogger.js';
+import errorHandler from './middleware/errorHandler.js';
+import logger from './utils/logger.js';
+import fs from 'fs';
 
 dotenv.config();
 
@@ -27,13 +31,41 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Health Check Endpoint (Useful for Render.com uptime monitoring)
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'online',
+// Request & Performance Logger
+app.use(requestLogger);
+
+// Health Check Endpoint (Includes real-time database connectivity and latency)
+app.get('/api/health', async (req, res) => {
+  const dbHealth = await checkDatabaseHealth();
+  const isHealthy = dbHealth.status === 'connected';
+
+  res.status(isHealthy ? 200 : 503).json({
+    status: isHealthy ? 'online' : 'degraded',
+    service: 'RSU VPASS Backend API',
+    uptime: Math.floor(process.uptime()) + 's',
     timestamp: new Date().toISOString(),
-    service: 'RSU VPASS Backend API'
+    database: dbHealth
   });
+});
+
+// Logs Endpoint: Quick inspection of the last 40 lines of error.log
+app.get('/api/logs/recent', (req, res) => {
+  const errorLogPath = path.join(__dirname, 'logs/error.log');
+  if (!fs.existsSync(errorLogPath)) {
+    return res.json({ message: 'No error log entries recorded yet.', lines: [] });
+  }
+
+  try {
+    const content = fs.readFileSync(errorLogPath, 'utf8');
+    const lines = content.trim().split('\n').filter(Boolean);
+    const recent = lines.slice(-40);
+    res.json({
+      totalLines: lines.length,
+      recentLines: recent
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not read error logs' });
+  }
 });
 
 // API Routes
@@ -59,11 +91,15 @@ app.get('*', (req, res, next) => {
   });
 });
 
+// Centralized Error Handler
+app.use(errorHandler);
+
 // Start Server
 app.listen(PORT, async () => {
   console.log(`=========================================`);
   console.log(`🚗 RSU VPASS Server running on port ${PORT}`);
   console.log(`🌐 Target: http://localhost:${PORT}`);
+  console.log(`📋 Logs stored in: server/logs/`);
   console.log(`=========================================`);
   await testConnection();
 });
