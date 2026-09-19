@@ -2,9 +2,9 @@ import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
 dotenv.config();
 
-// Aiven MySQL connection pool
+// MySQL connection pool
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
+  host: process.env.DB_HOST || '127.0.0.1',
   port: Number(process.env.DB_PORT) || 3306,
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
@@ -12,18 +12,18 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  // Aiven requires SSL/TLS encryption
+  // SSL only if DB_SSL === 'true' (e.g., Aiven Cloud)
   ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined
 });
 
 export const testConnection = async () => {
   try {
     const connection = await pool.getConnection();
-    console.log('✅ Successfully connected to Aiven MySQL database');
+    console.log(`✅ Successfully connected to MySQL database: ${process.env.DB_NAME || 'rsu_vpass'} at ${process.env.DB_HOST || '127.0.0.1'}`);
     connection.release();
     return true;
   } catch (error) {
-    console.error('❌ Database connection failed:', error.message);
+    console.error('❌ Database connection failed:', error.code || error.message || error);
     return false;
   }
 };

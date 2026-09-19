@@ -119,11 +119,11 @@ VALUES (
     1,
     '2026-00001',
     'juan.delacruz@rsu.edu.ph',
-    '$2a$10$X8T7rQ/qI3m06hG2zPqT/.bM1dI4qJpQf0u9x7c.8e5wY4rZ5m8Kq', -- client123
+    '$2b$10$50GJUSBeYJZdFqZ3oX7/M.u1TAKZUB2VIxIu9HEtn2T4jr6zaWROm', -- client123
     'Juan Dela Cruz',
     'CLIENT',
     '+63 912 345 6789'
-) ON DUPLICATE KEY UPDATE full_name = VALUES(full_name);
+) ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), password = VALUES(password);
 
 -- PASO Admin Account (Password: admin123)
 INSERT INTO users (id, school_id, email, password, full_name, role, contact_number)
@@ -131,11 +131,11 @@ VALUES (
     2,
     'PASO-ADMIN-01',
     'paso@rsu.edu.ph',
-    '$2a$10$X8T7rQ/qI3m06hG2zPqT/.bM1dI4qJpQf0u9x7c.8e5wY4rZ5m8Kq', -- admin123
+    '$2b$10$f5THNbdhVPHUobjsTEtH3OtMIKeA83NqIPLvrZvXVUGv4y.HvChRW', -- admin123
     'PASO Administrator',
     'PASO_ADMIN',
     '+63 917 111 2222'
-) ON DUPLICATE KEY UPDATE full_name = VALUES(full_name);
+) ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), password = VALUES(password);
 
 -- Gate Guard Account (Password: guard123)
 INSERT INTO users (id, school_id, email, password, full_name, role, contact_number)
@@ -143,11 +143,11 @@ VALUES (
     3,
     'GUARD-GATE-01',
     'guard.main@rsu.edu.ph',
-    '$2a$10$X8T7rQ/qI3m06hG2zPqT/.bM1dI4qJpQf0u9x7c.8e5wY4rZ5m8Kq', -- guard123
+    '$2b$10$8f4pS0teMTtLX9z7D5u.xOybkWkWoi9onTEeq.hnUUD.tRHUqP2we', -- guard123
     'Officer Santos',
     'GUARD',
     '+63 918 333 4444'
-) ON DUPLICATE KEY UPDATE full_name = VALUES(full_name);
+) ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), password = VALUES(password);
 
 -- Demo Vehicle (Honda Click 125)
 INSERT INTO vehicles (id, user_id, plate_number, vehicle_type, make, model, color, year_model)
