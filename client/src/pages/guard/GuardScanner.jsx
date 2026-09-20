@@ -280,12 +280,12 @@ export default function GuardScanner() {
 
       {/* Success Notification Alert */}
       {logSuccessMessage && (
-        <div className="p-3.5 rounded-2xl bg-emerald-500 text-white font-bold text-xs flex items-center justify-between shadow-lg animate-bounce">
+        <div className="p-3.5 rounded-2xl bg-emerald-600 text-white font-bold text-xs flex items-center justify-between shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
           <div className="flex items-center space-x-2">
-            <CheckCircle2 className="w-5 h-5" />
+            <CheckCircle2 className="w-5 h-5 text-emerald-100" />
             <span>{logSuccessMessage}</span>
           </div>
-          <span className="text-[10px] bg-emerald-700/50 px-2 py-0.5 rounded-full">SAVED</span>
+          <span className="text-[10px] bg-emerald-800 px-2.5 py-0.5 rounded-full font-semibold">SAVED</span>
         </div>
       )}
 

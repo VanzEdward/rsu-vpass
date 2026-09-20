@@ -68,7 +68,6 @@ export default function MyVehicle() {
       setCurrentStep(draftApplication.step || 1);
       setShowWizard(true);
       setSearchParams({}, { replace: true });
-      showToastNotification(`Resumed your draft from Step ${draftApplication.step}!`);
     }
   }, [searchParams, draftApplication]);
 
@@ -202,14 +201,20 @@ export default function MyVehicle() {
 
   return (
     <div className="space-y-6 max-w-5xl">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="p-3.5 rounded-2xl bg-emerald-600 text-white font-bold text-xs flex items-center justify-between shadow-lg animate-bounce">
+      {/* Toast Notification (Only shown on base page when modal is closed) */}
+      {!showWizard && toastMessage && (
+        <div className="p-3.5 rounded-2xl bg-emerald-700 text-white font-semibold text-xs flex items-center justify-between shadow-md animate-in fade-in slide-in-from-top-2 duration-300">
           <div className="flex items-center space-x-2">
-            <Check className="w-4 h-4" />
+            <Check className="w-4 h-4 text-emerald-200 shrink-0" />
             <span>{toastMessage}</span>
           </div>
-          <span className="text-[10px] bg-emerald-800 px-2 py-0.5 rounded-full">DRAFT READY</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage('')}
+            className="text-emerald-200 hover:text-white p-1 rounded-md hover:bg-emerald-800 transition-colors cursor-pointer text-xs ml-2"
+          >
+            ✕
+          </button>
         </div>
       )}
 
@@ -276,7 +281,7 @@ export default function MyVehicle() {
             {/* Modal Header with Auto-Save Indicator */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 sm:pb-4">
               <div>
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                     Step-by-Step Registration
                   </span>
@@ -284,6 +289,12 @@ export default function MyVehicle() {
                     <Save className="w-3 h-3 text-emerald-600" />
                     <span>Auto-saving</span>
                   </span>
+                  {draftApplication && currentStep > 1 && (
+                    <span className="inline-flex items-center space-x-1 text-[10px] text-teal-700 font-semibold bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200/60">
+                      <Check className="w-3 h-3 text-teal-600" />
+                      <span>Draft Restored (Step {currentStep})</span>
+                    </span>
+                  )}
                 </div>
                 <h3 className="text-lg font-black text-slate-900 mt-1">RSU Vehicle Pass Application</h3>
               </div>
