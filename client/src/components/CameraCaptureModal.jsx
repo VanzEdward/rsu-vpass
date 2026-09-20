@@ -1,7 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, RefreshCw, X, Check, Upload, AlertCircle } from 'lucide-react';
 
-export default function CameraCaptureModal({ isOpen, onClose, onCapture, title = 'Take Identification Photo' }) {
+export default function CameraCaptureModal({
+  isOpen,
+  onClose,
+  onCapture,
+  title = 'Take Identification Photo',
+  selfieOnly = false,
+}) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -29,7 +35,7 @@ export default function CameraCaptureModal({ isOpen, onClose, onCapture, title =
 
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: mode,
+          facingMode: selfieOnly ? 'user' : mode,
           width: { ideal: 1280 },
           height: { ideal: 720 },
         },
@@ -42,9 +48,15 @@ export default function CameraCaptureModal({ isOpen, onClose, onCapture, title =
       }
     } catch (err) {
       console.warn('Webcam stream error:', err);
-      setCameraError(
-        'Unable to access camera directly. Please check browser permissions or use the Native Device Camera option below.'
-      );
+      if (selfieOnly) {
+        setCameraError(
+          'Camera access is required to take a live verification selfie. Please allow camera permissions in your browser and click Retry.'
+        );
+      } else {
+        setCameraError(
+          'Unable to access camera directly. Please check browser permissions or use the Native Device Camera option below.'
+        );
+      }
     } finally {
       setIsLoadingCamera(false);
     }
@@ -168,14 +180,25 @@ export default function CameraCaptureModal({ isOpen, onClose, onCapture, title =
                 <div className="p-6 text-center text-white space-y-3">
                   <AlertCircle className="w-10 h-10 text-amber-400 mx-auto" />
                   <p className="text-xs text-slate-300 max-w-xs">{cameraError}</p>
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold inline-flex items-center space-x-2 cursor-pointer"
-                  >
-                    <Camera className="w-4 h-4" />
-                    <span>Open Native Device Camera</span>
-                  </button>
+                  {selfieOnly ? (
+                    <button
+                      type="button"
+                      onClick={() => startCamera('user')}
+                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold inline-flex items-center space-x-2 cursor-pointer shadow-sm"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      <span>Retry Camera</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold inline-flex items-center space-x-2 cursor-pointer"
+                    >
+                      <Camera className="w-4 h-4" />
+                      <span>Open Native Device Camera</span>
+                    </button>
+                  )}
                 </div>
               ) : (
                 <>
@@ -201,15 +224,17 @@ export default function CameraCaptureModal({ isOpen, onClose, onCapture, title =
 
           {/* Hidden Canvas for Snapshot processing */}
           <canvas ref={canvasRef} className="hidden" />
-          {/* Native Camera input fallback */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            capture="user"
-            onChange={handleNativeFileChange}
-            className="hidden"
-          />
+          {/* Native Camera input fallback only when not selfieOnly */}
+          {!selfieOnly && (
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="user"
+              onChange={handleNativeFileChange}
+              className="hidden"
+            />
+          )}
         </div>
 
         {/* Controls */}
@@ -223,7 +248,7 @@ export default function CameraCaptureModal({ isOpen, onClose, onCapture, title =
                 className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold flex items-center justify-center space-x-1.5 cursor-pointer transition-colors"
               >
                 <RefreshCw className="w-4 h-4" />
-                <span>Retake Photo</span>
+                <span>Retake Selfie</span>
               </button>
               <button
                 type="button"
@@ -231,21 +256,28 @@ export default function CameraCaptureModal({ isOpen, onClose, onCapture, title =
                 className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center justify-center space-x-1.5 cursor-pointer shadow-sm transition-colors"
               >
                 <Check className="w-4 h-4" />
-                <span>Use This Photo</span>
+                <span>Save This Selfie</span>
               </button>
             </div>
           ) : (
             /* Action Buttons for Live Camera */
             <div className="flex w-full items-center justify-between">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="text-xs text-slate-600 hover:text-emerald-700 flex items-center space-x-1.5 cursor-pointer py-2 px-3 rounded-lg hover:bg-slate-100"
-                title="Use phone camera app or upload file"
-              >
-                <Upload className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Device Camera / Upload</span>
-              </button>
+              {!selfieOnly ? (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-xs text-slate-600 hover:text-emerald-700 flex items-center space-x-1.5 cursor-pointer py-2 px-3 rounded-lg hover:bg-slate-100"
+                  title="Use phone camera app or upload file"
+                >
+                  <Upload className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Device Camera / Upload</span>
+                </button>
+              ) : (
+                <div className="flex items-center space-x-1.5 text-[11px] text-emerald-700 font-medium bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200/60">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Live Selfie Mode (Uploads Disabled)</span>
+                </div>
+              )}
 
               <div className="flex items-center space-x-2">
                 <button

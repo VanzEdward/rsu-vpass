@@ -53,22 +53,32 @@ export default function Dashboard() {
       {/* Welcome & Account Summary Banner */}
       <div className="bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 rounded-2xl p-6 sm:p-8 text-white shadow-md relative overflow-hidden">
         <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-64 h-64 bg-emerald-400/20 rounded-full blur-2xl pointer-events-none" />
-        <div className="relative z-10">
-          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-xs font-semibold text-emerald-100 mb-3">
-            <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
-            <span>Academic Year 2026 • Registered Client</span>
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-xs font-semibold text-emerald-100 mb-3">
+              <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+              <span>Academic Year 2026 • Registered Client</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+              Welcome back, {user?.full_name || 'Juan Dela Cruz'}!
+            </h1>
+            <p className="text-emerald-50 text-sm mt-1 max-w-xl">
+              Manage your registered university vehicles, track application status, and view active gate passes issued by PASO.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-4 text-xs text-emerald-100/90 font-mono">
+              <span>School ID: <strong className="text-white">{user?.school_id || '2026-00001'}</strong></span>
+              <span>•</span>
+              <span>Campus: <strong className="text-white">Main Campus (Odiongan)</strong></span>
+            </div>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
-            Welcome back, {user?.full_name || 'Juan Dela Cruz'}!
-          </h1>
-          <p className="text-emerald-50 text-sm mt-1 max-w-xl">
-            Manage your registered university vehicles, track application status, and view active gate passes issued by PASO.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-4 text-xs text-emerald-100/90 font-mono">
-            <span>School ID: <strong className="text-white">{user?.school_id || '2026-00001'}</strong></span>
-            <span>•</span>
-            <span>Campus: <strong className="text-white">Main Campus (Odiongan)</strong></span>
-          </div>
+
+          {user?.profile_image && (
+            <div className="shrink-0 hidden sm:block">
+              <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-white/40 shadow-lg ring-2 ring-emerald-300/40">
+                <img src={user.profile_image} alt={user?.full_name || 'User'} className="w-full h-full object-cover" />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

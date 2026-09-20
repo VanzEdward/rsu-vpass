@@ -46,8 +46,12 @@ export default function Navbar() {
                 <p className="text-sm font-semibold text-slate-800 leading-tight">{user.full_name || 'Juan Dela Cruz'}</p>
                 <div className="mt-0.5">{getRoleBadge(user.role)}</div>
               </div>
-              <div className="w-9 h-9 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
-                <User className="w-5 h-5" />
+              <div className="w-9 h-9 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 overflow-hidden shrink-0">
+                {user.profile_image ? (
+                  <img src={user.profile_image} alt={user.full_name || 'Profile'} className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-5 h-5" />
+                )}
               </div>
               <button
                 onClick={logout}
