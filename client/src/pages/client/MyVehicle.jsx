@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { usePass } from '../../context/PassContext';
 import { useAuth } from '../../context/AuthContext';
 import CameraCaptureModal from '../../components/CameraCaptureModal';
+import ConfirmModal from '../../components/ConfirmModal';
 import { 
   Car, 
   Plus, 
@@ -32,6 +33,8 @@ export default function MyVehicle() {
   const [showWizard, setShowWizard] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
+  const [showDraftPrompt, setShowDraftPrompt] = useState(false);
+  const [showStartFreshModal, setShowStartFreshModal] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [returnTo, setReturnTo] = useState(null);
@@ -103,12 +106,14 @@ export default function MyVehicle() {
   };
 
   const handleStartFresh = () => {
-    if (window.confirm('Discard the current draft and start a new vehicle application?')) {
-      clearDraft();
-      setFormData(initialFormState);
-      setCurrentStep(1);
-      setShowWizard(true);
-    }
+    setShowStartFreshModal(true);
+  };
+
+  const confirmStartFresh = () => {
+    clearDraft();
+    setFormData(initialFormState);
+    setCurrentStep(1);
+    setShowWizard(true);
   };
 
   const handlePhotoCaptured = (photoDataUrl) => {
@@ -802,10 +807,7 @@ export default function MyVehicle() {
                 type="button"
                 onClick={() => {
                   setShowResumeModal(false);
-                  clearDraft();
-                  setFormData(initialFormState);
-                  setCurrentStep(1);
-                  setShowWizard(true);
+                  setShowStartFreshModal(true);
                 }}
                 className="w-full py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-xs cursor-pointer"
               >
@@ -823,6 +825,18 @@ export default function MyVehicle() {
           </div>
         </div>
       )}
+
+      {/* Unified In-App Confirm Discard / Start Fresh Dialog */}
+      <ConfirmModal
+        isOpen={showStartFreshModal}
+        onClose={() => setShowStartFreshModal(false)}
+        onConfirm={confirmStartFresh}
+        title="Discard Draft & Start Fresh?"
+        message="Are you sure you want to discard your saved application? All entered vehicle details and uploaded documents will be cleared."
+        confirmText="Yes, Discard Draft"
+        cancelText="Keep My Draft"
+        variant="danger"
+      />
 
       {/* Live Camera Capture Modal */}
       <CameraCaptureModal

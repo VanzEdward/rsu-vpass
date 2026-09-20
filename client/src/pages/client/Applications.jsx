@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { usePass } from '../../context/PassContext';
+import ConfirmModal from '../../components/ConfirmModal';
 import { 
   Clock, 
   CheckCircle2, 
@@ -18,6 +19,7 @@ import {
 
 export default function Applications() {
   const { applications, draftApplication, clearDraft } = usePass();
+  const [showDiscardModal, setShowDiscardModal] = useState(false);
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -94,11 +96,7 @@ export default function Applications() {
 
             <button
               type="button"
-              onClick={() => {
-                if (window.confirm('Discard this draft and start over?')) {
-                  clearDraft();
-                }
-              }}
+              onClick={() => setShowDiscardModal(true)}
               className="inline-flex items-center space-x-1 text-xs text-slate-400 hover:text-rose-600 transition-colors self-end sm:self-auto cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -300,6 +298,18 @@ export default function Applications() {
           );
         })}
       </div>
+
+      {/* Unified In-App Confirm Discard Dialog */}
+      <ConfirmModal
+        isOpen={showDiscardModal}
+        onClose={() => setShowDiscardModal(false)}
+        onConfirm={clearDraft}
+        title="Discard Application Draft?"
+        message="Are you sure you want to discard your saved application? All entered vehicle details and uploaded documents will be cleared."
+        confirmText="Yes, Discard Draft"
+        cancelText="Keep My Draft"
+        variant="danger"
+      />
     </div>
   );
 }

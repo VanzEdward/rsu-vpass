@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { usePass } from '../../context/PassContext';
 import CameraCaptureModal from '../../components/CameraCaptureModal';
+import ConfirmModal from '../../components/ConfirmModal';
 import {
   User,
   Camera,
@@ -34,6 +35,7 @@ export default function Profile() {
 
   // Live Selfie Modal State
   const [showCameraModal, setShowCameraModal] = useState(false);
+  const [showRemovePhotoModal, setShowRemovePhotoModal] = useState(false);
 
   // Edit Contact Information State
   const [isEditingContact, setIsEditingContact] = useState(false);
@@ -81,9 +83,7 @@ export default function Profile() {
 
   // Remove Photo
   const handleRemovePhoto = () => {
-    if (window.confirm('Remove your profile photo? You will need to take a new live selfie for gate identification.')) {
-      updateUser({ profile_image: null });
-    }
+    setShowRemovePhotoModal(true);
   };
 
   // Save Contact Details
@@ -628,6 +628,18 @@ export default function Profile() {
           </div>
         </div>
       )}
+
+      {/* Unified In-App Confirm Remove Photo Dialog */}
+      <ConfirmModal
+        isOpen={showRemovePhotoModal}
+        onClose={() => setShowRemovePhotoModal(false)}
+        onConfirm={() => updateUser({ profile_image: null })}
+        title="Remove Profile Selfie?"
+        message="Are you sure you want to remove your verification photo? You will need to take a new live selfie for gate identification."
+        confirmText="Yes, Remove Photo"
+        cancelText="Keep Photo"
+        variant="danger"
+      />
     </div>
   );
 }
