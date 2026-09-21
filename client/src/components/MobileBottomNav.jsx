@@ -26,7 +26,7 @@ export default function MobileBottomNav() {
                 key={item.path}
                 to={item.path}
                 className={({ isActive }) =>
-                  `flex flex-col items-center -mt-5 group focus:outline-none`
+                  `flex flex-col items-center -mt-5 group focus:outline-none focus-visible:outline-none select-none`
                 }
               >
                 {({ isActive }) => (
@@ -58,7 +58,7 @@ export default function MobileBottomNav() {
               key={item.path}
               to={item.path}
               className={({ isActive }) =>
-                `flex flex-col items-center justify-center flex-1 py-1.5 min-h-[48px] text-xs font-medium transition-colors ${
+                `flex flex-col items-center justify-center flex-1 py-1.5 min-h-[48px] text-xs font-medium transition-colors focus:outline-none focus-visible:outline-none select-none ${
                   isActive ? 'text-emerald-700' : 'text-slate-500 hover:text-slate-800'
                 }`
               }

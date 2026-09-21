@@ -27,4 +27,5 @@ body {
   background-color: var(--bg-main);
   color: #0f172a;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
