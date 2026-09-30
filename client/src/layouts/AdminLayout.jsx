@@ -13,10 +13,10 @@ export default function AdminLayout() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50 flex flex-col w-full">
       <Navbar />
-      <div className="flex flex-1 max-w-7xl w-full mx-auto">
-        <aside className="w-64 bg-white border-r border-slate-200 min-h-[calc(100vh-4rem)] p-4 flex flex-col justify-between">
+      <div className="flex flex-1 w-full">
+        <aside className="w-64 bg-white border-r border-slate-200 min-h-[calc(100vh-4rem)] p-4 flex flex-col justify-between shrink-0 sticky top-16 h-[calc(100vh-4rem)]">
           <div className="space-y-1">
             <div className="px-3 py-2">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
@@ -50,7 +50,7 @@ export default function AdminLayout() {
             </nav>
           </div>
         </aside>
-        <main className="flex-1 p-6 md:p-8 overflow-y-auto">
+        <main className="flex-1 p-6 lg:p-10 overflow-y-auto w-full min-w-0">
           <Outlet />
         </main>
       </div>

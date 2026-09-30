@@ -47,7 +47,7 @@ export default function AdminPasses() {
   });
 
   return (
-    <div className="space-y-6 max-w-6xl pb-12">
+    <div className="space-y-6 w-full pb-16">
       {/* Header */}
       <div>
         <div className="inline-flex items-center space-x-2 px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold mb-1 border border-emerald-200">
