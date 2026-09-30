@@ -40,20 +40,27 @@ export default function MyVehicle() {
   const [returnTo, setReturnTo] = useState(null);
 
   const initialFormState = {
-    classification: 'Student', // 'Student' | 'Employee'
+    // Registered client profile automatically loaded
+    classification: user?.classification || 'Student',
     applicant_name: user?.full_name || 'Juan Dela Cruz',
     school_id: user?.school_id || '2026-00001',
-    department: 'College of Engineering & Technology (CET)',
-    contact_number: '+63 912 345 6789',
-    applicant_photo: null, // Base64 data URL from camera
+    department: user?.year_course || user?.department_unit || 'College of Engineering & Technology (CET)',
+    contact_number: user?.contact_number || '+63 912 345 6789',
+    applicant_photo: user?.profile_image || null, // Base64 data URL from camera
+
+    // Step 1: Vehicle Registration Information
     plateNumber: '',
-    type: 'Motorcycle',
     make: '',
+    brand: '',
     model: '',
     color: '',
-    year: '2024',
+    type: 'Motorcycle',
+    year: '2026',
+
+    // Step 3: Xerox / Upload Documents
     driverLicense: null,
     orCr: null,
+    pledgeAgreed: true,
   };
 
   // Form State
@@ -136,26 +143,23 @@ export default function MyVehicle() {
   const validateStep = (step) => {
     const newErrors = {};
 
+    // Step 1: Vehicle Registration Information
     if (step === 1) {
-      if (!formData.applicant_name.trim()) newErrors.applicant_name = 'Name is required';
-      if (!formData.school_id.trim()) newErrors.school_id = 'ID number is required';
-      if (!formData.department.trim()) newErrors.department = 'Department is required';
+      if (!formData.plateNumber.trim()) newErrors.plateNumber = 'Plate Number is required';
+      if (!formData.make.trim() && !formData.brand.trim()) newErrors.make = 'Brand is required (e.g. Honda, Yamaha, Toyota)';
+      if (!formData.model.trim()) newErrors.model = 'Model is required (e.g. Click 125, Vios)';
+      if (!formData.color.trim()) newErrors.color = 'Color is required (e.g. Matte Black, Pearl White)';
     }
 
+    // Step 2: Photo ID Live Camera
     if (step === 2) {
       if (!formData.applicant_photo) {
         newErrors.applicant_photo = 'Please take or upload your identification photo using the camera.';
       }
     }
 
+    // Step 3: Required Xerox/Upload Documents
     if (step === 3) {
-      if (!formData.plateNumber.trim()) newErrors.plateNumber = 'Plate number is required';
-      if (!formData.make.trim()) newErrors.make = 'Make is required (e.g. Honda)';
-      if (!formData.model.trim()) newErrors.model = 'Model is required (e.g. Click 125)';
-      if (!formData.color.trim()) newErrors.color = 'Color is required';
-    }
-
-    if (step === 4) {
       if (!formData.driverLicense) newErrors.driverLicense = "Please upload or attach Driver's License";
       if (!formData.orCr) newErrors.orCr = 'Please upload or attach Official OR/CR';
     }
@@ -166,7 +170,7 @@ export default function MyVehicle() {
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
-      const nextStep = Math.min(currentStep + 1, 5);
+      const nextStep = Math.min(currentStep + 1, 4);
       setCurrentStep(nextStep);
       saveDraft(formData, nextStep);
     }
@@ -180,13 +184,24 @@ export default function MyVehicle() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!validateStep(4)) {
-      setCurrentStep(4);
+    if (!validateStep(1)) {
+      setCurrentStep(1);
+      return;
+    }
+    if (!validateStep(2)) {
+      setCurrentStep(2);
+      return;
+    }
+    if (!validateStep(3)) {
+      setCurrentStep(3);
       return;
     }
 
     // Submit to store
-    submitApplication(formData);
+    submitApplication({
+      ...formData,
+      make: formData.make || formData.brand,
+    });
 
     // Clear saved draft once successfully submitted
     clearDraft();
@@ -197,11 +212,10 @@ export default function MyVehicle() {
   };
 
   const stepsList = [
-    { number: 1, title: 'Classification' },
+    { number: 1, title: 'Vehicle Info' },
     { number: 2, title: 'Photo ID' },
-    { number: 3, title: 'Vehicle' },
-    { number: 4, title: 'OR/CR & License' },
-    { number: 5, title: 'Review & Submit' },
+    { number: 3, title: 'OR/CR & License' },
+    { number: 4, title: 'Review & Submit' },
   ];
 
   return (
@@ -346,87 +360,134 @@ export default function MyVehicle() {
 
             {/* Step Content */}
             <div className="py-2">
-              {/* Step 1: Classification & Personal Information */}
+              {/* Step 1: Vehicle Registration Form (Matching Physical Form) */}
               {currentStep === 1 && (
                 <div className="space-y-4">
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900">Applicant Classification</h4>
-                    <p className="text-xs text-slate-500">Are you registering as a university student or an employee?</p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => handleFieldChange('classification', 'Student')}
-                      className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
-                        formData.classification === 'Student'
-                          ? 'border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-500/20'
-                          : 'border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      <span className="block text-xs font-bold text-slate-900">University Student</span>
-                      <span className="text-[11px] text-slate-500 mt-0.5 block">Undergraduate / Graduate</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleFieldChange('classification', 'Employee')}
-                      className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
-                        formData.classification === 'Employee'
-                          ? 'border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-500/20'
-                          : 'border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      <span className="block text-xs font-bold text-slate-900">Faculty / Employee</span>
-                      <span className="text-[11px] text-slate-500 mt-0.5 block">Teaching or Non-teaching staff</span>
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Full Name</label>
-                      <input
-                        type="text"
-                        value={formData.applicant_name}
-                        onChange={(e) => handleFieldChange('applicant_name', e.target.value)}
-                        className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500"
-                      />
-                      {errors.applicant_name && <p className="text-red-500 text-[11px] mt-0.5">{errors.applicant_name}</p>}
+                  <div className="border-b border-slate-100 pb-3">
+                    <div className="flex items-center space-x-2">
+                      <Car className="w-5 h-5 text-emerald-600" />
+                      <h4 className="text-sm font-bold uppercase tracking-wider text-slate-900">
+                        Vehicle Registration Information
+                      </h4>
                     </div>
+                    <p className="text-xs text-slate-500 mt-1 italic">
+                      (Please attach your Xerox copy of vehicle certificate of registration, official receipt and driver's license in step 3)
+                    </p>
+                  </div>
 
+                  {/* Registered Profile Verification Pill */}
+                  <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center space-x-2">
+                      <User className="w-4 h-4 text-emerald-700 shrink-0" />
+                      <span className="font-semibold text-slate-500">Applicant:</span>
+                      <strong className="text-slate-900">{formData.applicant_name}</strong>
+                      <span className="text-slate-300">•</span>
+                      <span className="font-mono text-slate-600 font-semibold">{formData.school_id}</span>
+                      <span className="text-slate-300">•</span>
+                      <span className="text-slate-500 truncate max-w-[200px]">{formData.department}</span>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                      Enrolled Profile
+                    </span>
+                  </div>
+
+                  {/* Primary Fields from Physical Form */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    {/* PLATE NUMBER */}
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">
-                        {formData.classification === 'Student' ? 'School ID Number' : 'Employee ID Number'}
+                      <label className="block font-bold uppercase tracking-wider text-slate-700 mb-1">
+                        Plate Number <span className="text-rose-500">*</span>
                       </label>
                       <input
                         type="text"
-                        value={formData.school_id}
-                        onChange={(e) => handleFieldChange('school_id', e.target.value)}
-                        className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 font-mono"
+                        required
+                        placeholder="e.g. ABC 1234 or MV File No."
+                        value={formData.plateNumber}
+                        onChange={(e) => handleFieldChange('plateNumber', e.target.value.toUpperCase())}
+                        className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 font-mono font-bold uppercase text-slate-900"
                       />
-                      {errors.school_id && <p className="text-red-500 text-[11px] mt-0.5">{errors.school_id}</p>}
+                      {errors.plateNumber && <p className="text-red-500 text-[11px] mt-0.5">{errors.plateNumber}</p>}
+                    </div>
+
+                    {/* BRAND */}
+                    <div>
+                      <label className="block font-bold uppercase tracking-wider text-slate-700 mb-1">
+                        Brand <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Honda, Yamaha, Toyota, Suzuki"
+                        value={formData.brand || formData.make}
+                        onChange={(e) => {
+                          handleFieldChange('brand', e.target.value);
+                          handleFieldChange('make', e.target.value);
+                        }}
+                        className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 font-medium text-slate-900"
+                      />
+                      {errors.make && <p className="text-red-500 text-[11px] mt-0.5">{errors.make}</p>}
+                    </div>
+
+                    {/* MODEL */}
+                    <div>
+                      <label className="block font-bold uppercase tracking-wider text-slate-700 mb-1">
+                        Model <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Click 125, Vios, Aerox, Wigo"
+                        value={formData.model}
+                        onChange={(e) => handleFieldChange('model', e.target.value)}
+                        className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 font-medium text-slate-900"
+                      />
+                      {errors.model && <p className="text-red-500 text-[11px] mt-0.5">{errors.model}</p>}
+                    </div>
+
+                    {/* COLOR */}
+                    <div>
+                      <label className="block font-bold uppercase tracking-wider text-slate-700 mb-1">
+                        Color <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Matte Black, Pearl White, Red"
+                        value={formData.color}
+                        onChange={(e) => handleFieldChange('color', e.target.value)}
+                        className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 font-medium text-slate-900"
+                      />
+                      {errors.color && <p className="text-red-500 text-[11px] mt-0.5">{errors.color}</p>}
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  {/* Vehicle Type & Year Model */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-1">
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">College / Department</label>
-                      <input
-                        type="text"
-                        value={formData.department}
-                        onChange={(e) => handleFieldChange('department', e.target.value)}
-                        className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500"
-                      />
-                      {errors.department && <p className="text-red-500 text-[11px] mt-0.5">{errors.department}</p>}
+                      <label className="block font-semibold text-slate-700 mb-1">Vehicle Classification / Type</label>
+                      <select
+                        value={formData.type}
+                        onChange={(e) => handleFieldChange('type', e.target.value)}
+                        className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 font-medium"
+                      >
+                        <option value="Motorcycle">Motorcycle (Standard 2-Wheels)</option>
+                        <option value="Sedan">Sedan (4-Wheels)</option>
+                        <option value="SUV">SUV (4-Wheels)</option>
+                        <option value="Pickup">Pickup Truck</option>
+                        <option value="Van">Van / Utility Vehicle</option>
+                        <option value="Commercial">Commercial / Truck / Bus</option>
+                        <option value="Other">Other</option>
+                      </select>
                     </div>
 
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Contact Number</label>
+                      <label className="block font-semibold text-slate-700 mb-1">Year Model</label>
                       <input
-                        type="text"
-                        value={formData.contact_number}
-                        onChange={(e) => handleFieldChange('contact_number', e.target.value)}
-                        className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500"
+                        type="number"
+                        placeholder="e.g. 2026"
+                        value={formData.year}
+                        onChange={(e) => handleFieldChange('year', e.target.value)}
+                        className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 font-medium"
                       />
                     </div>
                   </div>
@@ -439,7 +500,7 @@ export default function MyVehicle() {
                   <div>
                     <h4 className="text-sm font-bold text-slate-900">Picture Identification</h4>
                     <p className="text-xs text-slate-500">
-                      Take a clear live photo using your phone or computer camera for the official Wearable Vehicle Pass.
+                      Take a clear live photo using your camera for the official Wearable Vehicle Pass and guard viewfinder verification.
                     </p>
                   </div>
 
@@ -503,102 +564,13 @@ export default function MyVehicle() {
                 </div>
               )}
 
-              {/* Step 3: Vehicle Information */}
+              {/* Step 3: OR/CR and Driver's License Uploads */}
               {currentStep === 3 && (
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900">Vehicle Details</h4>
-                    <p className="text-xs text-slate-500">Provide the exact specifications of the vehicle.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Plate Number</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. ABC 1234 or XYZ 5678"
-                        value={formData.plateNumber}
-                        onChange={(e) => handleFieldChange('plateNumber', e.target.value.toUpperCase())}
-                        className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 font-mono font-bold"
-                      />
-                      {errors.plateNumber && <p className="text-red-500 text-[11px] mt-0.5">{errors.plateNumber}</p>}
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Vehicle Type</label>
-                      <select
-                        value={formData.type}
-                        onChange={(e) => handleFieldChange('type', e.target.value)}
-                        className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500"
-                      >
-                        <option>Motorcycle</option>
-                        <option>Sedan</option>
-                        <option>SUV</option>
-                        <option>Van</option>
-                        <option>Pickup</option>
-                        <option>Truck</option>
-                        <option>Other</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Make / Brand</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Honda, Toyota"
-                        value={formData.make}
-                        onChange={(e) => handleFieldChange('make', e.target.value)}
-                        className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500"
-                      />
-                      {errors.make && <p className="text-red-500 text-[11px] mt-0.5">{errors.make}</p>}
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Model</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Click 125, Vios"
-                        value={formData.model}
-                        onChange={(e) => handleFieldChange('model', e.target.value)}
-                        className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500"
-                      />
-                      {errors.model && <p className="text-red-500 text-[11px] mt-0.5">{errors.model}</p>}
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Color & Year</label>
-                      <div className="flex space-x-2">
-                        <input
-                          type="text"
-                          placeholder="Color"
-                          value={formData.color}
-                          onChange={(e) => handleFieldChange('color', e.target.value)}
-                          className="w-1/2 p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500"
-                        />
-                        <input
-                          type="number"
-                          placeholder="Year"
-                          value={formData.year}
-                          onChange={(e) => handleFieldChange('year', e.target.value)}
-                          className="w-1/2 p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500"
-                        />
-                      </div>
-                      {errors.color && <p className="text-red-500 text-[11px] mt-0.5">{errors.color}</p>}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Step 4: OR/CR and Driver's License Uploads */}
-              {currentStep === 4 && (
                 <div className="space-y-4">
                   <div>
                     <h4 className="text-sm font-bold text-slate-900">Upload Required Documents</h4>
                     <p className="text-xs text-slate-500">
-                      Upload clear photos or scans of your Driver's License and Vehicle OR/CR.
+                      Upload Xerox copies or clear scans of your Driver's License and Official Vehicle Certificate of Registration (OR/CR).
                     </p>
                   </div>
 
@@ -666,13 +638,13 @@ export default function MyVehicle() {
                 </div>
               )}
 
-              {/* Step 5: Review & Submit Request to PASO */}
-              {currentStep === 5 && (
+              {/* Step 4: Review & Submit Request with Official Campus Pledge */}
+              {currentStep === 4 && (
                 <div className="space-y-4 text-xs">
                   <div>
-                    <h4 className="text-sm font-bold text-slate-900">Review Application Summary</h4>
+                    <h4 className="text-sm font-bold text-slate-900">Review Application & Institutional Pledge</h4>
                     <p className="text-xs text-slate-500">
-                      Please check the information before submitting to the Physical Assets and Security Office (PASO).
+                      Confirm your vehicle pass information before submitting to the Physical Assets and Security Office (PASO).
                     </p>
                   </div>
 
@@ -701,29 +673,37 @@ export default function MyVehicle() {
 
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <span className="text-slate-400 block font-semibold">Vehicle:</span>
-                        <span className="font-bold text-slate-800">{formData.make} {formData.model} ({formData.year})</span>
-                      </div>
-                      <div>
                         <span className="text-slate-400 block font-semibold">Plate Number:</span>
-                        <span className="font-mono font-black text-emerald-700">{formData.plateNumber}</span>
+                        <span className="font-mono font-black text-emerald-700 text-sm">{formData.plateNumber}</span>
                       </div>
                       <div>
-                        <span className="text-slate-400 block font-semibold">Type & Color:</span>
-                        <span className="text-slate-700">{formData.type} • {formData.color}</span>
+                        <span className="text-slate-400 block font-semibold">Brand & Model:</span>
+                        <span className="font-bold text-slate-800">{formData.brand || formData.make} {formData.model}</span>
                       </div>
                       <div>
-                        <span className="text-slate-400 block font-semibold">Documents:</span>
+                        <span className="text-slate-400 block font-semibold">Classification & Color:</span>
+                        <span className="text-slate-700">{formData.type} • {formData.color} ({formData.year})</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block font-semibold">Required Xerox Documents:</span>
                         <span className="text-emerald-700 font-medium">✓ License & OR/CR Attached</span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-slate-700 flex items-start space-x-2">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <p className="leading-relaxed text-[11px]">
-                      By submitting this registration, you certify that all information is truthful. PASO will review your submission. Once approved, you will proceed to the Cashier Payment & Receipt upload milestone.
+                  {/* Official University Pledge from Physical Form */}
+                  <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-slate-800 space-y-2">
+                    <div className="flex items-center space-x-2 text-emerald-900 font-bold">
+                      <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                      <span>University Safety & Traffic Pledge</span>
+                    </div>
+                    <p className="text-xs italic leading-relaxed text-slate-700 bg-white/70 p-3 rounded-xl border border-emerald-100">
+                      "I hereby pledge to obey and abide by the Romblon State University Rules and Policies inside the campus."
                     </p>
+                    <div className="flex items-center justify-between pt-1 text-[11px] text-slate-600">
+                      <span>Applicant Signature: <strong className="text-slate-900">{formData.applicant_name}</strong></span>
+                      <span className="font-mono text-emerald-800 font-semibold">{new Date().toLocaleDateString()}</span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -750,7 +730,7 @@ export default function MyVehicle() {
                 </button>
               )}
 
-              {currentStep < 5 ? (
+              {currentStep < 4 ? (
                 <button
                   type="button"
                   onClick={handleNext}
@@ -784,8 +764,8 @@ export default function MyVehicle() {
             <div>
               <h3 className="text-base font-black text-slate-900">Unfinished Registration Found</h3>
               <p className="text-xs text-slate-500 mt-1">
-                You have a saved draft on <strong>Step {draftApplication.step} of 5</strong>
-                {draftApplication.data?.make ? ` for ${draftApplication.data.make} ${draftApplication.data.model || ''}` : ''}.
+                You have a saved draft on <strong>Step {draftApplication.step} of 4</strong>
+                {draftApplication.data?.make || draftApplication.data?.brand ? ` for ${draftApplication.data.brand || draftApplication.data.make} ${draftApplication.data.model || ''}` : ''}.
               </p>
             </div>
             <div className="space-y-2 pt-2">

@@ -199,7 +199,7 @@ export default function Applications() {
                         ✓
                       </div>
                       <span className="font-bold text-slate-800 text-[11px]">1. Form Submitted</span>
-                      <span className="text-[10px] text-slate-400 hidden sm:block">Classification & Photo ID</span>
+                      <span className="text-[10px] text-slate-400 hidden sm:block">Vehicle Info & Docs</span>
                     </div>
 
                     {/* Milestone 2 */}
