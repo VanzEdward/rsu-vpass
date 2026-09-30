@@ -327,27 +327,28 @@ export default function MyVehicle() {
             </div>
 
             {/* Stepper Indicator */}
-            <div className="relative">
-              <div className="flex items-center justify-between">
+            <div className="relative pt-1 pb-1">
+              <div className="absolute top-4 left-6 right-6 h-0.5 bg-slate-200 -translate-y-1/2 z-0" />
+              <div className="flex items-center justify-between relative z-10">
                 {stepsList.map((step) => {
                   const isCompleted = currentStep > step.number;
                   const isCurrent = currentStep === step.number;
                   return (
-                    <div key={step.number} className="flex flex-col items-center relative z-10 flex-1">
+                    <div key={step.number} className="flex flex-col items-center flex-1">
                       <div
                         className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
                           isCompleted
                             ? 'bg-emerald-600 text-white shadow-xs'
                             : isCurrent
                             ? 'bg-emerald-50 text-emerald-700 border-2 border-emerald-600 ring-4 ring-emerald-50'
-                            : 'bg-slate-100 text-slate-400'
+                            : 'bg-white border-2 border-slate-200 text-slate-400'
                         }`}
                       >
                         {isCompleted ? <Check className="w-4 h-4" /> : step.number}
                       </div>
                       <span
                         className={`text-[10px] mt-1 font-semibold text-center hidden sm:block ${
-                          isCurrent ? 'text-emerald-700' : 'text-slate-400'
+                          isCurrent ? 'text-emerald-700 font-bold' : 'text-slate-400'
                         }`}
                       >
                         {step.title}
@@ -365,37 +366,53 @@ export default function MyVehicle() {
                 <div className="space-y-4">
                   <div className="border-b border-slate-100 pb-3">
                     <div className="flex items-center space-x-2">
-                      <Car className="w-5 h-5 text-emerald-600" />
-                      <h4 className="text-sm font-bold uppercase tracking-wider text-slate-900">
+                      <Car className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <h4 className="text-sm sm:text-base font-black uppercase tracking-tight text-slate-900">
                         Vehicle Registration Information
                       </h4>
                     </div>
-                    <p className="text-xs text-slate-500 mt-1 italic">
+                    <p className="text-xs text-slate-500 mt-1 italic leading-relaxed">
                       (Please attach your Xerox copy of vehicle certificate of registration, official receipt and driver's license in step 3)
                     </p>
                   </div>
 
-                  {/* Registered Profile Verification Pill */}
-                  <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center space-x-2">
-                      <User className="w-4 h-4 text-emerald-700 shrink-0" />
-                      <span className="font-semibold text-slate-500">Applicant:</span>
-                      <strong className="text-slate-900">{formData.applicant_name}</strong>
-                      <span className="text-slate-300">•</span>
-                      <span className="font-mono text-slate-600 font-semibold">{formData.school_id}</span>
-                      <span className="text-slate-300">•</span>
-                      <span className="text-slate-500 truncate max-w-[200px]">{formData.department}</span>
+                  {/* Enrolled Applicant Profile (Responsive Card, No Horizontal Overflow) */}
+                  <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 border border-slate-200/90 text-xs space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                          <User className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="font-bold text-slate-700 text-[11px] uppercase tracking-wider">
+                          Enrolled Applicant Profile
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200/60 shrink-0">
+                        Verified Account
+                      </span>
                     </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                      Enrolled Profile
-                    </span>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-200/60">
+                      <div>
+                        <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Applicant Full Name</span>
+                        <span className="font-bold text-slate-900 text-xs block truncate">{formData.applicant_name}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Identification Card No.</span>
+                        <span className="font-mono font-bold text-emerald-800 text-xs block">{formData.school_id}</span>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Department / Academic Program</span>
+                        <span className="font-medium text-slate-700 text-xs block leading-tight">{formData.department}</span>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Primary Fields from Physical Form */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                    {/* PLATE NUMBER */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4 text-xs">
+                    {/* Plate Number */}
                     <div>
-                      <label className="block font-bold uppercase tracking-wider text-slate-700 mb-1">
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
                         Plate Number <span className="text-rose-500">*</span>
                       </label>
                       <input
@@ -404,71 +421,20 @@ export default function MyVehicle() {
                         placeholder="e.g. ABC 1234 or MV File No."
                         value={formData.plateNumber}
                         onChange={(e) => handleFieldChange('plateNumber', e.target.value.toUpperCase())}
-                        className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 font-mono font-bold uppercase text-slate-900"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono font-bold uppercase text-slate-900 outline-none transition-all placeholder:font-normal placeholder:normal-case placeholder:text-slate-400"
                       />
-                      {errors.plateNumber && <p className="text-red-500 text-[11px] mt-0.5">{errors.plateNumber}</p>}
+                      {errors.plateNumber && <p className="text-rose-600 text-[11px] font-semibold mt-1">{errors.plateNumber}</p>}
                     </div>
 
-                    {/* BRAND */}
+                    {/* Vehicle Classification / Type */}
                     <div>
-                      <label className="block font-bold uppercase tracking-wider text-slate-700 mb-1">
-                        Brand <span className="text-rose-500">*</span>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Vehicle Classification / Type <span className="text-rose-500">*</span>
                       </label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Honda, Yamaha, Toyota, Suzuki"
-                        value={formData.brand || formData.make}
-                        onChange={(e) => {
-                          handleFieldChange('brand', e.target.value);
-                          handleFieldChange('make', e.target.value);
-                        }}
-                        className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 font-medium text-slate-900"
-                      />
-                      {errors.make && <p className="text-red-500 text-[11px] mt-0.5">{errors.make}</p>}
-                    </div>
-
-                    {/* MODEL */}
-                    <div>
-                      <label className="block font-bold uppercase tracking-wider text-slate-700 mb-1">
-                        Model <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Click 125, Vios, Aerox, Wigo"
-                        value={formData.model}
-                        onChange={(e) => handleFieldChange('model', e.target.value)}
-                        className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 font-medium text-slate-900"
-                      />
-                      {errors.model && <p className="text-red-500 text-[11px] mt-0.5">{errors.model}</p>}
-                    </div>
-
-                    {/* COLOR */}
-                    <div>
-                      <label className="block font-bold uppercase tracking-wider text-slate-700 mb-1">
-                        Color <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Matte Black, Pearl White, Red"
-                        value={formData.color}
-                        onChange={(e) => handleFieldChange('color', e.target.value)}
-                        className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 font-medium text-slate-900"
-                      />
-                      {errors.color && <p className="text-red-500 text-[11px] mt-0.5">{errors.color}</p>}
-                    </div>
-                  </div>
-
-                  {/* Vehicle Type & Year Model */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-1">
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Vehicle Classification / Type</label>
                       <select
                         value={formData.type}
                         onChange={(e) => handleFieldChange('type', e.target.value)}
-                        className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 font-medium"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-semibold text-slate-900 bg-white outline-none transition-all cursor-pointer"
                       >
                         <option value="Motorcycle">Motorcycle (Standard 2-Wheels)</option>
                         <option value="Sedan">Sedan (4-Wheels)</option>
@@ -480,14 +446,68 @@ export default function MyVehicle() {
                       </select>
                     </div>
 
+                    {/* Brand */}
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Year Model</label>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Brand <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Honda, Yamaha, Toyota, Suzuki"
+                        value={formData.brand || formData.make}
+                        onChange={(e) => {
+                          handleFieldChange('brand', e.target.value);
+                          handleFieldChange('make', e.target.value);
+                        }}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-semibold text-slate-900 outline-none transition-all placeholder:font-normal placeholder:text-slate-400"
+                      />
+                      {errors.make && <p className="text-rose-600 text-[11px] font-semibold mt-1">{errors.make}</p>}
+                    </div>
+
+                    {/* Model */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Model <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Click 125, Vios, Aerox, Wigo"
+                        value={formData.model}
+                        onChange={(e) => handleFieldChange('model', e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-semibold text-slate-900 outline-none transition-all placeholder:font-normal placeholder:text-slate-400"
+                      />
+                      {errors.model && <p className="text-rose-600 text-[11px] font-semibold mt-1">{errors.model}</p>}
+                    </div>
+
+                    {/* Color */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Color <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Matte Black, Pearl White, Red"
+                        value={formData.color}
+                        onChange={(e) => handleFieldChange('color', e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-semibold text-slate-900 outline-none transition-all placeholder:font-normal placeholder:text-slate-400"
+                      />
+                      {errors.color && <p className="text-rose-600 text-[11px] font-semibold mt-1">{errors.color}</p>}
+                    </div>
+
+                    {/* Year Model */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Year Model
+                      </label>
                       <input
                         type="number"
                         placeholder="e.g. 2026"
                         value={formData.year}
                         onChange={(e) => handleFieldChange('year', e.target.value)}
-                        className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 font-medium"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-semibold text-slate-900 outline-none transition-all placeholder:font-normal placeholder:text-slate-400"
                       />
                     </div>
                   </div>
