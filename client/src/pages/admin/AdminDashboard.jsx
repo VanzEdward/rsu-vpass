@@ -11,7 +11,8 @@ import {
   CheckCircle, 
   LogIn, 
   LogOut, 
-  Eye
+  Eye,
+  MapPin
 } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -174,6 +175,7 @@ export default function AdminDashboard() {
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-slate-600">
                 <th className="py-2.5 px-3 font-bold">Action</th>
+                <th className="py-2.5 px-3 font-bold">Gate Station</th>
                 <th className="py-2.5 px-3 font-bold">Plate Number</th>
                 <th className="py-2.5 px-3 font-bold">Owner / Driver</th>
                 <th className="py-2.5 px-3 font-bold">Classification</th>
@@ -196,6 +198,12 @@ export default function AdminDashboard() {
                       {log.type === 'EXIT' && <LogOut className="w-3 h-3 mr-0.5" />}
                       {log.type === 'CHECK' && <Eye className="w-3 h-3 mr-0.5" />}
                       <span>{log.type}</span>
+                    </span>
+                  </td>
+                  <td className="py-3 px-3">
+                    <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 border border-slate-200 font-bold font-mono text-[10px]">
+                      <MapPin className="w-3 h-3 text-emerald-600" />
+                      <span>{log.gate || 'Gate 1'}</span>
                     </span>
                   </td>
                   <td className="py-3 px-3 font-mono font-black text-slate-900">

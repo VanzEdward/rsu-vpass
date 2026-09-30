@@ -39,6 +39,7 @@ export default function GuardScanner() {
     applications, 
     visitorPasses: visitors, 
     gateLogs: logs, 
+    activeGate,
     addGateLog, 
     issueVisitorPass, 
     logVisitorExit, 
@@ -307,6 +308,7 @@ export default function GuardScanner() {
       owner: verifiedPass.client,
       classification: verifiedPass.classification || 'EMPLOYEE',
       type,
+      gate: activeGate || 'Gate 1',
       status: verifiedPass.isValid ? 'VALID' : 'INVALID'
     });
 
@@ -314,7 +316,7 @@ export default function GuardScanner() {
       logVisitorExit(verifiedPass.passNumber || verifiedPass.plateNumber);
     }
 
-    setLogSuccessMessage(`${type} recorded for ${verifiedPass.plateNumber} (${verifiedPass.client})!`);
+    setLogSuccessMessage(`${type} recorded at ${activeGate || 'Gate 1'} for ${verifiedPass.plateNumber} (${verifiedPass.client})!`);
     setTimeout(() => setLogSuccessMessage(''), 3500);
     setVerifiedPass(null);
   };

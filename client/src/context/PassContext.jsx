@@ -77,6 +77,13 @@ const INITIAL_APPLICATIONS = [
   }
 ];
 
+export const CAMPUS_GATES = [
+  { id: 'Gate 1', name: 'Gate 1', description: 'National Highway / Main Campus Entrance' },
+  { id: 'Gate 2', name: 'Gate 2', description: 'North Gate / Gymnasium & Sports Complex' },
+  { id: 'Gate 3', name: 'Gate 3', description: 'East Gate / Student Center & Academic Wing' },
+  { id: 'Gate 4', name: 'Gate 4', description: 'South Service Gate / Administration & Supply' },
+];
+
 const INITIAL_VISITORS = [
   {
     id: 'TMP-2026-0042',
@@ -89,8 +96,10 @@ const INITIAL_VISITORS = [
     purpose: 'Guest Lecturer / Meeting',
     validDays: 1,
     validUntil: 'Today • 11:59 PM (1 Day)',
+    entryGate: 'Gate 1',
     entryTime: '09:30 AM Today',
     status: 'INSIDE', // 'INSIDE' | 'EXITED'
+    exitGate: null,
     exitTime: null,
     classification: 'VISITOR',
     qrData: 'RSU-VPASS:TMP-2026-0042:NBM9012:VISITOR'
@@ -106,8 +115,10 @@ const INITIAL_VISITORS = [
     purpose: 'Regional IT Conference Delegate',
     validDays: 3,
     validUntil: 'Sept 26, 2026 • 11:59 PM (3 Days)',
+    entryGate: 'Gate 2',
     entryTime: 'Yesterday • 08:15 AM',
     status: 'INSIDE',
+    exitGate: null,
     exitTime: null,
     classification: 'VISITOR',
     qrData: 'RSU-VPASS:TMP-2026-0038:ABC5678:VISITOR'
@@ -123,8 +134,10 @@ const INITIAL_VISITORS = [
     purpose: 'Campus Equipment Delivery',
     validDays: 1,
     validUntil: 'Today • 11:59 PM (1 Day)',
+    entryGate: 'Gate 1',
     entryTime: '08:45 AM Today',
     status: 'EXITED',
+    exitGate: 'Gate 3',
     exitTime: '10:15 AM Today',
     classification: 'VISITOR',
     qrData: 'RSU-VPASS:TMP-2026-0029:XYZ9921:VISITOR'
@@ -139,6 +152,7 @@ const INITIAL_LOGS = [
     owner: 'Prof. Juan Dela Cruz',
     classification: 'EMPLOYEE',
     type: 'ENTRY',
+    gate: 'Gate 1',
     time: '07:45 AM Today',
     status: 'VALID'
   },
@@ -149,6 +163,7 @@ const INITIAL_LOGS = [
     owner: 'Dr. Maria Santos',
     classification: 'VISITOR',
     type: 'ENTRY',
+    gate: 'Gate 1',
     time: '09:30 AM Today',
     status: 'VALID'
   },
@@ -159,6 +174,7 @@ const INITIAL_LOGS = [
     owner: 'LBC Express Courier',
     classification: 'VISITOR',
     type: 'EXIT',
+    gate: 'Gate 3',
     time: '10:15 AM Today',
     status: 'VALID'
   },
@@ -169,6 +185,7 @@ const INITIAL_LOGS = [
     owner: 'Chrizhel Anne Cuenco',
     classification: 'STUDENT',
     type: 'CHECK',
+    gate: 'Gate 2',
     time: '10:30 AM Today',
     status: 'VALID'
   }
@@ -223,6 +240,16 @@ export const PassProvider = ({ children }) => {
     const saved = localStorage.getItem('vpass_gate_logs');
     return saved ? JSON.parse(saved) : INITIAL_LOGS;
   });
+
+  // Guard Active Gate Shift Post (Gate 1, Gate 2, Gate 3, Gate 4)
+  const [activeGate, setActiveGateState] = useState(() => {
+    return localStorage.getItem('vpass_active_gate') || 'Gate 1';
+  });
+
+  const setActiveGate = (gate) => {
+    setActiveGateState(gate);
+    localStorage.setItem('vpass_active_gate', gate);
+  };
 
   // Sync to localStorage
   useEffect(() => {
@@ -377,6 +404,9 @@ export const PassProvider = ({ children }) => {
   // Add Gate Log (Records Employee Entry/Exit, Student Spot-Check, or Visitor Event)
   const addGateLog = (logData) => {
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const dateStr = new Date().toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    const gateStation = logData.gate || activeGate || 'Gate 1';
+
     const newLog = {
       id: Date.now(),
       passNumber: logData.passNumber,
@@ -384,7 +414,9 @@ export const PassProvider = ({ children }) => {
       owner: logData.owner,
       classification: logData.classification || 'EMPLOYEE',
       type: logData.type || 'ENTRY',
+      gate: gateStation,
       time: `${timeStr} Today`,
+      date: dateStr,
       status: logData.status || 'VALID'
     };
     setGateLogs(prev => [newLog, ...prev]);
@@ -401,6 +433,10 @@ export const PassProvider = ({ children }) => {
       ? 'Today • 11:59 PM (1 Day)' 
       : `${expiryDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} (${days} Days)`;
 
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const dateStr = new Date().toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    const currentPost = visitorForm.gate || activeGate || 'Gate 1';
+
     const newVisitor = {
       id: passId,
       name: visitorForm.name.trim(),
@@ -412,22 +448,27 @@ export const PassProvider = ({ children }) => {
       purpose: visitorForm.purpose,
       validDays: days,
       validUntil: expiryStr,
-      entryTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' Today',
+      entryGate: currentPost,
+      entryTime: `${timeStr} Today`,
+      entryDate: dateStr,
       status: 'INSIDE',
+      exitGate: null,
       exitTime: null,
+      exitDate: null,
       classification: 'VISITOR',
       qrData: `RSU-VPASS:${passId}:${visitorForm.plateNumber.trim().toUpperCase().replace(/\\s+/g, '')}:VISITOR`
     };
 
     setVisitorPasses(prev => [newVisitor, ...prev]);
 
-    // Also auto-record initial ENTRY log
+    // Also auto-record initial ENTRY log with active gate
     addGateLog({
       passNumber: newVisitor.id,
       plateNumber: newVisitor.plateNumber,
       owner: newVisitor.name,
       classification: 'VISITOR',
       type: 'ENTRY',
+      gate: currentPost,
       status: 'VALID'
     });
 
@@ -437,6 +478,8 @@ export const PassProvider = ({ children }) => {
   // Log Visitor Exit (1-tap Departure)
   const logVisitorExit = (idOrPlate) => {
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const dateStr = new Date().toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    const currentPost = activeGate || 'Gate 1';
     let visitorFound = null;
 
     setVisitorPasses(prev => prev.map(v => {
@@ -445,7 +488,9 @@ export const PassProvider = ({ children }) => {
         return {
           ...v,
           status: 'EXITED',
-          exitTime: `${timeStr} Today`
+          exitGate: currentPost,
+          exitTime: `${timeStr} Today`,
+          exitDate: dateStr
         };
       }
       return v;
@@ -458,6 +503,7 @@ export const PassProvider = ({ children }) => {
         owner: visitorFound.name,
         classification: 'VISITOR',
         type: 'EXIT',
+        gate: currentPost,
         status: 'VALID'
       });
     }
@@ -472,6 +518,7 @@ export const PassProvider = ({ children }) => {
       : `${expiryDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} (${days} Days)`;
 
     let renewedItem = null;
+    const currentPost = activeGate || 'Gate 1';
 
     setVisitorPasses(prev => prev.map(v => {
       if (v.id === idOrPlate || v.plateNumber === idOrPlate) {
@@ -480,7 +527,9 @@ export const PassProvider = ({ children }) => {
           validDays: days,
           validUntil: expiryStr,
           status: 'INSIDE',
+          exitGate: null,
           exitTime: null,
+          entryGate: currentPost,
           entryTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' Today'
         };
         return renewedItem;
@@ -495,6 +544,7 @@ export const PassProvider = ({ children }) => {
         owner: renewedItem.name,
         classification: 'VISITOR',
         type: 'ENTRY',
+        gate: currentPost,
         status: 'VALID'
       });
     }
@@ -515,10 +565,12 @@ export const PassProvider = ({ children }) => {
         submitReceiptPayment,
         visitorPasses,
         gateLogs,
+        activeGate,
+        setActiveGate,
+        CAMPUS_GATES,
         addGateLog,
         issueVisitorPass,
         logVisitorExit,
-        renewVisitorPass
       }}
     >
       {children}
