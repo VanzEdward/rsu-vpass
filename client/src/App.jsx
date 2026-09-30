@@ -18,6 +18,10 @@ import Payments from './pages/client/Payments';
 import Profile from './pages/client/Profile';
 
 import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminApplications from './pages/admin/AdminApplications';
+import AdminPasses from './pages/admin/AdminPasses';
+import AdminReports from './pages/admin/AdminReports';
+import AdminSettings from './pages/admin/AdminSettings';
 import GuardScanner from './pages/guard/GuardScanner';
 import { useAuth } from './context/AuthContext';
 
@@ -71,9 +75,10 @@ function AppRoutes() {
       >
         <Route index element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboard />} />
-        <Route path="applications" element={<AdminDashboard />} />
-        <Route path="passes" element={<AdminDashboard />} />
-        <Route path="reports" element={<AdminDashboard />} />
+        <Route path="applications" element={<AdminApplications />} />
+        <Route path="passes" element={<AdminPasses />} />
+        <Route path="reports" element={<AdminReports />} />
+        <Route path="settings" element={<AdminSettings />} />
       </Route>
 
       {/* Guard Security Gate Portal */}

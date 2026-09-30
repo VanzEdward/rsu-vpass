@@ -1,7 +1,7 @@
 import React from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { LayoutDashboard, FileCheck, Layers, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, FileCheck, Layers, BarChart3, Sliders } from 'lucide-react';
 
 export default function AdminLayout() {
   const navs = [
@@ -9,6 +9,7 @@ export default function AdminLayout() {
     { name: 'Application Reviews', path: '/admin/applications', icon: FileCheck },
     { name: 'Pass Management', path: '/admin/passes', icon: Layers },
     { name: 'Reports & Logs', path: '/admin/reports', icon: BarChart3 },
+    { name: 'System Settings', path: '/admin/settings', icon: Sliders },
   ];
 
   return (
