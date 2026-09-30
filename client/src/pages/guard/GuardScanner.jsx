@@ -506,9 +506,12 @@ export default function GuardScanner() {
                 </div>
               )}
 
-              {/* Viewfinder Reticle Overlay */}
-              <div className="absolute inset-8 border-2 border-emerald-400/70 rounded-2xl pointer-events-none flex items-center justify-center">
-                <div className="w-full h-0.5 bg-emerald-400/40 animate-pulse"></div>
+              {/* Viewfinder Target Framing Overlay (Clean Corner Brackets without middle line) */}
+              <div className="absolute inset-8 pointer-events-none">
+                <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-emerald-400 rounded-tl-xl"></div>
+                <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-emerald-400 rounded-tr-xl"></div>
+                <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-emerald-400 rounded-bl-xl"></div>
+                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-emerald-400 rounded-br-xl"></div>
               </div>
 
               {cameraError && (
