@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { usePass } from '../../context/PassContext';
 import { 
   Users, 
@@ -13,23 +14,42 @@ import {
   Check, 
   User, 
   Car, 
-  Receipt 
+  Receipt,
+  QrCode,
+  LogIn,
+  LogOut,
+  Calendar,
+  Building,
+  AlertCircle
 } from 'lucide-react';
 
 export default function AdminDashboard() {
-  const { applications, reviewApplication, vehicles } = usePass();
+  const { applications, reviewApplication, vehicles, visitorPasses, gateLogs } = usePass();
+  const location = useLocation();
 
+  // Determine view based on URL pathname: /admin/applications, /admin/passes, /admin/reports, or /admin/dashboard
+  const getInitialTab = () => {
+    if (location.pathname.includes('passes')) return 'passes';
+    if (location.pathname.includes('reports')) return 'reports';
+    if (location.pathname.includes('applications')) return 'applications';
+    return 'overview';
+  };
+
+  const [activeTab, setActiveTab] = useState(getInitialTab);
   const [selectedApp, setSelectedApp] = useState(null);
   const [rejectModalApp, setRejectModalApp] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [logFilter, setLogFilter] = useState('ALL');
 
-  const pendingApps = applications.filter((a) => a.status === 'PENDING');
-  const activePassesCount = applications.filter((a) => a.status === 'PASS_ISSUED').length;
+  const pendingApps = (applications || []).filter((a) => a.status === 'PENDING');
+  const activePasses = (applications || []).filter((a) => a.status === 'PASS_ISSUED' || a.pass);
+  const activeVisitors = (visitorPasses || []).filter((v) => v.status === 'INSIDE');
 
   const stats = [
     { label: 'Pending Reviews', count: pendingApps.length, icon: Clock, color: 'text-amber-700 bg-amber-50' },
-    { label: 'Active Passes Issued', count: activePassesCount, icon: Layers, color: 'text-emerald-700 bg-emerald-50' },
-    { label: 'Total Registered Vehicles', count: vehicles.length, icon: Car, color: 'text-slate-700 bg-slate-100' },
+    { label: 'Active Passes Issued', count: activePasses.length, icon: Layers, color: 'text-emerald-700 bg-emerald-50' },
+    { label: 'Visitors on Campus', count: activeVisitors.length, icon: Users, color: 'text-blue-700 bg-blue-50' },
+    { label: 'Total Gate Logs', count: (gateLogs || []).length, icon: ShieldCheck, color: 'text-indigo-700 bg-indigo-50' },
   ];
 
   const handleApprove = (appId) => {
@@ -50,119 +70,389 @@ export default function AdminDashboard() {
     alert('Application rejected with reason.');
   };
 
+  const filteredLogs = (gateLogs || []).filter(log => {
+    if (logFilter === 'ALL') return true;
+    return log.type === logFilter;
+  });
+
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 max-w-6xl pb-12">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-black text-slate-900">PASO Administrative Console</h1>
         <p className="text-xs text-slate-500 mt-1">
-          Milestone 2: Review student & employee vehicle applications, verify live camera photo identification, and approve or reject submissions.
+          Physical Assets and Security Office • Vehicle Clearance, Pass Issuance, Gate Audit Logs & Visitor Management
         </p>
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {stats.map((s, idx) => {
           const Icon = s.icon;
           return (
-            <div key={idx} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+            <div key={idx} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{s.label}</p>
-                <p className="text-3xl font-black text-slate-900 mt-1">{s.count}</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{s.label}</p>
+                <p className="text-2xl font-black text-slate-900 mt-0.5">{s.count}</p>
               </div>
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${s.color}`}>
-                <Icon className="w-6 h-6" />
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.color}`}>
+                <Icon className="w-5 h-5" />
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* Application Review Queue */}
-      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <div>
-            <h2 className="text-base font-bold text-slate-900">Vehicle Application Review Queue</h2>
-            <p className="text-xs text-slate-500">Examine applicant live photo, vehicle specifications, and uploaded OR/CR</p>
-          </div>
-          <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
-            {pendingApps.length} Pending Decision
-          </span>
-        </div>
+      {/* Sub-Navigation Tabs */}
+      <div className="flex border-b border-slate-200 space-x-2">
+        <button
+          onClick={() => setActiveTab('overview')}
+          className={`pb-3 px-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+            activeTab === 'overview'
+              ? 'border-emerald-600 text-emerald-700'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          Overview & Reviews ({pendingApps.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('passes')}
+          className={`pb-3 px-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+            activeTab === 'passes'
+              ? 'border-emerald-600 text-emerald-700'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          Pass Management ({activePasses.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('reports')}
+          className={`pb-3 px-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+            activeTab === 'reports'
+              ? 'border-emerald-600 text-emerald-700'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          Gate Audit Logs ({(gateLogs || []).length})
+        </button>
+        <button
+          onClick={() => setActiveTab('visitors')}
+          className={`pb-3 px-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+            activeTab === 'visitors'
+              ? 'border-emerald-600 text-emerald-700'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          Visitor Passes ({activeVisitors.length} Inside)
+        </button>
+      </div>
 
-        {pendingApps.length === 0 ? (
-          <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-            <CheckCircle className="w-8 h-8 text-emerald-600 mx-auto" />
-            <p className="text-xs font-bold text-slate-800">All Submitted Applications Reviewed!</p>
-            <p className="text-[11px] text-slate-500">
-              There are no pending registrations waiting in the queue right now.
-            </p>
+      {/* VIEW 1: Overview & Application Review Queue */}
+      {(activeTab === 'overview' || activeTab === 'applications') && (
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Vehicle Application Review Queue</h2>
+              <p className="text-xs text-slate-500">Examine applicant live photo, vehicle specifications, and uploaded OR/CR</p>
+            </div>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
+              {pendingApps.length} Pending Decision
+            </span>
           </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {pendingApps.map((app) => (
-              <div key={app.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-start space-x-3.5">
-                  {/* Photo ID preview */}
-                  {app.applicant_photo ? (
-                    <img
-                      src={app.applicant_photo}
-                      alt={app.applicant_name}
-                      className="w-12 h-16 rounded-xl object-cover border border-emerald-300 shadow-xs shrink-0"
-                    />
-                  ) : (
-                    <div className="w-12 h-16 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
-                      <User className="w-6 h-6" />
-                    </div>
-                  )}
 
-                  <div className="space-y-1">
-                    <div className="flex items-center space-x-2">
-                      <span className="font-mono font-bold text-xs text-emerald-700">{app.id}</span>
-                      <span className="text-xs text-slate-400">•</span>
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
-                        {app.classification}
-                      </span>
+          {pendingApps.length === 0 ? (
+            <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+              <CheckCircle className="w-8 h-8 text-emerald-600 mx-auto" />
+              <p className="text-xs font-bold text-slate-800">All Submitted Applications Reviewed!</p>
+              <p className="text-[11px] text-slate-500">
+                There are no pending registrations waiting in the queue right now.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {pendingApps.map((app) => (
+                <div key={app.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start space-x-3.5">
+                    {app.applicant_photo ? (
+                      <img
+                        src={app.applicant_photo}
+                        alt={app.applicant_name}
+                        className="w-12 h-16 rounded-xl object-cover border border-emerald-300 shadow-xs shrink-0"
+                      />
+                    ) : (
+                      <div className="w-12 h-16 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
+                        <User className="w-6 h-6" />
+                      </div>
+                    )}
+
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-mono font-bold text-xs text-emerald-700">{app.id}</span>
+                        <span className="text-xs text-slate-400">•</span>
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${
+                          (app.classification || '').toLowerCase() === 'employee'
+                            ? 'bg-blue-50 text-blue-800 border-blue-200'
+                            : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        }`}>
+                          {app.classification}
+                        </span>
+                      </div>
+                      <p className="text-sm font-bold text-slate-900">
+                        {app.applicant_name} <span className="font-normal text-xs text-slate-500">({app.school_id})</span>
+                      </p>
+                      <p className="text-xs text-slate-600">
+                        {app.vehicle.make} {app.vehicle.model} ({app.vehicle.year}) • Plate:{' '}
+                        <span className="font-mono font-bold text-slate-900">{app.vehicle.plateNumber}</span>
+                      </p>
                     </div>
-                    <p className="text-sm font-bold text-slate-900">
-                      {app.applicant_name} <span className="font-normal text-xs text-slate-500">({app.school_id})</span>
-                    </p>
-                    <p className="text-xs text-slate-600">
-                      {app.vehicle.make} {app.vehicle.model} ({app.vehicle.year}) • Plate:{' '}
-                      <span className="font-mono font-bold text-slate-900">{app.vehicle.plateNumber}</span>
-                    </p>
+                  </div>
+
+                  <div className="flex items-center space-x-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedApp(app)}
+                      className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center space-x-1 cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Review Details</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApprove(app.id)}
+                      className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold cursor-pointer shadow-xs"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRejectModalApp(app)}
+                      className="px-3.5 py-1.5 rounded-xl bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 text-xs font-semibold cursor-pointer"
+                    >
+                      Reject
+                    </button>
                   </div>
                 </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
-                <div className="flex items-center space-x-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedApp(app)}
-                    className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center space-x-1 cursor-pointer"
-                  >
-                    <Eye className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Review Details</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleApprove(app.id)}
-                    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold cursor-pointer shadow-xs"
-                  >
-                    Approve
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRejectModalApp(app)}
-                    className="px-3.5 py-1.5 rounded-xl bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 text-xs font-semibold cursor-pointer"
-                  >
-                    Reject
-                  </button>
-                </div>
-              </div>
-            ))}
+      {/* VIEW 2: Pass Management (Active Student & Employee Passes) */}
+      {activeTab === 'passes' && (
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Official Pass Management</h2>
+              <p className="text-xs text-slate-500">Registered student & employee vehicles with active QR gate clearance</p>
+            </div>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+              {activePasses.length} Active Passes
+            </span>
           </div>
-        )}
-      </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-600">
+                  <th className="py-2.5 px-3 font-bold">Pass #</th>
+                  <th className="py-2.5 px-3 font-bold">Owner & Classification</th>
+                  <th className="py-2.5 px-3 font-bold">Plate Number</th>
+                  <th className="py-2.5 px-3 font-bold">Vehicle Specs</th>
+                  <th className="py-2.5 px-3 font-bold">Valid Until</th>
+                  <th className="py-2.5 px-3 font-bold">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {activePasses.map((app) => (
+                  <tr key={app.id} className="hover:bg-slate-50/80">
+                    <td className="py-3 px-3 font-mono font-bold text-emerald-700">
+                      {app.pass?.passNumber || 'N/A'}
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="font-bold text-slate-900">{app.applicant_name}</div>
+                      <div className="flex items-center space-x-1.5 mt-0.5">
+                        <span className={`text-[9px] font-bold uppercase px-1.5 py-0.2 rounded border ${
+                          (app.classification || '').toLowerCase() === 'employee'
+                            ? 'bg-blue-50 text-blue-800 border-blue-200'
+                            : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        }`}>
+                          {app.classification}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono">({app.school_id})</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-3 font-mono font-black text-slate-900">
+                      {app.vehicle?.plateNumber}
+                    </td>
+                    <td className="py-3 px-3">
+                      {app.vehicle?.make} {app.vehicle?.model} ({app.vehicle?.color})
+                    </td>
+                    <td className="py-3 px-3 text-slate-600">
+                      {app.pass?.validUntil || 'Dec 31, 2026'}
+                    </td>
+                    <td className="py-3 px-3">
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                        ACTIVE
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 3: Gate Audit Logs (Employee Entry/Exit & Student Spot-Checks) */}
+      {activeTab === 'reports' && (
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Gate Security & Access Logs</h2>
+              <p className="text-xs text-slate-500">Live feed from security gate scanners recording employee movements, spot-checks & visitor entries</p>
+            </div>
+            
+            <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl">
+              {['ALL', 'ENTRY', 'EXIT', 'CHECK'].map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setLogFilter(f)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    logFilter === f ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-600">
+                  <th className="py-2.5 px-3 font-bold">Event</th>
+                  <th className="py-2.5 px-3 font-bold">Plate Number</th>
+                  <th className="py-2.5 px-3 font-bold">Vehicle Owner / Driver</th>
+                  <th className="py-2.5 px-3 font-bold">Classification</th>
+                  <th className="py-2.5 px-3 font-bold">Timestamp</th>
+                  <th className="py-2.5 px-3 font-bold">Verification</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {filteredLogs.map((log) => (
+                  <tr key={log.id} className="hover:bg-slate-50/80">
+                    <td className="py-3 px-3">
+                      <span className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                        log.type === 'ENTRY'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : log.type === 'EXIT'
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {log.type === 'ENTRY' && <LogIn className="w-3 h-3 mr-0.5" />}
+                        {log.type === 'EXIT' && <LogOut className="w-3 h-3 mr-0.5" />}
+                        {log.type === 'CHECK' && <Eye className="w-3 h-3 mr-0.5" />}
+                        <span>{log.type}</span>
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 font-mono font-black text-slate-900">
+                      {log.plateNumber}
+                    </td>
+                    <td className="py-3 px-3 font-semibold text-slate-800">
+                      {log.owner}
+                    </td>
+                    <td className="py-3 px-3">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                        log.classification === 'EMPLOYEE'
+                          ? 'bg-blue-50 text-blue-800 border-blue-200'
+                          : log.classification === 'VISITOR'
+                          ? 'bg-purple-50 text-purple-800 border-purple-200'
+                          : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      }`}>
+                        {log.classification}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-slate-500 font-medium">
+                      {log.time}
+                    </td>
+                    <td className="py-3 px-3">
+                      <span className="text-[10px] font-bold text-emerald-700 flex items-center space-x-1">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        <span>{log.status}</span>
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 4: Campus Visitor Passes Management */}
+      {activeTab === 'visitors' && (
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Digital Temporary Visitor Passes</h2>
+              <p className="text-xs text-slate-500">Real-time status of guests, delivery couriers, and event delegates inside Romblon State University</p>
+            </div>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+              {activeVisitors.length} Currently Inside
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-600">
+                  <th className="py-2.5 px-3 font-bold">Pass ID</th>
+                  <th className="py-2.5 px-3 font-bold">Visitor & ID Presented</th>
+                  <th className="py-2.5 px-3 font-bold">Plate & Vehicle</th>
+                  <th className="py-2.5 px-3 font-bold">Campus Destination</th>
+                  <th className="py-2.5 px-3 font-bold">Validity</th>
+                  <th className="py-2.5 px-3 font-bold">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {(visitorPasses || []).map((v) => (
+                  <tr key={v.id} className="hover:bg-slate-50/80">
+                    <td className="py-3 px-3 font-mono font-bold text-blue-700">
+                      {v.id}
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="font-bold text-slate-900">{v.name}</div>
+                      <div className="text-[10px] text-slate-400">{v.idPresented} • {v.contact}</div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="font-mono font-black text-slate-900">{v.plateNumber}</div>
+                      <div className="text-[10px] text-slate-500">{v.vehicleType}</div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="font-semibold text-slate-800">{v.destination}</div>
+                      <div className="text-[10px] text-slate-400">{v.purpose}</div>
+                    </td>
+                    <td className="py-3 px-3 text-slate-600 font-medium">
+                      {v.validUntil}
+                    </td>
+                    <td className="py-3 px-3">
+                      <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                        v.status === 'INSIDE'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {v.status === 'INSIDE' ? 'INSIDE CAMPUS' : 'DEPARTED'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Comprehensive Application Review Modal */}
       {selectedApp && (

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { usePass } from '../../context/PassContext';
 import { 
   Camera, 
   Search, 
@@ -14,8 +15,8 @@ import {
   RotateCcw,
   Volume2,
   VolumeX,
-  User,
-  Car,
+  User, 
+  Car, 
   AlertTriangle,
   ArrowRight,
   QrCode,
@@ -34,6 +35,16 @@ import {
 } from 'lucide-react';
 
 export default function GuardScanner() {
+  const { 
+    applications, 
+    visitorPasses: visitors, 
+    gateLogs: logs, 
+    addGateLog, 
+    issueVisitorPass, 
+    logVisitorExit, 
+    renewVisitorPass 
+  } = usePass();
+
   const [activeTab, setActiveTab] = useState('scan'); // 'scan' | 'search' | 'visitor' | 'logs'
   const [searchQuery, setSearchQuery] = useState('');
   const [searchClassification, setSearchClassification] = useState('ALL'); // 'ALL' | 'STUDENT' | 'EMPLOYEE' | 'VISITOR'
@@ -63,95 +74,6 @@ export default function GuardScanner() {
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
-
-  // Active and past visitors repository
-  const [visitors, setVisitors] = useState([
-    {
-      id: 'TMP-2026-0042',
-      name: 'Dr. Maria Santos',
-      contact: '+63 917 888 1234',
-      idPresented: 'PRC License #0129841',
-      plateNumber: 'NBM 9012',
-      vehicleType: 'Sedan (Silver Vios)',
-      destination: 'Office of the President (Admin Bldg)',
-      purpose: 'Guest Lecturer / Meeting',
-      validDays: 1,
-      validUntil: 'Today • 11:59 PM (1 Day)',
-      entryTime: '09:30 AM Today',
-      status: 'INSIDE', // 'INSIDE' | 'EXITED'
-      exitTime: null,
-      classification: 'VISITOR',
-      qrData: 'RSU-VPASS:TMP-2026-0042:NBM9012:VISITOR'
-    },
-    {
-      id: 'TMP-2026-0038',
-      name: 'Engr. Carlos Mendoza (Delegate)',
-      contact: '+63 919 555 4321',
-      idPresented: "Driver's License #N02-18-99999",
-      plateNumber: 'ABC 5678',
-      vehicleType: 'SUV (White Fortuner)',
-      destination: 'College of Engineering & Technology (CET)',
-      purpose: 'Regional IT Conference Delegate',
-      validDays: 3,
-      validUntil: 'Sept 26, 2026 • 11:59 PM (3 Days)',
-      entryTime: 'Yesterday • 08:15 AM',
-      status: 'INSIDE',
-      exitTime: null,
-      classification: 'VISITOR',
-      qrData: 'RSU-VPASS:TMP-2026-0038:ABC5678:VISITOR'
-    },
-    {
-      id: 'TMP-2026-0029',
-      name: 'LBC Express Courier (Delivery)',
-      contact: '+63 920 111 2233',
-      idPresented: 'Company ID #LBC-8891',
-      plateNumber: 'XYZ 9921',
-      vehicleType: 'Delivery Van',
-      destination: 'Supply & Property Office',
-      purpose: 'Parcel / Document Delivery',
-      validDays: 1,
-      validUntil: 'Expired (Yesterday)',
-      entryTime: 'Yesterday • 02:10 PM',
-      status: 'EXITED',
-      exitTime: 'Yesterday • 02:45 PM',
-      classification: 'VISITOR',
-      qrData: 'RSU-VPASS:TMP-2026-0029:XYZ9921:VISITOR'
-    }
-  ]);
-
-  // Initial demonstration gate logs
-  const [logs, setLogs] = useState([
-    {
-      id: 1,
-      passNumber: 'VP-2026-0001',
-      plateNumber: 'XYZ 5678',
-      owner: 'Prof. Juan Dela Cruz',
-      classification: 'EMPLOYEE',
-      type: 'ENTRY',
-      time: '10:45 AM Today',
-      status: 'VALID'
-    },
-    {
-      id: 2,
-      passNumber: 'TMP-2026-0042',
-      plateNumber: 'NBM 9012',
-      owner: 'Dr. Maria Santos (Visitor)',
-      classification: 'VISITOR',
-      type: 'ENTRY',
-      time: '09:30 AM Today',
-      status: 'VALID'
-    },
-    {
-      id: 3,
-      passNumber: 'VP-2026-0001',
-      plateNumber: 'XYZ 5678',
-      owner: 'Prof. Juan Dela Cruz',
-      classification: 'EMPLOYEE',
-      type: 'EXIT',
-      time: '08:15 AM Today',
-      status: 'VALID'
-    }
-  ]);
 
   // Web Audio API beep feedback
   const playBeep = (isSuccess = true) => {
@@ -303,6 +225,65 @@ export default function GuardScanner() {
     const q = (query || searchQuery).trim().toLowerCase();
     if (!q) return;
 
+    // 1. Search in registered applications (passes)
+    const matchingApp = (applications || []).find(a => {
+      const matchPlate = a.vehicle?.plateNumber?.toLowerCase().includes(q);
+      const matchName = a.applicant_name?.toLowerCase().includes(q);
+      const matchId = a.school_id?.toLowerCase().includes(q);
+      const matchPass = a.pass?.passNumber?.toLowerCase().includes(q);
+      return matchPlate || matchName || matchId || matchPass;
+    });
+
+    // 2. Search in temporary visitor passes
+    const matchingVisitor = (visitors || []).find(v => {
+      const matchPlate = v.plateNumber?.toLowerCase().includes(q);
+      const matchName = v.name?.toLowerCase().includes(q);
+      const matchId = v.id?.toLowerCase().includes(q);
+      return matchPlate || matchName || matchId;
+    });
+
+    if (matchingApp && matchingApp.pass) {
+      const isEmployee = (matchingApp.classification || '').toUpperCase() === 'EMPLOYEE';
+      playBeep(true);
+      triggerHaptic(true);
+      setVerifiedPass({
+        passNumber: matchingApp.pass.passNumber,
+        client: matchingApp.applicant_name,
+        schoolId: matchingApp.school_id,
+        classification: isEmployee ? 'EMPLOYEE' : 'STUDENT',
+        vehicle: `${matchingApp.vehicle.make} ${matchingApp.vehicle.model}`,
+        plateNumber: matchingApp.vehicle.plateNumber,
+        vehicleType: matchingApp.vehicle.type,
+        color: matchingApp.vehicle.color,
+        validUntil: matchingApp.pass.validUntil,
+        status: matchingApp.pass.status,
+        isValid: matchingApp.pass.status === 'ACTIVE',
+        department: matchingApp.department
+      });
+      return;
+    }
+
+    if (matchingVisitor) {
+      playBeep(true);
+      triggerHaptic(true);
+      setVerifiedPass({
+        passNumber: matchingVisitor.id,
+        client: matchingVisitor.name,
+        schoolId: `VISITOR (${matchingVisitor.idPresented})`,
+        classification: 'VISITOR',
+        vehicle: matchingVisitor.vehicleType,
+        plateNumber: matchingVisitor.plateNumber,
+        vehicleType: matchingVisitor.vehicleType,
+        color: 'N/A',
+        validUntil: matchingVisitor.validUntil,
+        status: matchingVisitor.status === 'INSIDE' ? 'INSIDE' : 'EXITED',
+        isValid: true,
+        department: `Destination: ${matchingVisitor.destination}`
+      });
+      return;
+    }
+
+    // Fallback demo matching
     if (q.includes('nbm') || q.includes('santos') || q.includes('visitor') || q.includes('tmp')) {
       handleScanPass('VISITOR_PASS');
     } else if (q.includes('xyz') || q.includes('juan') || q.includes('emp')) {
@@ -320,32 +301,17 @@ export default function GuardScanner() {
     triggerHaptic(true);
     playBeep(true);
 
-    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const newLog = {
-      id: Date.now(),
+    addGateLog({
       passNumber: verifiedPass.passNumber,
       plateNumber: verifiedPass.plateNumber,
       owner: verifiedPass.client,
       classification: verifiedPass.classification || 'EMPLOYEE',
       type,
-      time: `${timeStr} Today`,
       status: verifiedPass.isValid ? 'VALID' : 'INVALID'
-    };
+    });
 
-    setLogs([newLog, ...logs]);
-
-    // If it's a visitor, update their campus status
-    if (verifiedPass.classification === 'VISITOR') {
-      setVisitors(prev => prev.map(v => {
-        if (v.plateNumber === verifiedPass.plateNumber || v.id === verifiedPass.passNumber) {
-          return {
-            ...v,
-            status: type === 'ENTRY' ? 'INSIDE' : 'EXITED',
-            exitTime: type === 'EXIT' ? `${timeStr} Today` : v.exitTime
-          };
-        }
-        return v;
-      }));
+    if (verifiedPass.classification === 'VISITOR' && type === 'EXIT') {
+      logVisitorExit(verifiedPass.passNumber || verifiedPass.plateNumber);
     }
 
     setLogSuccessMessage(`${type} recorded for ${verifiedPass.plateNumber} (${verifiedPass.client})!`);
@@ -361,57 +327,14 @@ export default function GuardScanner() {
       return;
     }
 
-    const passId = `TMP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-    const days = parseInt(visitorForm.validityDuration, 10) || 1;
-    const expiryDate = new Date();
-    expiryDate.setDate(expiryDate.getDate() + (days - 1));
-    const expiryStr = days === 1 
-      ? 'Today • 11:59 PM (1 Day)' 
-      : `${expiryDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} (${days} Days)`;
-
-    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const formattedPlate = visitorForm.plateNumber.toUpperCase().trim();
-
-    const newVisitor = {
-      id: passId,
-      name: visitorForm.name.trim(),
-      contact: visitorForm.contact.trim() || 'N/A',
-      idPresented: visitorForm.idPresented || "Valid Government ID",
-      plateNumber: formattedPlate,
-      vehicleType: visitorForm.vehicleType,
-      destination: visitorForm.destination,
-      purpose: visitorForm.purpose,
-      validDays: days,
-      validUntil: expiryStr,
-      entryTime: `${timeStr} Today`,
-      status: 'INSIDE',
-      exitTime: null,
-      classification: 'VISITOR',
-      qrData: `RSU-VPASS:${passId}:${formattedPlate}:VISITOR`
-    };
-
-    setVisitors([newVisitor, ...visitors]);
-
-    // Automatically log ENTRY in gate logs
-    const newLog = {
-      id: Date.now(),
-      passNumber: passId,
-      plateNumber: formattedPlate,
-      owner: `${newVisitor.name} (Visitor)`,
-      classification: 'VISITOR',
-      type: 'ENTRY',
-      time: `${timeStr} Today`,
-      status: 'VALID'
-    };
-    setLogs([newLog, ...logs]);
-
+    const newVisitor = issueVisitorPass(visitorForm);
     playBeep(true);
     triggerHaptic(true);
 
     // Open Digital Pass Card Modal for screenshotting
     setSelectedVisitorModal(newVisitor);
 
-    setLogSuccessMessage(`Visitor Pass ${passId} issued & ENTRY logged for ${formattedPlate}!`);
+    setLogSuccessMessage(`Visitor Pass ${newVisitor.id} issued & ENTRY logged for ${newVisitor.plateNumber}!`);
     setTimeout(() => setLogSuccessMessage(''), 3500);
 
     // Reset Form
@@ -439,42 +362,18 @@ export default function GuardScanner() {
       vehicleType: visitor.vehicleType,
       destination: visitor.destination,
       purpose: visitor.purpose,
-      validityDuration: '1'
+      validityDuration: String(visitor.validDays || '1')
     });
     setVisitorSubTab('new');
   };
 
   // Quick 1-tap exit for active visitor
   const handleVisitorQuickExit = (visitorId) => {
-    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    let exitedVisitor = null;
-
-    setVisitors(prev => prev.map(v => {
-      if (v.id === visitorId) {
-        exitedVisitor = v;
-        return { ...v, status: 'EXITED', exitTime: `${timeStr} Today` };
-      }
-      return v;
-    }));
-
-    if (exitedVisitor) {
-      const exitLog = {
-        id: Date.now(),
-        passNumber: exitedVisitor.id,
-        plateNumber: exitedVisitor.plateNumber,
-        owner: `${exitedVisitor.name} (Visitor)`,
-        classification: 'VISITOR',
-        type: 'EXIT',
-        time: `${timeStr} Today`,
-        status: 'VALID'
-      };
-      setLogs([exitLog, ...logs]);
-
-      playBeep(true);
-      triggerHaptic(true);
-      setLogSuccessMessage(`EXIT logged for Visitor ${exitedVisitor.plateNumber} (${exitedVisitor.name})!`);
-      setTimeout(() => setLogSuccessMessage(''), 3500);
-    }
+    logVisitorExit(visitorId);
+    playBeep(true);
+    triggerHaptic(true);
+    setLogSuccessMessage(`EXIT logged for Visitor Pass ${visitorId}!`);
+    setTimeout(() => setLogSuccessMessage(''), 3500);
   };
 
   // Copy Pass text
