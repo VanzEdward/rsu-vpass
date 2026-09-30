@@ -4,9 +4,31 @@ import pool from '../config/db.js';
 
 export const register = async (req, res) => {
   try {
-    const { school_id, email, password, full_name, contact_number } = req.body;
-    if (!school_id || !email || !password || !full_name) {
-      return res.status(400).json({ message: 'All required fields must be filled' });
+    const { 
+      school_id, 
+      email, 
+      password, 
+      full_name, 
+      contact_number,
+      first_name,
+      last_name,
+      middle_name,
+      age,
+      current_address,
+      permanent_address,
+      drivers_license_no,
+      classification = 'STUDENT',
+      year_course,
+      department_unit,
+      emergency_name,
+      emergency_relation,
+      emergency_phone
+    } = req.body;
+
+    const computedFullName = full_name || [first_name, middle_name, last_name].filter(Boolean).join(' ');
+
+    if (!school_id || !email || !password || !computedFullName) {
+      return res.status(400).json({ message: 'Identification Card No., Email, Password, and Full Name are required.' });
     }
 
     // Check if user exists
@@ -15,16 +37,75 @@ export const register = async (req, res) => {
       [school_id, email]
     );
     if (existing.length > 0) {
-      return res.status(409).json({ message: 'School ID or Email is already registered' });
+      return res.status(409).json({ message: 'Identification Card No. or Email is already registered.' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const [result] = await pool.query(
-      'INSERT INTO users (school_id, email, password, full_name, role, contact_number) VALUES (?, ?, ?, ?, ?, ?)',
-      [school_id, email, hashedPassword, full_name, 'CLIENT', contact_number || null]
+      `INSERT INTO users (
+        school_id, email, password, full_name, role, contact_number,
+        first_name, last_name, middle_name, age, current_address, permanent_address,
+        drivers_license_no, classification, year_course, department_unit,
+        emergency_name, emergency_relation, emergency_phone
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        school_id, 
+        email, 
+        hashedPassword, 
+        computedFullName, 
+        'CLIENT', 
+        contact_number || null,
+        first_name || null,
+        last_name || null,
+        middle_name || null,
+        age ? Number(age) : null,
+        current_address || null,
+        permanent_address || null,
+        drivers_license_no || null,
+        classification,
+        year_course || null,
+        department_unit || null,
+        emergency_name || null,
+        emergency_relation || null,
+        emergency_phone || null
+      ]
     );
 
-    res.status(201).json({ message: 'User registered successfully', userId: result.insertId });
+    const newUser = {
+      id: result.insertId,
+      school_id,
+      email,
+      full_name: computedFullName,
+      first_name: first_name || null,
+      last_name: last_name || null,
+      middle_name: middle_name || null,
+      role: 'CLIENT',
+      contact_number: contact_number || null,
+      photo_url: null,
+      age: age ? Number(age) : null,
+      current_address: current_address || null,
+      permanent_address: permanent_address || null,
+      drivers_license_no: drivers_license_no || null,
+      classification,
+      year_course: year_course || null,
+      department_unit: department_unit || null,
+      emergency_name: emergency_name || null,
+      emergency_relation: emergency_relation || null,
+      emergency_phone: emergency_phone || null
+    };
+
+    const token = jwt.sign(
+      { id: newUser.id, school_id: newUser.school_id, email: newUser.email, role: newUser.role, full_name: newUser.full_name },
+      process.env.JWT_SECRET || 'rsu_vpass_super_secret_jwt_token_2026_romblon',
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
+
+    res.status(201).json({ 
+      message: 'Account successfully created and enrolled in RSU VPASS!', 
+      userId: result.insertId,
+      user: newUser,
+      token
+    });
   } catch (error) {
     res.status(500).json({ message: 'Registration failed', error: error.message });
   }
@@ -65,8 +146,22 @@ export const login = async (req, res) => {
         school_id: user.school_id,
         email: user.email,
         full_name: user.full_name,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        middle_name: user.middle_name,
         role: user.role,
-        photo_url: user.photo_url
+        contact_number: user.contact_number,
+        photo_url: user.photo_url,
+        age: user.age,
+        current_address: user.current_address,
+        permanent_address: user.permanent_address,
+        drivers_license_no: user.drivers_license_no,
+        classification: user.classification || 'STUDENT',
+        year_course: user.year_course,
+        department_unit: user.department_unit,
+        emergency_name: user.emergency_name,
+        emergency_relation: user.emergency_relation,
+        emergency_phone: user.emergency_phone
       }
     });
   } catch (error) {
@@ -76,7 +171,7 @@ export const login = async (req, res) => {
 
 export const getProfile = async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, school_id, email, full_name, role, contact_number, photo_url FROM users WHERE id = ?', [req.user.id]);
+    const [rows] = await pool.query('SELECT id, school_id, email, full_name, first_name, last_name, middle_name, role, contact_number, photo_url, age, current_address, permanent_address, drivers_license_no, classification, year_course, department_unit, emergency_name, emergency_relation, emergency_phone FROM users WHERE id = ?', [req.user.id]);
     if (rows.length === 0) return res.status(404).json({ message: 'User not found' });
     res.json(rows[0]);
   } catch (error) {

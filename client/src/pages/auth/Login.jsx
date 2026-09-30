@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiRequest } from '../../api/client';
-import { ShieldCheck, ArrowRight, UserCheck, ShieldAlert, KeyRound } from 'lucide-react';
+import { ShieldCheck, ArrowRight, UserCheck, ShieldAlert, KeyRound, UserPlus } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -117,6 +117,21 @@ export default function Login() {
               <ArrowRight className="w-4 h-4 text-emerald-200" />
             </button>
           </form>
+
+          {/* New Account Registration Callout */}
+          <div className="mt-5 p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 text-center">
+            <p className="text-xs text-slate-700 font-medium">
+              Don't have an account yet?
+            </p>
+            <Link
+              to="/register"
+              className="mt-1.5 inline-flex items-center space-x-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 hover:underline"
+            >
+              <UserPlus className="w-4 h-4 text-emerald-600" />
+              <span>Fill Out Vehicle Gate Pass Registration Form</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
 
           {/* Quick Demo Switcher */}
           <div className="mt-6 pt-5 border-t border-slate-100">

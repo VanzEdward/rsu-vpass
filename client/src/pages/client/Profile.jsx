@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { usePass } from '../../context/PassContext';
 import CameraCaptureModal from '../../components/CameraCaptureModal';
@@ -40,11 +40,23 @@ export default function Profile() {
   // Edit Contact Information State
   const [isEditingContact, setIsEditingContact] = useState(false);
   const [contactForm, setContactForm] = useState({
-    contact_number: user?.contact_number || '+63 912 345 6789',
-    emergency_name: user?.emergency_name || 'Maria Dela Cruz',
-    emergency_phone: user?.emergency_phone || '+63 918 765 4321',
-    emergency_relation: user?.emergency_relation || 'Mother / Guardian',
+    contact_number: user?.contact_number || '',
+    emergency_name: user?.emergency_name || '',
+    emergency_phone: user?.emergency_phone || '',
+    emergency_relation: user?.emergency_relation || '',
   });
+
+  useEffect(() => {
+    if (user) {
+      setContactForm({
+        contact_number: user.contact_number || '',
+        emergency_name: user.emergency_name || '',
+        emergency_phone: user.emergency_phone || '',
+        emergency_relation: user.emergency_relation || '',
+      });
+    }
+  }, [user]);
+
   const [contactSavedAlert, setContactSavedAlert] = useState(false);
 
   // Change Password Modal State
@@ -235,14 +247,18 @@ export default function Profile() {
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                   <h2 className="text-2xl font-black text-slate-900">{user?.full_name || 'Juan Dela Cruz'}</h2>
                   <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                    {user?.role === 'PASO_ADMIN'
+                    {user?.classification === 'EMPLOYEE'
+                      ? 'RSU Employee'
+                      : user?.role === 'PASO_ADMIN'
                       ? 'PASO Administrator'
                       : user?.role === 'GUARD'
                       ? 'Gate Security'
-                      : 'Client / Student'}
+                      : 'RSU Student'}
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">College of Engineering and Technology • BS Information Technology</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  {user?.year_course || user?.department_unit || (user?.classification === 'EMPLOYEE' ? 'RSU University Personnel' : 'College of Engineering and Technology • BS Information Technology')}
+                </p>
               </div>
 
               {/* School ID Badge with Copy */}
@@ -439,37 +455,69 @@ export default function Profile() {
                 <Building className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-900">Institutional Records</h3>
-                <p className="text-[11px] text-slate-500">Official RSU academic and administrative affiliation</p>
+                <h3 className="text-sm font-bold text-slate-900">Vehicle Passholder Registration Records</h3>
+                <p className="text-[11px] text-slate-500">Official RSU gate pass enrollment information</p>
               </div>
             </div>
 
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
-                <span className="text-slate-400 block font-semibold text-[11px]">University Email</span>
-                <span className="font-semibold text-slate-800 mt-0.5 block truncate">
-                  {user?.email || 'juan.delacruz@rsu.edu.ph'}
+                <span className="text-slate-400 block font-semibold text-[11px]">Passholder Classification</span>
+                <span className="font-bold text-slate-800 mt-0.5 block">
+                  {user?.classification === 'EMPLOYEE' ? 'University Employee (Faculty/Staff)' : 'Enrolled Student'}
                 </span>
               </div>
 
               <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
-                <span className="text-slate-400 block font-semibold text-[11px]">School ID</span>
-                <span className="font-mono font-semibold text-slate-800 mt-0.5 block">
+                <span className="text-slate-400 block font-semibold text-[11px]">Identification Card No.</span>
+                <span className="font-mono font-bold text-slate-800 mt-0.5 block">
                   {user?.school_id || '2026-00001'}
                 </span>
               </div>
 
               <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 sm:col-span-2">
-                <span className="text-slate-400 block font-semibold text-[11px]">College / Division</span>
+                <span className="text-slate-400 block font-semibold text-[11px]">
+                  {user?.classification === 'EMPLOYEE' ? 'Department / Office Unit' : 'Academic Program & Year Level'}
+                </span>
                 <span className="font-semibold text-slate-800 mt-0.5 block">
-                  College of Engineering and Technology (CET)
+                  {user?.year_course || user?.department_unit || 'College of Engineering and Technology (CET) • BS Information Technology'}
+                </span>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                <span className="text-slate-400 block font-semibold text-[11px]">Driver's License No.</span>
+                <span className="font-mono font-bold text-slate-800 mt-0.5 block uppercase">
+                  {user?.drivers_license_no || 'D02-24-123456'}
+                </span>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                <span className="text-slate-400 block font-semibold text-[11px]">Age</span>
+                <span className="font-semibold text-slate-800 mt-0.5 block">
+                  {user?.age ? `${user.age} years old` : '21 years old'}
                 </span>
               </div>
 
               <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 sm:col-span-2">
-                <span className="text-slate-400 block font-semibold text-[11px]">Designated Campus</span>
+                <span className="text-slate-400 block font-semibold text-[11px]">Current Address (Odiongan)</span>
+                <span className="font-medium text-slate-800 mt-0.5 block">
+                  {user?.current_address || 'Brgy. Liwanag, Odiongan, Romblon'}
+                </span>
+              </div>
+
+              {user?.permanent_address && (
+                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 sm:col-span-2">
+                  <span className="text-slate-400 block font-semibold text-[11px]">Permanent Address</span>
+                  <span className="font-medium text-slate-800 mt-0.5 block">
+                    {user?.permanent_address}
+                  </span>
+                </div>
+              )}
+
+              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 sm:col-span-2">
+                <span className="text-slate-400 block font-semibold text-[11px]">Designated Campus Gate</span>
                 <span className="font-semibold text-slate-800 mt-0.5 block">
-                  RSU Main Campus • Liwanag, Odiongan, Romblon
+                  RSU Main Campus • Gate 1 National Highway Entrance
                 </span>
               </div>
             </div>

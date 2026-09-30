@@ -10,6 +10,7 @@ import GuardLayout from './layouts/GuardLayout';
 
 // Pages
 import Login from './pages/auth/Login';
+import Register from './pages/auth/Register';
 import Dashboard from './pages/client/Dashboard';
 import MyVehicle from './pages/client/MyVehicle';
 import VehiclePass from './pages/client/VehiclePass';
@@ -44,6 +45,7 @@ function AppRoutes() {
     <Routes>
       {/* Public / Auth */}
       <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
       <Route path="/" element={<Navigate to="/login" replace />} />
 
       {/* Client Portal */}
