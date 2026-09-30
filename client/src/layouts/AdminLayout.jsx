@@ -1,13 +1,14 @@
 import React from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { LayoutDashboard, FileCheck, Layers, BarChart3, Sliders } from 'lucide-react';
+import { LayoutDashboard, FileCheck, Layers, BarChart3, Sliders, ShieldCheck } from 'lucide-react';
 
 export default function AdminLayout() {
   const navs = [
     { name: 'Dashboard Overview', path: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Application Reviews', path: '/admin/applications', icon: FileCheck },
     { name: 'Pass Management', path: '/admin/passes', icon: Layers },
+    { name: 'Security Guards', path: '/admin/guards', icon: ShieldCheck },
     { name: 'Reports & Logs', path: '/admin/reports', icon: BarChart3 },
     { name: 'System Settings', path: '/admin/settings', icon: Sliders },
   ];

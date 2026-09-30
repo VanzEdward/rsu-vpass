@@ -119,18 +119,21 @@ export default function Login() {
           </form>
 
           {/* New Account Registration Callout */}
-          <div className="mt-5 p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 text-center">
+          <div className="mt-5 p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 text-center space-y-1">
             <p className="text-xs text-slate-700 font-medium">
-              Don't have an account yet?
+              Student or University Employee?
             </p>
             <Link
               to="/register"
-              className="mt-1.5 inline-flex items-center space-x-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 hover:underline"
+              className="mt-1 inline-flex items-center space-x-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 hover:underline"
             >
               <UserPlus className="w-4 h-4 text-emerald-600" />
               <span>Fill Out Vehicle Gate Pass Registration Form</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
+            <p className="text-[10px] text-slate-400 pt-1 border-t border-emerald-100">
+              Note: Security Guard credentials are provisioned exclusively by PASO Admin.
+            </p>
           </div>
 
           {/* Quick Demo Switcher */}

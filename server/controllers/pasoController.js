@@ -101,3 +101,221 @@ export const recordPayment = async (req, res) => {
     res.status(500).json({ message: 'Failed to record payment', error: error.message });
   }
 };
+
+// Get all Security Guard accounts
+export const getGuards = async (req, res) => {
+  try {
+    const [guards] = await pool.query(`
+      SELECT 
+        id, school_id, email, full_name, first_name, last_name, middle_name, 
+        contact_number, role, created_at, updated_at
+      FROM users 
+      WHERE role = 'GUARD'
+      ORDER BY created_at DESC
+    `);
+    res.json(guards);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching guards', error: error.message });
+  }
+};
+
+// Provision new Security Guard account (PASO Admin only)
+export const createGuard = async (req, res) => {
+  try {
+    const { 
+      last_name, 
+      first_name, 
+      middle_name, 
+      school_id, 
+      email, 
+      contact_number, 
+      password 
+    } = req.body;
+
+    if (!last_name || !first_name || !school_id || !email || !password) {
+      return res.status(400).json({ 
+        message: 'Last Name, First Name, Guard Badge/ID No., Email, and Password are required.' 
+      });
+    }
+
+    // Format Full Name strictly as: LAST NAME, FIRST NAME, M.I.
+    const cleanLast = last_name.trim();
+    const cleanFirst = first_name.trim();
+    const cleanMI = middle_name ? middle_name.trim().toUpperCase() : '';
+    const formattedMI = cleanMI ? (cleanMI.endsWith('.') ? cleanMI : `${cleanMI}.`) : '';
+    const fullName = formattedMI 
+      ? `${cleanLast}, ${cleanFirst} ${formattedMI}`
+      : `${cleanLast}, ${cleanFirst}`;
+
+    // Check if school_id or email already exists
+    const [existing] = await pool.query(
+      'SELECT id FROM users WHERE school_id = ? OR email = ?',
+      [school_id.trim(), email.trim()]
+    );
+
+    if (existing.length > 0) {
+      return res.status(409).json({ 
+        message: 'A user with this Guard Badge ID or Email already exists.' 
+      });
+    }
+
+    // Dynamically import bcryptjs if needed or import at top
+    const bcrypt = (await import('bcryptjs')).default;
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const [result] = await pool.query(
+      `INSERT INTO users (
+        school_id, email, password, full_name, first_name, last_name, middle_name,
+        role, contact_number, classification
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'GUARD', ?, 'STAFF')`,
+      [
+        school_id.trim(),
+        email.trim(),
+        hashedPassword,
+        fullName,
+        cleanFirst,
+        cleanLast,
+        formattedMI || null,
+        contact_number ? contact_number.trim() : null
+      ]
+    );
+
+    const newGuard = {
+      id: result.insertId,
+      school_id: school_id.trim(),
+      email: email.trim(),
+      full_name: fullName,
+      first_name: cleanFirst,
+      last_name: cleanLast,
+      middle_name: formattedMI || null,
+      contact_number: contact_number ? contact_number.trim() : null,
+      role: 'GUARD',
+      created_at: new Date()
+    };
+
+    res.status(201).json({
+      message: `Security Guard account for ${fullName} successfully created!`,
+      guard: newGuard
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to create guard account', error: error.message });
+  }
+};
+
+// Delete / Revoke Security Guard account
+export const deleteGuard = async (req, res) => {
+  try {
+    const { guardId } = req.params;
+    const [result] = await pool.query(
+      'DELETE FROM users WHERE id = ? AND role = "GUARD"',
+      [guardId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Guard account not found or already removed' });
+    }
+
+    res.json({ message: 'Security Guard account successfully removed' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to delete guard account', error: error.message });
+  }
+};
+
+// Update / Edit Security Guard account and optionally reset password
+export const updateGuard = async (req, res) => {
+  try {
+    const { guardId } = req.params;
+    const { 
+      last_name, 
+      first_name, 
+      middle_name, 
+      school_id, 
+      email, 
+      contact_number, 
+      password 
+    } = req.body;
+
+    // Check if guard exists
+    const [existingGuard] = await pool.query('SELECT * FROM users WHERE id = ? AND role = "GUARD"', [guardId]);
+    if (existingGuard.length === 0) {
+      return res.status(404).json({ message: 'Security guard account not found' });
+    }
+
+    const current = existingGuard[0];
+    const cleanLast = (last_name || current.last_name || '').trim();
+    const cleanFirst = (first_name || current.first_name || '').trim();
+    const cleanMI = middle_name !== undefined ? (middle_name ? middle_name.trim().toUpperCase() : '') : (current.middle_name || '');
+    const formattedMI = cleanMI ? (cleanMI.endsWith('.') ? cleanMI : `${cleanMI}.`) : '';
+    const fullName = formattedMI 
+      ? `${cleanLast}, ${cleanFirst} ${formattedMI}`
+      : `${cleanLast}, ${cleanFirst}`;
+
+    const newSchoolId = (school_id || current.school_id).trim();
+    const newEmail = (email || current.email).trim();
+
+    // Check uniqueness excluding current user
+    const [duplicates] = await pool.query(
+      'SELECT id FROM users WHERE (school_id = ? OR email = ?) AND id != ?',
+      [newSchoolId, newEmail, guardId]
+    );
+
+    if (duplicates.length > 0) {
+      return res.status(409).json({ message: 'Badge ID or Email is already taken by another user' });
+    }
+
+    let updateQuery = `
+      UPDATE users SET
+        full_name = ?,
+        first_name = ?,
+        last_name = ?,
+        middle_name = ?,
+        school_id = ?,
+        email = ?,
+        contact_number = ?
+    `;
+    const params = [
+      fullName,
+      cleanFirst,
+      cleanLast,
+      formattedMI || null,
+      newSchoolId,
+      newEmail,
+      contact_number ? contact_number.trim() : null
+    ];
+
+    if (password && password.trim() !== '') {
+      const bcrypt = (await import('bcryptjs')).default;
+      const hashedPassword = await bcrypt.hash(password.trim(), 10);
+      updateQuery += ', password = ?';
+      params.push(hashedPassword);
+    }
+
+    updateQuery += ' WHERE id = ? AND role = "GUARD"';
+    params.push(guardId);
+
+    await pool.query(updateQuery, params);
+
+    const updated = {
+      id: Number(guardId),
+      school_id: newSchoolId,
+      email: newEmail,
+      full_name: fullName,
+      first_name: cleanFirst,
+      last_name: cleanLast,
+      middle_name: formattedMI || null,
+      contact_number: contact_number ? contact_number.trim() : null,
+      role: 'GUARD',
+      updated_at: new Date()
+    };
+
+    res.json({
+      message: `Security Guard account for ${fullName} updated successfully!`,
+      guard: updated,
+      passwordChanged: !!(password && password.trim() !== '')
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to update guard account', error: error.message });
+  }
+};
+
+

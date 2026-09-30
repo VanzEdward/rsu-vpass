@@ -21,6 +21,7 @@ import Profile from './pages/client/Profile';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminApplications from './pages/admin/AdminApplications';
 import AdminPasses from './pages/admin/AdminPasses';
+import AdminGuards from './pages/admin/AdminGuards';
 import AdminReports from './pages/admin/AdminReports';
 import AdminSettings from './pages/admin/AdminSettings';
 import GuardScanner from './pages/guard/GuardScanner';
@@ -79,6 +80,7 @@ function AppRoutes() {
         <Route path="dashboard" element={<AdminDashboard />} />
         <Route path="applications" element={<AdminApplications />} />
         <Route path="passes" element={<AdminPasses />} />
+        <Route path="guards" element={<AdminGuards />} />
         <Route path="reports" element={<AdminReports />} />
         <Route path="settings" element={<AdminSettings />} />
       </Route>
