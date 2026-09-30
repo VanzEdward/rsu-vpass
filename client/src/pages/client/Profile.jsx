@@ -517,7 +517,7 @@ export default function Profile() {
               <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 sm:col-span-2">
                 <span className="text-slate-400 block font-semibold text-[11px]">Designated Campus Gate</span>
                 <span className="font-semibold text-slate-800 mt-0.5 block">
-                  RSU Main Campus • Gate 1 National Highway Entrance
+                  RSU Main Campus • Gate 1
                 </span>
               </div>
             </div>

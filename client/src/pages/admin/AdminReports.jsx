@@ -142,10 +142,10 @@ export default function AdminReports() {
               className="w-full sm:w-auto px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 bg-slate-50 focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer"
             >
               <option value="ALL">All Gates (1 - 4)</option>
-              <option value="Gate 1">Gate 1 (Main Entrance)</option>
-              <option value="Gate 2">Gate 2 (Gymnasium / North)</option>
-              <option value="Gate 3">Gate 3 (Student Center / East)</option>
-              <option value="Gate 4">Gate 4 (Admin / South)</option>
+              <option value="Gate 1">Gate 1</option>
+              <option value="Gate 2">Gate 2</option>
+              <option value="Gate 3">Gate 3</option>
+              <option value="Gate 4">Gate 4</option>
             </select>
           </div>
 

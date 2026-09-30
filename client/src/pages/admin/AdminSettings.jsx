@@ -27,7 +27,7 @@ const DEFAULT_SETTINGS = {
   maxVisitorStayDays: '7',
   scannerAudioEnabled: true,
   campusName: 'Romblon State University • Odiongan Main Campus',
-  primaryGate: 'Gate 1 - National Highway Entrance'
+  primaryGate: 'Gate 1'
 };
 
 export default function AdminSettings() {

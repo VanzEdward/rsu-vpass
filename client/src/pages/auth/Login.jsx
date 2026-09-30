@@ -2,15 +2,18 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiRequest } from '../../api/client';
-import { ShieldCheck, ArrowRight, UserCheck, ShieldAlert, KeyRound, UserPlus } from 'lucide-react';
+import { ShieldCheck, ArrowRight, UserCheck, ShieldAlert, KeyRound, UserPlus, MapPin, Lock, Check, X } from 'lucide-react';
+import { usePass, CAMPUS_GATES } from '../../context/PassContext';
 
 export default function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const { setActiveGate } = usePass();
   const [identifier, setIdentifier] = useState('2026-00001');
   const [password, setPassword] = useState('client123');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [guardPendingAuth, setGuardPendingAuth] = useState(null); // { user, token }
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -23,13 +26,14 @@ export default function Login() {
         body: JSON.stringify({ identifier, password })
       });
 
-      login(res.user, res.token);
-
       if (res.user.role === 'PASO_ADMIN') {
+        login(res.user, res.token);
         navigate('/admin/dashboard');
       } else if (res.user.role === 'GUARD') {
-        navigate('/guard/scanner');
+        // Intercept guard login to prompt for gate selection
+        setGuardPendingAuth({ user: res.user, token: res.token });
       } else {
+        login(res.user, res.token);
         navigate('/client/dashboard');
       }
     } catch (err) {
@@ -37,6 +41,13 @@ export default function Login() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleConfirmGuardGate = (gateId) => {
+    if (!guardPendingAuth) return;
+    setActiveGate(gateId);
+    login(guardPendingAuth.user, guardPendingAuth.token);
+    navigate('/guard/scanner');
   };
 
   const quickSwitch = (role) => {
@@ -170,6 +181,71 @@ export default function Login() {
           </div>
         </div>
       </div>
+
+      {/* GUARD STATION SELECTION MODAL UPON SIGN-IN */}
+      {guardPendingAuth && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setGuardPendingAuth(null)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-full transition-colors cursor-pointer"
+              title="Cancel"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                <MapPin className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Select Shift Gate Post</h3>
+                <p className="text-xs text-slate-500">
+                  Officer <span className="font-bold text-slate-800">{guardPendingAuth.user.full_name}</span>
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed mb-4">
+              Please choose which campus gate you are guarding for this active shift. All scan entries and exits will be stamped under this gate.
+            </p>
+
+            {/* List of 4 Campus Gates */}
+            <div className="space-y-2.5">
+              {(CAMPUS_GATES || []).map((gate) => (
+                <button
+                  key={gate.id}
+                  type="button"
+                  onClick={() => handleConfirmGuardGate(gate.id)}
+                  className="w-full p-4 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-emerald-50/80 hover:border-emerald-300 text-left flex items-center justify-between transition-all cursor-pointer group shadow-xs hover:shadow-sm"
+                >
+                  <div className="flex items-center space-x-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-slate-900 text-white font-black text-sm flex items-center justify-center group-hover:bg-emerald-600 transition-colors">
+                      {gate.name.replace('Gate ', 'G')}
+                    </div>
+                    <span className="text-base font-bold text-slate-900 group-hover:text-emerald-800 transition-colors">
+                      {gate.name}
+                    </span>
+                  </div>
+
+                  <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-emerald-600 transition-colors" />
+                </button>
+              ))}
+            </div>
+
+            {/* Locked for shift notice */}
+            <div className="mt-5 p-3 rounded-2xl bg-amber-50 border border-amber-200/80 text-[11px] text-amber-900 flex items-start space-x-2">
+              <Lock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">Locked for Shift Policy:</span>
+                <p className="text-[10px] text-amber-800 mt-0.5">
+                  Once chosen, your gate assignment cannot be changed during duty. To switch to another gate, you must <strong>Sign Out</strong> and re-authenticate.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

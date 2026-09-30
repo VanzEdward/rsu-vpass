@@ -78,10 +78,10 @@ const INITIAL_APPLICATIONS = [
 ];
 
 export const CAMPUS_GATES = [
-  { id: 'Gate 1', name: 'Gate 1', description: 'National Highway / Main Campus Entrance' },
-  { id: 'Gate 2', name: 'Gate 2', description: 'North Gate / Gymnasium & Sports Complex' },
-  { id: 'Gate 3', name: 'Gate 3', description: 'East Gate / Student Center & Academic Wing' },
-  { id: 'Gate 4', name: 'Gate 4', description: 'South Service Gate / Administration & Supply' },
+  { id: 'Gate 1', name: 'Gate 1' },
+  { id: 'Gate 2', name: 'Gate 2' },
+  { id: 'Gate 3', name: 'Gate 3' },
+  { id: 'Gate 4', name: 'Gate 4' },
 ];
 
 const INITIAL_VISITORS = [
