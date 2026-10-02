@@ -12,7 +12,8 @@ import {
   ArrowRight,
   ShieldCheck,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  AlertTriangle
 } from 'lucide-react';
 
 export default function Payments() {
@@ -31,6 +32,8 @@ export default function Payments() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [generatedPass, setGeneratedPass] = useState(null);
 
+  const selectedApp = applications.find((a) => a.id === selectedAppId);
+
   useEffect(() => {
     if (queryAppId) {
       setSelectedAppId(queryAppId);
@@ -38,6 +41,12 @@ export default function Payments() {
       setSelectedAppId(approvedApps[0].id);
     }
   }, [queryAppId, approvedApps]);
+
+  useEffect(() => {
+    if (selectedApp?.receipt?.orNumber && !orNumber) {
+      setOrNumber(selectedApp.receipt.orNumber);
+    }
+  }, [selectedAppId, selectedApp]);
 
   const handleReceiptPhotoCaptured = (photoDataUrl) => {
     setReceiptPhoto(photoDataUrl);
@@ -81,7 +90,7 @@ export default function Payments() {
       <div>
         <h1 className="text-2xl font-black text-slate-900">Cashier Payment & Receipt Submission</h1>
         <p className="text-xs text-slate-500 mt-1">
-          Milestone 3: Upload your official Cashier receipt to automatically generate your active Vehicle Pass and Gate QR code.
+          Milestone 3: Upload your official Cashier receipt. Once submitted, PASO admin will verify your payment and generate your Gate QR Code.
         </p>
       </div>
 
@@ -104,22 +113,34 @@ export default function Payments() {
           </div>
 
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full">
-              Milestone 4 Complete
+            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-200">
+              Milestone 3 Complete: Receipt Uploaded
             </span>
-            <h2 className="text-xl font-black text-slate-900 mt-2">Official Vehicle Pass Issued!</h2>
-            <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-              Your Cashier receipt has been recorded. Your unique gate QR code, wearable pass, and vehicle sticker have been automatically generated.
+            <h2 className="text-xl font-black text-slate-900 mt-2">Cashier Receipt Submitted for Verification!</h2>
+            <p className="text-xs text-slate-600 mt-1.5 max-w-md mx-auto leading-relaxed">
+              Your official receipt (OR <strong className="font-mono text-slate-900">#{orNumber}</strong>) and payment photo have been transmitted to the PASO Administration Office.
             </p>
+          </div>
+
+          {/* Verification Protocol Notice */}
+          <div className="max-w-md mx-auto p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left text-xs space-y-2">
+            <p className="font-bold text-slate-800 flex items-center space-x-1.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>Next Steps in PASO Protocol:</span>
+            </p>
+            <ol className="list-decimal pl-4 space-y-1 text-slate-600 text-[11px] leading-relaxed">
+              <li>PASO Admin reviews and validates your official Cashier receipt.</li>
+              <li>Once verified, PASO generates and certifies your unique Gate QR Pass.</li>
+              <li>Your QR code and vehicle credentials will automatically unlock under <strong>My Pass</strong>.</li>
+            </ol>
           </div>
 
           <div className="pt-2 flex justify-center space-x-3">
             <Link
-              to="/client/vehicle-pass"
+              to="/client/applications"
               className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center space-x-2 shadow-sm"
             >
-              <QrCode className="w-4 h-4 text-emerald-100" />
-              <span>View Active Pass & QR Code</span>
+              <span>Track Application in Milestones</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
@@ -137,21 +158,62 @@ export default function Payments() {
           )}
 
           {approvedApps.length === 0 ? (
-            <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-              <AlertCircle className="w-8 h-8 text-slate-400 mx-auto" />
-              <p className="text-xs font-bold text-slate-700">No Approved Applications Awaiting Payment</p>
-              <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
-                Your application must first be approved by PASO in Milestone 2 before you can submit a Cashier receipt.
-              </p>
-              <Link
-                to="/client/applications"
-                className="inline-block mt-2 text-xs font-semibold text-emerald-600 hover:underline"
-              >
-                Check Application Tracker ➔
-              </Link>
-            </div>
+            applications.some(a => a.status === 'RECEIPT_SUBMITTED') ? (
+              <div className="p-8 text-center bg-amber-50/70 rounded-2xl border border-amber-200 space-y-2">
+                <CheckCircle2 className="w-8 h-8 text-amber-600 mx-auto" />
+                <p className="text-xs font-bold text-amber-900">Cashier Receipt Already Submitted & Pending PASO Verification</p>
+                <p className="text-[11px] text-amber-700 max-w-md mx-auto">
+                  Your payment receipt proof has been submitted and is currently being evaluated by the PASO admin. Once verified, PASO will release your official QR Code.
+                </p>
+                <Link
+                  to="/client/applications"
+                  className="inline-flex items-center space-x-1.5 mt-2 text-xs font-bold text-amber-900 hover:underline"
+                >
+                  <span>Track Application Milestones</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            ) : (
+              <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                <AlertCircle className="w-8 h-8 text-slate-400 mx-auto" />
+                <p className="text-xs font-bold text-slate-700">No Approved Applications Awaiting Payment</p>
+                <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
+                  Your application must first be approved by PASO in Milestone 2 before you can submit a Cashier receipt.
+                </p>
+                <Link
+                  to="/client/applications"
+                  className="inline-block mt-2 text-xs font-semibold text-emerald-600 hover:underline"
+                >
+                  Check Application Tracker ➔
+                </Link>
+              </div>
+            )
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5 text-xs">
+              {/* Receipt Rejection Banner with PASO Note */}
+              {selectedApp?.receiptRejectionRemark && (
+                <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-950 flex items-start space-x-3 shadow-xs">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1.5 w-full">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-amber-950 text-xs">
+                        Cashier Receipt Declined by PASO Admin
+                      </span>
+                      <span className="text-[10px] bg-amber-200 text-amber-900 px-2.5 py-0.5 rounded-full font-extrabold uppercase">
+                        Action Needed: Re-upload Proof
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-white/80 border border-amber-200 text-amber-900">
+                      <p className="font-semibold text-[11px] text-amber-800">Reason / Note from PASO:</p>
+                      <p className="font-medium text-xs mt-0.5 italic">&ldquo;{selectedApp.receiptRejectionRemark}&rdquo;</p>
+                    </div>
+                    <p className="text-[11px] text-amber-800 leading-relaxed">
+                      You do not need to restart your vehicle registration. Simply correct the mistake (e.g., retake a clearer photo of the official receipt or check the OR number) and re-submit below for PASO verification.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Select Approved Application</label>
                 <select
@@ -251,7 +313,7 @@ export default function Payments() {
                   className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer"
                 >
                   <ShieldCheck className="w-4 h-4 text-emerald-200" />
-                  <span>Submit Payment & Generate QR Pass</span>
+                  <span>Submit Cashier Receipt for PASO Verification</span>
                 </button>
               </div>
             </form>

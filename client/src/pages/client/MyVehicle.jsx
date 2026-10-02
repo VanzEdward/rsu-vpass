@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Sparkles,
   AlertCircle,
+  AlertTriangle,
   FileEdit,
   Trash2,
   Clock,
@@ -28,7 +29,7 @@ export default function MyVehicle() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
-  const { vehicles, submitApplication, draftApplication, saveDraft, clearDraft } = usePass();
+  const { vehicles, applications = [], submitApplication, resubmitApplication, draftApplication, saveDraft, clearDraft } = usePass();
 
   const [showWizard, setShowWizard] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
@@ -38,6 +39,8 @@ export default function MyVehicle() {
   const [toastMessage, setToastMessage] = useState('');
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [returnTo, setReturnTo] = useState(null);
+  const [editingAppId, setEditingAppId] = useState(null);
+  const [editingRejectionReason, setEditingRejectionReason] = useState('');
 
   const initialFormState = {
     // Registered client profile automatically loaded
@@ -67,8 +70,39 @@ export default function MyVehicle() {
   const [formData, setFormData] = useState(initialFormState);
   const [errors, setErrors] = useState({});
 
-  // Auto-resume draft if navigated with ?resume=true or if draft exists
+  // Check for editAppId (Correcting a rejected application) or resume draft
   useEffect(() => {
+    const editId = searchParams.get('editAppId');
+    if (editId && (applications || []).length > 0) {
+      const appToEdit = applications.find(a => a.id === editId);
+      if (appToEdit) {
+        setFormData({
+          classification: appToEdit.classification || user?.classification || 'Student',
+          applicant_name: appToEdit.applicant_name || user?.full_name || '',
+          school_id: appToEdit.school_id || user?.school_id || '',
+          department: appToEdit.department || '',
+          contact_number: appToEdit.contact_number || '',
+          applicant_photo: appToEdit.applicant_photo || null,
+          plateNumber: appToEdit.vehicle?.plateNumber || '',
+          make: appToEdit.vehicle?.make || '',
+          brand: appToEdit.vehicle?.make || '',
+          model: appToEdit.vehicle?.model || '',
+          year: appToEdit.vehicle?.year || '2026',
+          color: appToEdit.vehicle?.color || '',
+          type: appToEdit.vehicle?.type || 'Motorcycle',
+          driverLicense: appToEdit.documents?.driverLicense || null,
+          orCr: appToEdit.documents?.orCr || null,
+          pledgeAgreed: true,
+        });
+        setEditingAppId(editId);
+        setEditingRejectionReason(appToEdit.rejection_reason || 'Correction requested by PASO');
+        setCurrentStep(1);
+        setShowWizard(true);
+        setSearchParams({}, { replace: true });
+        return;
+      }
+    }
+
     if (searchParams.get('resume') === 'true' && draftApplication) {
       const from = searchParams.get('from');
       if (from) {
@@ -79,7 +113,7 @@ export default function MyVehicle() {
       setShowWizard(true);
       setSearchParams({}, { replace: true });
     }
-  }, [searchParams, draftApplication]);
+  }, [searchParams, draftApplication, applications]);
 
   const showToastNotification = (msg) => {
     setToastMessage(msg);
@@ -197,11 +231,20 @@ export default function MyVehicle() {
       return;
     }
 
-    // Submit to store
-    submitApplication({
-      ...formData,
-      make: formData.make || formData.brand,
-    });
+    // Submit or Re-submit application
+    if (editingAppId && resubmitApplication) {
+      resubmitApplication(editingAppId, {
+        ...formData,
+        make: formData.make || formData.brand,
+      });
+      setEditingAppId(null);
+      setEditingRejectionReason('');
+    } else {
+      submitApplication({
+        ...formData,
+        make: formData.make || formData.brand,
+      });
+    }
 
     // Clear saved draft once successfully submitted
     clearDraft();
@@ -308,14 +351,33 @@ export default function MyVehicle() {
                     <Save className="w-3 h-3 text-emerald-600" />
                     <span>Auto-saving</span>
                   </span>
-                  {draftApplication && currentStep > 1 && (
+                  {editingAppId && (
+                    <span className="inline-flex items-center space-x-1 text-[10px] text-amber-800 font-bold bg-amber-100 px-2.5 py-0.5 rounded-md border border-amber-300">
+                      <AlertTriangle className="w-3 h-3 text-amber-600" />
+                      <span>Correction Mode ({editingAppId})</span>
+                    </span>
+                  )}
+                  {draftApplication && currentStep > 1 && !editingAppId && (
                     <span className="inline-flex items-center space-x-1 text-[10px] text-teal-700 font-semibold bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200/60">
                       <Check className="w-3 h-3 text-teal-600" />
                       <span>Draft Restored (Step {currentStep})</span>
                     </span>
                   )}
                 </div>
-                <h3 className="text-lg font-black text-slate-900 mt-1">RSU Vehicle Pass Application</h3>
+                <h3 className="text-lg font-black text-slate-900 mt-1">
+                  {editingAppId ? 'Correct & Re-submit Vehicle Registration' : 'RSU Vehicle Pass Application'}
+                </h3>
+                {editingAppId && editingRejectionReason && (
+                  <div className="mt-2 p-3 rounded-xl bg-red-50 border border-red-200 text-red-900 text-xs">
+                    <p className="font-bold flex items-center space-x-1.5 text-red-950">
+                      <AlertCircle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                      <span>PASO Reviewer Remark:</span>
+                    </p>
+                    <p className="text-[11px] text-red-800 mt-0.5 pl-5">
+                      "{editingRejectionReason}"
+                    </p>
+                  </div>
+                )}
               </div>
               <button
                 onClick={handleCloseWizard}
@@ -766,7 +828,7 @@ export default function MyVehicle() {
                   className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center space-x-1.5 cursor-pointer shadow-md transition-all active:scale-95"
                 >
                   <Sparkles className="w-4 h-4 text-emerald-200" />
-                  <span>Submit Request to PASO</span>
+                  <span>{editingAppId ? 'Re-submit Corrected Application' : 'Submit Request to PASO'}</span>
                 </button>
               )}
             </div>

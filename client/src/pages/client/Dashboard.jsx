@@ -1,6 +1,7 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { usePass } from '../../context/PassContext';
 import { 
   Car, 
   Clock, 
@@ -9,20 +10,36 @@ import {
   ArrowUpRight, 
   Bell, 
   ShieldCheck, 
-  ExternalLink 
+  ExternalLink,
+  ChevronRight,
+  XCircle,
+  AlertTriangle,
+  Receipt,
+  RotateCcw
 } from 'lucide-react';
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { applications = [], notifications = [], markNotificationAsRead } = usePass();
+
+  const activeApp = applications.find(a => a.status === 'PASS_ISSUED') || applications[0];
 
   // Prototype Demonstration Data (from PRD Section 7)
   const stats = {
     myVehicles: 1,
-    pendingApplications: 0,
-    activePasses: 1,
+    pendingApplications: applications.filter(a => a.status === 'PENDING' || a.status === 'RECEIPT_SUBMITTED').length,
+    activePasses: applications.filter(a => a.status === 'PASS_ISSUED').length || 1,
   };
 
-  const activePass = {
+  const activePass = activeApp?.pass ? {
+    passNumber: activeApp.pass.passNumber,
+    vehicle: `${activeApp.vehicle?.make} ${activeApp.vehicle?.model}`,
+    plateNumber: activeApp.vehicle?.plateNumber,
+    vehicleType: activeApp.vehicle?.type,
+    validUntil: activeApp.pass.validUntil,
+    status: activeApp.pass.status,
+  } : {
     passNumber: 'VP-2026-0001',
     vehicle: 'Honda Click 125',
     plateNumber: 'XYZ 5678',
@@ -30,23 +47,6 @@ export default function Dashboard() {
     validUntil: 'December 31, 2026',
     status: 'ACTIVE',
   };
-
-  const notifications = [
-    {
-      id: 1,
-      title: 'Vehicle Pass Activated',
-      desc: 'Your Pass VP-2026-0001 for Honda Click 125 (XYZ 5678) is active for Academic Year 2026.',
-      time: '2 hours ago',
-      read: false,
-    },
-    {
-      id: 2,
-      title: 'Cashier Payment Confirmed',
-      desc: 'OR #2026-9812 has been recorded by PASO Administration.',
-      time: '1 day ago',
-      read: true,
-    }
-  ];
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -181,16 +181,40 @@ export default function Dashboard() {
           </div>
 
           <div className="mt-4 space-y-3">
-            {notifications.map((notif) => (
-              <div
-                key={notif.id}
-                className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/70 hover:bg-emerald-50/40 transition-colors"
-              >
-                <p className="text-xs font-bold text-slate-800">{notif.title}</p>
-                <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">{notif.desc}</p>
-                <p className="text-[10px] font-medium text-slate-400 mt-1">{notif.time}</p>
+            {notifications.length === 0 ? (
+              <div className="p-6 text-center text-slate-400 text-xs">
+                No notifications right now.
               </div>
-            ))}
+            ) : (
+              notifications.slice(0, 4).map((notif) => (
+                <div
+                  key={notif.id}
+                  onClick={() => {
+                    if (markNotificationAsRead) markNotificationAsRead(notif.id);
+                    if (notif.link) navigate(notif.link);
+                  }}
+                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                    !notif.read
+                      ? 'border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50'
+                      : 'border-slate-100 bg-slate-50/70 hover:bg-slate-100/80'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <p className={`text-xs ${!notif.read ? 'font-black text-slate-900' : 'font-bold text-slate-700'}`}>
+                      {notif.title}
+                    </p>
+                    <span className="text-[10px] font-medium text-slate-400">{notif.time}</span>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">{notif.message || notif.desc}</p>
+                  {notif.link && (
+                    <div className="mt-2 flex items-center text-[10px] font-bold text-emerald-700 space-x-1">
+                      <span>View details</span>
+                      <ChevronRight className="w-3 h-3" />
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

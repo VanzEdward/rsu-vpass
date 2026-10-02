@@ -25,8 +25,7 @@ import {
   ShieldAlert,
   HeartPulse,
   RefreshCw,
-  Sparkles,
-  Award
+  Sparkles
 } from 'lucide-react';
 
 export default function Profile() {
@@ -276,7 +275,7 @@ export default function Profile() {
               </div>
 
               {/* Badges / Metrics Row */}
-              <div className="grid grid-cols-3 gap-3 pt-2 max-w-lg">
+              <div className="grid grid-cols-2 gap-3 pt-2 max-w-sm">
                 <div className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-100 text-center sm:text-left">
                   <div className="flex items-center justify-center sm:justify-start space-x-1.5 text-emerald-700">
                     <Car className="w-4 h-4 shrink-0" />
@@ -293,15 +292,6 @@ export default function Profile() {
                   </div>
                   <div className="text-lg font-black text-teal-950 mt-1">{activePassesCount}</div>
                   <div className="text-[10px] text-teal-700 font-medium">Active Passes</div>
-                </div>
-
-                <div className="p-3 rounded-2xl bg-blue-50/70 border border-blue-100 text-center sm:text-left">
-                  <div className="flex items-center justify-center sm:justify-start space-x-1.5 text-blue-700">
-                    <Award className="w-4 h-4 shrink-0" />
-                    <span className="text-[11px] font-bold">Record</span>
-                  </div>
-                  <div className="text-lg font-black text-blue-950 mt-1">Clean</div>
-                  <div className="text-[10px] text-blue-700 font-medium">0 Violations</div>
                 </div>
               </div>
             </div>

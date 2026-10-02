@@ -43,7 +43,7 @@ export default function VehiclePass() {
           <div className="max-w-md mx-auto space-y-1">
             <h3 className="text-base font-bold text-slate-900">No Active Vehicle Pass Generated Yet</h3>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Your gate QR code and official vehicle pass will automatically generate once your registration is approved by PASO and you upload your Cashier receipt proof in Milestone 3.
+              Your gate QR code and official vehicle pass will be generated and granted by PASO once your Cashier payment receipt has been verified in Milestone 3.
             </p>
           </div>
           <div className="pt-2 flex justify-center space-x-3">

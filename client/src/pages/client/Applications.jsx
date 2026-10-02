@@ -11,6 +11,8 @@ import {
   QrCode, 
   ShieldCheck, 
   AlertCircle,
+  AlertTriangle,
+  RotateCcw,
   User,
   FileEdit,
   Trash2,
@@ -35,6 +37,13 @@ export default function Applications() {
           <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px] border border-emerald-200">
             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
             <span>APPROVED — PAY AT CASHIER</span>
+          </span>
+        );
+      case 'RECEIPT_SUBMITTED':
+        return (
+          <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 font-bold text-[10px] border border-amber-300">
+            <Clock className="w-3 h-3 text-amber-700 animate-pulse" />
+            <span>RECEIPT SUBMITTED — AWAITING PASO VERIFICATION</span>
           </span>
         );
       case 'REJECTED':
@@ -62,8 +71,10 @@ export default function Applications() {
         return 2;
       case 'APPROVED':
         return 3;
-      case 'PASS_ISSUED':
+      case 'RECEIPT_SUBMITTED':
         return 4;
+      case 'PASS_ISSUED':
+        return 5;
       default:
         return 1;
     }
@@ -217,9 +228,9 @@ export default function Applications() {
                     {/* Milestone 2 */}
                     <div className="flex flex-col items-center">
                       <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-[11px] mb-1 ${
-                        step >= 2 ? (step > 2 ? 'bg-emerald-600 text-white' : 'bg-emerald-100 text-emerald-800 border-2 border-emerald-600') : 'bg-slate-200 text-slate-400'
+                        step >= 3 ? 'bg-emerald-600 text-white' : step === 2 ? 'bg-emerald-100 text-emerald-800 border-2 border-emerald-600' : 'bg-slate-200 text-slate-400'
                       }`}>
-                        {step > 2 ? '✓' : '2'}
+                        {step >= 3 ? '✓' : '2'}
                       </div>
                       <span className={`text-[11px] font-bold ${step >= 2 ? 'text-slate-800' : 'text-slate-400'}`}>
                         2. PASO Review
@@ -230,27 +241,37 @@ export default function Applications() {
                     {/* Milestone 3 */}
                     <div className="flex flex-col items-center">
                       <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-[11px] mb-1 ${
-                        step >= 3 ? (step > 3 ? 'bg-emerald-600 text-white' : 'bg-emerald-100 text-emerald-800 border-2 border-emerald-600 animate-pulse') : 'bg-slate-200 text-slate-400'
+                        step >= 4 ? 'bg-emerald-600 text-white' : step === 3 ? 'bg-emerald-100 text-emerald-800 border-2 border-emerald-600 animate-pulse' : 'bg-slate-200 text-slate-400'
                       }`}>
-                        {step > 3 ? '✓' : '3'}
+                        {step >= 4 ? '✓' : '3'}
                       </div>
                       <span className={`text-[11px] font-bold ${step >= 3 ? 'text-slate-800' : 'text-slate-400'}`}>
                         3. Cashier Payment
                       </span>
-                      <span className="text-[10px] text-slate-400 hidden sm:block">Upload Receipt Photo</span>
+                      <span className="text-[10px] text-slate-400 hidden sm:block">
+                        {step >= 4 ? 'Receipt Uploaded' : 'Upload Receipt Photo'}
+                      </span>
                     </div>
 
                     {/* Milestone 4 */}
                     <div className="flex flex-col items-center">
                       <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-[11px] mb-1 ${
-                        step === 4 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'
+                        step === 5 
+                          ? 'bg-emerald-600 text-white' 
+                          : step === 4 
+                          ? 'bg-amber-100 text-amber-800 border-2 border-amber-500 animate-pulse' 
+                          : 'bg-slate-200 text-slate-400'
                       }`}>
-                        {step === 4 ? '✓' : '4'}
+                        {step === 5 ? '✓' : step === 4 ? '⌛' : '4'}
                       </div>
-                      <span className={`text-[11px] font-bold ${step === 4 ? 'text-emerald-700' : 'text-slate-400'}`}>
+                      <span className={`text-[11px] font-bold ${
+                        step === 5 ? 'text-emerald-700' : step === 4 ? 'text-amber-800' : 'text-slate-400'
+                      }`}>
                         4. QR Pass Issued
                       </span>
-                      <span className="text-[10px] text-slate-400 hidden sm:block">Ready at Gates</span>
+                      <span className="text-[10px] text-slate-400 hidden sm:block">
+                        {step === 5 ? 'Ready at Gates' : step === 4 ? 'PASO Generating QR' : 'Requires Payment'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -276,15 +297,66 @@ export default function Applications() {
                 </div>
               )}
 
-              {isRejected && (
-                <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-xs text-red-900 space-y-1">
-                  <div className="flex items-center space-x-1.5 font-bold text-red-950">
-                    <AlertCircle className="w-4 h-4 text-red-600" />
-                    <span>PASO Rejection Remark:</span>
+              {app.status === 'RECEIPT_SUBMITTED' && (
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold text-amber-950 flex items-center space-x-1.5">
+                      <Clock className="w-4 h-4 text-amber-600 animate-spin" />
+                      <span>Cashier Receipt Uploaded — Awaiting PASO Verification</span>
+                    </p>
+                    <p className="text-[11px] text-amber-800 mt-1 leading-relaxed">
+                      Official Receipt: <strong className="font-mono text-slate-900">#{app.receipt?.orNumber}</strong> submitted {app.receipt?.submittedAt || 'Today'}. The PASO office is verifying your receipt. Once confirmed, the admin will generate and issue your Gate QR Code.
+                    </p>
                   </div>
-                  <p className="text-red-800 leading-relaxed pl-5 font-medium">
-                    "{app.rejection_reason || 'Incomplete or unreadable documents.'}"
-                  </p>
+                  <div className="flex items-center space-x-2 shrink-0">
+                    <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-amber-100 text-amber-900 text-xs font-bold border border-amber-300">
+                      <span>Verification Pending</span>
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {isRejected && (
+                <div className="p-4 rounded-2xl bg-red-50 border border-red-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-red-900">
+                  <div className="space-y-1">
+                    <div className="flex items-center space-x-1.5 font-bold text-red-950">
+                      <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                      <span>Registration Returned by PASO (Needs Correction):</span>
+                    </div>
+                    <p className="text-red-800 leading-relaxed pl-5 font-medium">
+                      "{app.rejection_reason || 'Incomplete or unreadable documents.'}"
+                    </p>
+                  </div>
+                  <Link
+                    to={`/client/my-vehicle?editAppId=${app.id}`}
+                    className="inline-flex items-center justify-center space-x-1.5 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shrink-0 shadow-sm transition-all cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Correct & Re-submit</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              )}
+
+              {app.receiptRejectionRemark && app.status === 'APPROVED' && (
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900">
+                  <div className="space-y-1">
+                    <div className="flex items-center space-x-1.5 font-bold text-amber-950">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>Cashier Receipt Declined by PASO:</span>
+                    </div>
+                    <p className="text-amber-800 leading-relaxed pl-5 font-medium">
+                      "{app.receiptRejectionRemark}"
+                    </p>
+                  </div>
+                  <Link
+                    to={`/client/payments?appId=${app.id}`}
+                    className="inline-flex items-center justify-center space-x-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shrink-0 shadow-sm transition-all cursor-pointer"
+                  >
+                    <Receipt className="w-3.5 h-3.5" />
+                    <span>Re-upload Correct Receipt</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
                 </div>
               )}
 

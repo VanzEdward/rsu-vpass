@@ -18,13 +18,21 @@ import {
 export default function AdminDashboard() {
   const { applications, vehicles, visitorPasses, gateLogs } = usePass();
 
-  const pendingApps = (applications || []).filter((a) => a.status === 'PENDING');
+  const pendingForms = (applications || []).filter((a) => a.status === 'PENDING');
+  const pendingReceipts = (applications || []).filter((a) => a.status === 'RECEIPT_SUBMITTED');
+  const pendingApps = [...pendingReceipts, ...pendingForms];
   const activePasses = (applications || []).filter((a) => a.status === 'PASS_ISSUED' || a.pass);
   const activeVisitors = (visitorPasses || []).filter((v) => v.status === 'INSIDE');
   const recentLogs = (gateLogs || []).slice(0, 5);
 
   const stats = [
-    { label: 'Pending Reviews', count: pendingApps.length, icon: Clock, color: 'text-amber-700 bg-amber-50', link: '/admin/applications' },
+    { 
+      label: pendingReceipts.length > 0 ? `Pending (${pendingReceipts.length} Receipts)` : 'Pending Reviews', 
+      count: pendingApps.length, 
+      icon: Clock, 
+      color: 'text-amber-700 bg-amber-50', 
+      link: '/admin/applications' 
+    },
     { label: 'Active Passes Issued', count: activePasses.length, icon: Layers, color: 'text-emerald-700 bg-emerald-50', link: '/admin/passes' },
     { label: 'Visitors on Campus', count: activeVisitors.length, icon: Users, color: 'text-blue-700 bg-blue-50', link: '/admin/reports' },
     { label: 'Total Gate Logs', count: (gateLogs || []).length, icon: ShieldCheck, color: 'text-indigo-700 bg-indigo-50', link: '/admin/reports' },
@@ -141,10 +149,17 @@ export default function AdminDashboard() {
                       {app.vehicle?.plateNumber}
                     </td>
                     <td className="py-3 px-3">
-                      <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-semibold text-[10px]">
-                        <Clock className="w-3 h-3 text-amber-500" />
-                        <span>Awaiting Evaluation</span>
-                      </span>
+                      {app.status === 'RECEIPT_SUBMITTED' ? (
+                        <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[10px]">
+                          <Clock className="w-3 h-3 text-amber-700 animate-pulse" />
+                          <span>Receipt Verification (OR #{app.receipt?.orNumber})</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 font-semibold text-[10px]">
+                          <Clock className="w-3 h-3 text-slate-500" />
+                          <span>Awaiting Form Review</span>
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}

@@ -84,6 +84,31 @@ export const CAMPUS_GATES = [
   { id: 'Gate 4', name: 'Gate 4' },
 ];
 
+const INITIAL_NOTIFICATIONS = [
+  {
+    id: 'notif-1',
+    type: 'PASS_ISSUED',
+    title: 'Vehicle Pass Activated',
+    message: 'Your Pass VP-2026-0001 for Honda Click 125 (XYZ 5678) is active for Academic Year 2026.',
+    time: '2 hours ago',
+    date: new Date().toISOString(),
+    read: false,
+    link: '/client/vehicle-pass',
+    appId: 'APP-2026-0001',
+  },
+  {
+    id: 'notif-2',
+    type: 'RECEIPT_VERIFIED',
+    title: 'Cashier Payment Confirmed',
+    message: 'OR #2026-98123 has been recorded and verified by PASO Administration.',
+    time: '1 day ago',
+    date: new Date(Date.now() - 86400000).toISOString(),
+    read: true,
+    link: '/client/vehicle-pass',
+    appId: 'APP-2026-0001',
+  }
+];
+
 const INITIAL_VISITORS = [
   {
     id: 'TMP-2026-0042',
@@ -272,6 +297,43 @@ export const PassProvider = ({ children }) => {
     localStorage.setItem('vpass_visitor_passes', JSON.stringify(visitorPasses));
   }, [visitorPasses]);
 
+  // Persistent Notifications
+  const [notifications, setNotifications] = useState(() => {
+    const saved = localStorage.getItem('vpass_notifications');
+    return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('vpass_notifications', JSON.stringify(notifications));
+  }, [notifications]);
+
+  // Helper to add a notification
+  const addNotification = ({ type, title, message, link, appId }) => {
+    const newNotif = {
+      id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      type,
+      title,
+      message,
+      link: link || '/client/applications',
+      appId,
+      time: 'Just now',
+      date: new Date().toISOString(),
+      read: false,
+    };
+    setNotifications((prev) => [newNotif, ...prev]);
+    return newNotif;
+  };
+
+  const markNotificationAsRead = (id) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+  };
+
+  const markAllNotificationsAsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
   useEffect(() => {
     localStorage.setItem('vpass_gate_logs', JSON.stringify(gateLogs));
   }, [gateLogs]);
@@ -346,9 +408,11 @@ export const PassProvider = ({ children }) => {
 
   // PASO Admin Review (Milestone 2)
   const reviewApplication = (appId, decision, remarks = '') => {
+    let affectedApp = null;
     setApplications((prev) =>
       prev.map((app) => {
         if (app.id === appId) {
+          affectedApp = app;
           return {
             ...app,
             status: decision,
@@ -358,30 +422,97 @@ export const PassProvider = ({ children }) => {
         return app;
       })
     );
+
+    // Auto-notify the client of registration decision
+    if (affectedApp) {
+      if (decision === 'APPROVED') {
+        addNotification({
+          type: 'REGISTRATION_APPROVED',
+          title: 'Vehicle Registration Approved!',
+          message: `Your registration for ${affectedApp.vehicle?.make || 'Vehicle'} ${affectedApp.vehicle?.model || ''} (${affectedApp.vehicle?.plateNumber}) was approved by PASO. You may now pay at the Cashier window and upload your receipt.`,
+          link: `/client/payments?appId=${appId}`,
+          appId,
+        });
+      } else if (decision === 'REJECTED') {
+        addNotification({
+          type: 'REGISTRATION_REJECTED',
+          title: 'Registration Form Needs Correction',
+          message: `PASO returned your application for ${affectedApp.vehicle?.make || 'Vehicle'} (${affectedApp.vehicle?.plateNumber}). Note: "${remarks}". Click to correct mistakes and re-submit.`,
+          link: `/client/applications`,
+          appId,
+        });
+      }
+    }
   };
 
-  // Cashier Payment & Receipt Upload (Milestone 3 -> Milestone 4)
+  // Cashier Payment & Receipt Upload (Milestone 3: Client uploads receipt -> Awaiting PASO Verification)
   const submitReceiptPayment = (appId, orNumber, receiptPhoto) => {
-    const year = new Date().getFullYear();
-    const passNumber = `VP-${year}-${String(Math.floor(1000 + Math.random() * 9000))}`;
-    
+    const submittedAt = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    let targetedVehiclePlate = null;
+
     setApplications((prev) =>
       prev.map((app) => {
         if (app.id === appId) {
+          targetedVehiclePlate = app.vehicle?.plateNumber;
+          return {
+            ...app,
+            status: 'RECEIPT_SUBMITTED',
+            rejection_reason: null,
+            receiptRejectionRemark: null,
+            receipt: {
+              orNumber,
+              receiptPhoto,
+              submittedAt,
+              status: 'PENDING_VERIFICATION'
+            },
+          };
+        }
+        return app;
+      })
+    );
+
+    // Update vehicle status to Receipt Under Verification
+    setVehicles((prev) =>
+      prev.map((v) => {
+        if (targetedVehiclePlate && v.plateNumber === targetedVehiclePlate) {
+          return {
+            ...v,
+            status: 'Receipt Under Verification',
+          };
+        }
+        return v;
+      })
+    );
+  };
+
+  // PASO Admin Verifies Cashier Receipt & Generates Official Gate QR Pass (Milestone 4)
+  const verifyReceiptAndIssuePass = (appId, customDetails = {}) => {
+    const year = new Date().getFullYear();
+    const generatedPassNum = customDetails.passNumber || `VP-${year}-${String(Math.floor(1000 + Math.random() * 9000))}`;
+    let targetedVehiclePlate = null;
+    let affectedApp = null;
+
+    setApplications((prev) =>
+      prev.map((app) => {
+        if (app.id === appId) {
+          affectedApp = app;
+          targetedVehiclePlate = app.vehicle?.plateNumber;
           const passInfo = {
-            passNumber,
-            qrData: `RSU-VPASS:${passNumber}:${app.vehicle.plateNumber}:${app.school_id}`,
-            validUntil: `December 31, ${year}`,
+            passNumber: generatedPassNum,
+            qrData: customDetails.qrData || `RSU-VPASS:${generatedPassNum}:${app.vehicle.plateNumber}:${app.school_id}`,
+            validUntil: customDetails.validUntil || `December 31, ${year}`,
             status: 'ACTIVE',
+            issuedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            verifiedBy: 'PASO Administration Officer',
           };
 
           return {
             ...app,
             status: 'PASS_ISSUED',
             receipt: {
-              orNumber,
-              receiptPhoto,
-              paidAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+              ...(app.receipt || {}),
+              verifiedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+              status: 'VERIFIED',
             },
             pass: passInfo,
           };
@@ -393,12 +524,118 @@ export const PassProvider = ({ children }) => {
     // Update vehicle status to Active Pass
     setVehicles((prev) =>
       prev.map((v) => {
-        return {
-          ...v,
-          status: 'Active Pass',
-        };
+        if (targetedVehiclePlate && v.plateNumber === targetedVehiclePlate) {
+          return {
+            ...v,
+            status: 'Active Pass',
+          };
+        }
+        return v;
       })
     );
+
+    // Auto-notify client of active QR Pass release
+    if (affectedApp) {
+      addNotification({
+        type: 'PASS_ISSUED',
+        title: 'Official Gate QR Pass Issued!',
+        message: `Your Cashier receipt has been verified! Gate Pass ${generatedPassNum} for ${affectedApp.vehicle?.make || 'Vehicle'} (${affectedApp.vehicle?.plateNumber}) is now active for Academic Year ${year}.`,
+        link: '/client/vehicle-pass',
+        appId,
+      });
+    }
+  };
+
+  // Reject Receipt (e.g. unreadable photo or mismatched payment amount)
+  const rejectReceipt = (appId, remarks) => {
+    let affectedApp = null;
+    setApplications((prev) =>
+      prev.map((app) => {
+        if (app.id === appId) {
+          affectedApp = app;
+          return {
+            ...app,
+            status: 'APPROVED', // Return to approved payment step so client can re-upload
+            receiptRejectionRemark: remarks || 'Cashier receipt image is unreadable or invalid.',
+            receipt: {
+              ...(app.receipt || {}),
+              status: 'REJECTED',
+              rejectionRemark: remarks
+            }
+          };
+        }
+        return app;
+      })
+    );
+
+    // Auto-notify client that receipt was declined with reason
+    if (affectedApp) {
+      addNotification({
+        type: 'RECEIPT_REJECTED',
+        title: 'Cashier Receipt Declined',
+        message: `Cashier receipt for ${affectedApp.vehicle?.make || 'Vehicle'} (${affectedApp.vehicle?.plateNumber}) was declined by PASO. Note: "${remarks}". Please re-upload your valid receipt.`,
+        link: `/client/payments?appId=${appId}`,
+        appId,
+      });
+    }
+  };
+
+  // Re-submit an application that was previously returned/rejected by PASO
+  const resubmitApplication = (appId, updatedData) => {
+    setApplications((prev) =>
+      prev.map((app) => {
+        if (app.id === appId) {
+          return {
+            ...app,
+            applicant_name: updatedData.applicant_name || app.applicant_name,
+            school_id: updatedData.school_id || app.school_id,
+            classification: updatedData.classification || app.classification,
+            department: updatedData.department || app.department,
+            contact_number: updatedData.contact_number || app.contact_number,
+            applicant_photo: updatedData.applicant_photo || app.applicant_photo,
+            vehicle: {
+              make: updatedData.make || app.vehicle.make,
+              model: updatedData.model || app.vehicle.model,
+              year: updatedData.year || app.vehicle.year,
+              color: updatedData.color || app.vehicle.color,
+              plateNumber: updatedData.plateNumber || app.vehicle.plateNumber,
+              type: updatedData.type || app.vehicle.type,
+            },
+            documents: {
+              driverLicense: updatedData.driverLicense || app.documents?.driverLicense,
+              orCr: updatedData.orCr || app.documents?.orCr,
+            },
+            status: 'PENDING', // Returns back to Milestone 2 queue
+            rejection_reason: null,
+            resubmittedDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          };
+        }
+        return app;
+      })
+    );
+
+    // Update vehicle status back to Pending Review
+    setVehicles((prev) =>
+      prev.map((v) => {
+        if (v.plateNumber === updatedData.plateNumber) {
+          return {
+            ...v,
+            make: updatedData.make || v.make,
+            model: updatedData.model || v.model,
+            status: 'Pending Review',
+          };
+        }
+        return v;
+      })
+    );
+
+    addNotification({
+      type: 'APPLICATION_RESUBMITTED',
+      title: 'Registration Corrected & Re-submitted',
+      message: `Your corrected vehicle registration for ${updatedData.make} ${updatedData.model} (${updatedData.plateNumber}) has been sent to PASO for re-evaluation.`,
+      link: '/client/applications',
+      appId,
+    });
   };
 
   // Add Gate Log (Records Employee Entry/Exit, Student Spot-Check, or Visitor Event)
@@ -563,6 +800,13 @@ export const PassProvider = ({ children }) => {
         submitApplication,
         reviewApplication,
         submitReceiptPayment,
+        verifyReceiptAndIssuePass,
+        rejectReceipt,
+        resubmitApplication,
+        notifications,
+        addNotification,
+        markNotificationAsRead,
+        markAllNotificationsAsRead,
         visitorPasses,
         gateLogs,
         activeGate,
