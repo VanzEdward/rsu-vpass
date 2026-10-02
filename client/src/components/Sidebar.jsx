@@ -5,7 +5,6 @@ import {
   Car, 
   QrCode, 
   FileText, 
-  Receipt, 
   UserCircle,
   HelpCircle
 } from 'lucide-react';
@@ -15,7 +14,6 @@ const clientNavItems = [
   { name: 'My Vehicle', path: '/client/my-vehicle', icon: Car },
   { name: 'Vehicle Pass', path: '/client/vehicle-pass', icon: QrCode },
   { name: 'Applications', path: '/client/applications', icon: FileText },
-  { name: 'Payments', path: '/client/payments', icon: Receipt },
   { name: 'Profile', path: '/client/profile', icon: UserCircle },
 ];
 
