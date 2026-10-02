@@ -135,36 +135,53 @@ export default function Navbar() {
 
                   {/* Notification Dropdown Panel */}
                   {isNotifOpen && (
-                    <div className="absolute right-0 sm:-right-8 mt-2 w-80 sm:w-96 bg-white rounded-3xl shadow-2xl border border-slate-200/90 py-3 z-50 animate-in fade-in zoom-in-95 duration-150">
-                      {/* Dropdown Header */}
-                      <div className="flex items-center justify-between px-4 pb-2.5 border-b border-slate-100">
-                        <div className="flex items-center space-x-2">
-                          <h3 className="font-extrabold text-sm text-slate-900">Notifications</h3>
-                          {unreadCount > 0 ? (
-                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                              {unreadCount} unread
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-medium">
-                              All caught up
-                            </span>
-                          )}
+                    <>
+                      {/* Mobile backdrop for focus and click-outside dismissal */}
+                      <div 
+                        className="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-40 sm:hidden"
+                        onClick={() => setIsNotifOpen(false)}
+                      />
+
+                      <div className="fixed left-3 right-3 top-[68px] sm:absolute sm:top-full sm:left-auto sm:right-0 sm:mt-2 sm:w-96 bg-white rounded-3xl shadow-2xl border border-slate-200/90 py-3 z-50 animate-in fade-in zoom-in-95 duration-150 max-h-[85vh] flex flex-col">
+                        {/* Dropdown Header */}
+                        <div className="flex items-center justify-between px-4 pb-2.5 border-b border-slate-100">
+                          <div className="flex items-center space-x-2">
+                            <h3 className="font-extrabold text-sm text-slate-900">Notifications</h3>
+                            {unreadCount > 0 ? (
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                                {unreadCount} unread
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-medium">
+                                All caught up
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center space-x-3">
+                            {unreadCount > 0 && (
+                              <button
+                                type="button"
+                                onClick={markAllNotificationsAsRead}
+                                className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer flex items-center space-x-1"
+                              >
+                                <Check className="w-3 h-3" />
+                                <span>Mark all read</span>
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setIsNotifOpen(false)}
+                              className="sm:hidden text-slate-400 hover:text-slate-600 text-sm font-bold p-1 cursor-pointer"
+                              aria-label="Close notifications"
+                            >
+                              ✕
+                            </button>
+                          </div>
                         </div>
 
-                        {unreadCount > 0 && (
-                          <button
-                            type="button"
-                            onClick={markAllNotificationsAsRead}
-                            className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer flex items-center space-x-1"
-                          >
-                            <Check className="w-3 h-3" />
-                            <span>Mark all read</span>
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Notification Items */}
-                      <div className="max-h-[380px] overflow-y-auto divide-y divide-slate-100">
+                        {/* Notification Items */}
+                        <div className="max-h-[380px] sm:max-h-[400px] overflow-y-auto divide-y divide-slate-100 flex-1">
                         {notifications.length === 0 ? (
                           <div className="p-8 text-center text-slate-400 space-y-1">
                             <Bell className="w-8 h-8 mx-auto text-slate-300" />
@@ -230,7 +247,8 @@ export default function Navbar() {
                         </Link>
                       </div>
                     </div>
-                  )}
+                  </>
+                )}
                 </div>
               )}
 
