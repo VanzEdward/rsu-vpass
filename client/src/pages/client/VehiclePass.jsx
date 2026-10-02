@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import QRCode from 'qrcode';
 import { usePass } from '../../context/PassContext';
 import { 
   QrCode, 
@@ -9,21 +10,89 @@ import {
   X, 
   User, 
   FileBadge, 
-  Printer, 
+  Download, 
   ArrowRight,
   Sparkles,
-  AlertCircle
+  Car,
+  CheckCircle2
 } from 'lucide-react';
 
 export default function VehiclePass() {
   const { applications } = usePass();
   const [showQRModal, setShowQRModal] = useState(false);
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
 
-  // Find the first issued pass or approved demo
-  const issuedApp = applications.find((a) => a.status === 'PASS_ISSUED') || applications.find((a) => a.pass);
+  // Collect all applications that have an active or issued vehicle pass
+  const issuedApps = (applications || []).filter((a) => a.status === 'PASS_ISSUED' || a.pass);
+  const [selectedAppId, setSelectedAppId] = useState(issuedApps[0]?.id || '');
 
-  const handlePrint = () => {
-    window.print();
+  // Select the active vehicle application
+  const issuedApp = issuedApps.find((a) => a.id === selectedAppId) || issuedApps[0];
+
+  // Update selectedAppId if issuedApps changes
+  useEffect(() => {
+    if (issuedApps.length > 0 && !issuedApps.some((a) => a.id === selectedAppId)) {
+      setSelectedAppId(issuedApps[0].id);
+    }
+  }, [issuedApps, selectedAppId]);
+
+  // Generate dynamic QR Code Data URL for the current vehicle pass
+  useEffect(() => {
+    if (!issuedApp || !issuedApp.pass) {
+      setQrCodeDataUrl('');
+      return;
+    }
+
+    const payload = issuedApp.pass.qrData || `RSU-VPASS:${issuedApp.pass.passNumber}:${issuedApp.vehicle?.plateNumber}:${issuedApp.school_id}`;
+
+    QRCode.toDataURL(payload, {
+      width: 600,
+      margin: 1,
+      color: {
+        dark: '#047857', // Emerald green in UI view
+        light: '#ffffff'
+      },
+      errorCorrectionLevel: 'H'
+    })
+      .then((url) => setQrCodeDataUrl(url))
+      .catch((err) => console.error('Failed to generate pass QR code:', err));
+  }, [issuedApp]);
+
+  // Download ONLY the pure QR Code as a high-resolution PNG for vehicle sticker printing
+  const handleDownloadQR = () => {
+    if (!issuedApp || !issuedApp.pass) return;
+
+    const payload = issuedApp.pass.qrData || `RSU-VPASS:${issuedApp.pass.passNumber}:${issuedApp.vehicle?.plateNumber}:${issuedApp.school_id}`;
+
+    // Generate high-resolution, high-contrast black-and-white QR code for optical scanners and sticker printing
+    QRCode.toDataURL(payload, {
+      width: 1024,
+      margin: 2,
+      color: {
+        dark: '#000000', // Black & White for highest optical scanning accuracy
+        light: '#ffffff'
+      },
+      errorCorrectionLevel: 'H' // High error tolerance for physical sticker wear
+    }, (err, url) => {
+      if (err) {
+        console.error('Failed to create downloadable sticker QR code:', err);
+        return;
+      }
+
+      const cleanPlate = (issuedApp.vehicle?.plateNumber || 'vehicle').replace(/[^a-zA-Z0-9]/g, '-').toUpperCase();
+      const filename = `RSU-VPASS-STICKER-QR-${cleanPlate}-${issuedApp.pass.passNumber}.png`;
+
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setDownloadSuccess(true);
+      setTimeout(() => setDownloadSuccess(false), 3500);
+    });
   };
 
   if (!issuedApp || !issuedApp.pass) {
@@ -63,7 +132,7 @@ export default function VehiclePass() {
   const { pass, vehicle, applicant_name, school_id, classification, applicant_photo } = issuedApp;
 
   return (
-    <div className="space-y-8 max-w-5xl">
+    <div className="space-y-6 max-w-5xl pb-12">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -73,12 +142,14 @@ export default function VehiclePass() {
           </div>
           <h1 className="text-2xl font-black tracking-tight text-slate-900">Official Vehicle Pass</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Physical Assets and Security Office (PASO) issued credentials & vehicle clearance.
+            Download your vehicle sticker QR code to print and attach to your vehicle.
           </p>
         </div>
 
-        <div className="flex items-center space-x-3">
+        {/* Action Buttons: Show QR Only and Download QR Code */}
+        <div className="flex items-center space-x-2.5">
           <button
+            type="button"
             onClick={() => setShowQRModal(true)}
             className="inline-flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold shadow-xs cursor-pointer"
           >
@@ -86,18 +157,61 @@ export default function VehiclePass() {
             <span>Show QR Only</span>
           </button>
           <button
-            onClick={handlePrint}
-            className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm cursor-pointer"
+            type="button"
+            onClick={handleDownloadQR}
+            className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm cursor-pointer transition-all active:scale-95"
+            title="Download sticker QR code image for this vehicle"
           >
-            <Printer className="w-4 h-4 text-emerald-100" />
-            <span>Print / PDF</span>
+            <Download className="w-4 h-4 text-emerald-100" />
+            <span>Download QR Code</span>
           </button>
         </div>
       </div>
 
-      {/* Grid containing both passes: 1. Wearable Pass, 2. Vehicle Pass Sticker */}
+      {/* Success Toast when QR is downloaded */}
+      {downloadSuccess && (
+        <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between animate-in fade-in duration-200">
+          <div className="flex items-center space-x-2 font-semibold">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>Sticker QR Code for {vehicle.plateNumber} downloaded successfully! Ready to print as a vehicle sticker.</span>
+          </div>
+          <button
+            onClick={() => setDownloadSuccess(false)}
+            className="text-emerald-700 hover:text-emerald-950 font-bold p-1 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Multi-vehicle Pass Switcher (if user has registered more than 1 vehicle) */}
+      {issuedApps.length > 1 && (
+        <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex items-center space-x-2 overflow-x-auto">
+          <span className="text-xs font-bold text-slate-500 whitespace-nowrap pl-1">
+            Registered Vehicles ({issuedApps.length}):
+          </span>
+          <div className="flex items-center space-x-2">
+            {issuedApps.map((app) => (
+              <button
+                key={app.id}
+                onClick={() => setSelectedAppId(app.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${
+                  (issuedApp.id === app.id)
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <Car className="w-3.5 h-3.5" />
+                <span>{app.vehicle?.make} {app.vehicle?.model} ({app.vehicle?.plateNumber})</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Passes Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* 1. Official Wearable Pass Card */}
+        {/* 1. Official Wearable ID Pass */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-slate-800 flex items-center space-x-2">
@@ -163,13 +277,23 @@ export default function VehiclePass() {
                 </div>
               </div>
 
-              {/* QR Section */}
+              {/* Dynamic QR Section */}
               <div className="flex items-center justify-center p-3 bg-white rounded-2xl border border-slate-200">
                 <div 
                   onClick={() => setShowQRModal(true)} 
                   className="cursor-pointer flex flex-col items-center group"
                 >
-                  <QrCode className="w-24 h-24 text-emerald-700 group-hover:scale-105 transition-transform" />
+                  <div className="w-28 h-28 flex items-center justify-center">
+                    {qrCodeDataUrl ? (
+                      <img 
+                        src={qrCodeDataUrl} 
+                        alt="Gate QR Code" 
+                        className="w-full h-full object-contain group-hover:scale-105 transition-transform" 
+                      />
+                    ) : (
+                      <QrCode className="w-24 h-24 text-emerald-700 group-hover:scale-105 transition-transform" />
+                    )}
+                  </div>
                   <span className="text-[10px] font-semibold text-slate-400 group-hover:text-emerald-700 mt-1">
                     Click to enlarge QR
                   </span>
@@ -206,9 +330,18 @@ export default function VehiclePass() {
                 <p className="text-xl font-black font-mono tracking-widest text-emerald-700 mt-1">{vehicle.plateNumber}</p>
               </div>
 
+              {/* Dynamic Sticker QR Preview */}
               <div className="flex items-center justify-center py-2">
-                <div className="p-2 bg-white rounded-xl border border-slate-200 shadow-xs">
-                  <QrCode className="w-20 h-20 text-slate-800" />
+                <div 
+                  onClick={() => setShowQRModal(true)}
+                  className="w-32 h-32 p-2 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-emerald-400 transition-all"
+                  title="Click to enlarge"
+                >
+                  {qrCodeDataUrl ? (
+                    <img src={qrCodeDataUrl} alt="Sticker QR Code" className="w-full h-full object-contain" />
+                  ) : (
+                    <QrCode className="w-20 h-20 text-slate-800" />
+                  )}
                 </div>
               </div>
 
@@ -218,9 +351,20 @@ export default function VehiclePass() {
               </div>
             </div>
 
-            <p className="text-[11px] text-slate-400 text-center mt-3">
-              Must be clearly placed on front windshield or motorcycle chassis.
-            </p>
+            {/* Direct Download Sticker Button */}
+            <div className="mt-4 space-y-2">
+              <button
+                type="button"
+                onClick={handleDownloadQR}
+                className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all flex items-center justify-center space-x-2 cursor-pointer active:scale-98"
+              >
+                <Download className="w-4 h-4 text-emerald-100" />
+                <span>Download QR Code Sticker (PNG)</span>
+              </button>
+              <p className="text-[11px] text-slate-500 text-center leading-relaxed">
+                Downloads <strong>only the QR code</strong> with high optical contrast so you can print it as an adhesive sticker for your vehicle.
+              </p>
+            </div>
           </div>
 
           {/* Annual Renewal Module */}
@@ -245,7 +389,7 @@ export default function VehiclePass() {
       {/* QR Enlarged Modal */}
       {showQRModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl relative">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
             <button
               onClick={() => setShowQRModal(false)}
               className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-full cursor-pointer"
@@ -254,19 +398,37 @@ export default function VehiclePass() {
             </button>
             <h3 className="text-lg font-black text-slate-900">Enlarged Gate QR</h3>
             <p className="text-xs text-slate-500 mt-0.5 font-mono">{pass.passNumber}</p>
+            
             <div className="mt-6 flex justify-center">
-              <div className="p-4 bg-white rounded-2xl border border-emerald-200 shadow-md">
-                <QrCode className="w-56 h-56 text-emerald-700" />
+              <div className="p-4 bg-white rounded-2xl border-2 border-emerald-500 shadow-md w-64 h-64 flex items-center justify-center">
+                {qrCodeDataUrl ? (
+                  <img src={qrCodeDataUrl} alt="Enlarged Gate QR" className="w-full h-full object-contain" />
+                ) : (
+                  <QrCode className="w-56 h-56 text-emerald-700" />
+                )}
               </div>
             </div>
-            <p className="text-xs font-semibold text-slate-700 mt-4">{vehicle.make} {vehicle.model} • {vehicle.plateNumber}</p>
-            <p className="text-[11px] text-slate-400 mt-1">Present this QR code to the gate security officer scanner.</p>
-            <button
-              onClick={() => setShowQRModal(false)}
-              className="mt-6 w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold cursor-pointer transition-colors"
-            >
-              Close
-            </button>
+
+            <p className="text-xs font-bold text-slate-800 mt-4">{vehicle.make} {vehicle.model} • <span className="font-mono text-emerald-700">{vehicle.plateNumber}</span></p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Present this QR code to the gate security officer scanner.</p>
+            
+            <div className="mt-5 space-y-2">
+              <button
+                type="button"
+                onClick={handleDownloadQR}
+                className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm flex items-center justify-center space-x-2 cursor-pointer transition-all active:scale-98"
+              >
+                <Download className="w-4 h-4 text-emerald-100" />
+                <span>Download QR Code Only (PNG)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowQRModal(false)}
+                className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold cursor-pointer transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
