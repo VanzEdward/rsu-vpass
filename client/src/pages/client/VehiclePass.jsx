@@ -250,30 +250,30 @@ export default function VehiclePass() {
                     </div>
                   )}
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1 min-w-0 flex-1">
                   <p className="text-[10px] uppercase font-bold text-slate-400">Registered To</p>
-                  <p className="text-sm font-black text-slate-900 leading-tight">{applicant_name}</p>
-                  <p className="text-xs font-mono text-slate-600">ID: {school_id}</p>
-                  <p className="text-[11px] text-emerald-700 font-semibold">{classification} • {vehicle.type}</p>
+                  <p className="text-sm font-black text-slate-900 leading-tight truncate" title={applicant_name}>{applicant_name}</p>
+                  <p className="text-xs font-mono text-slate-600 truncate">ID: {school_id}</p>
+                  <p className="text-[11px] text-emerald-700 font-semibold truncate">{classification} • {vehicle.type}</p>
                 </div>
               </div>
 
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-xs space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Vehicle:</span>
-                  <span className="font-semibold text-slate-800">{vehicle.make} {vehicle.model}</span>
+                <div className="flex justify-between items-center gap-2">
+                  <span className="text-slate-500 shrink-0">Vehicle:</span>
+                  <span className="font-semibold text-slate-800 truncate text-right">{vehicle.make} {vehicle.model}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Plate Number:</span>
-                  <span className="font-mono font-bold text-slate-900">{vehicle.plateNumber}</span>
+                <div className="flex justify-between items-center gap-2">
+                  <span className="text-slate-500 shrink-0">Plate Number:</span>
+                  <span className="font-mono font-bold text-slate-900 truncate text-right">{vehicle.plateNumber}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Pass Number:</span>
-                  <span className="font-mono font-bold text-emerald-700">{pass.passNumber}</span>
+                <div className="flex justify-between items-center gap-2">
+                  <span className="text-slate-500 shrink-0">Pass Number:</span>
+                  <span className="font-mono font-bold text-emerald-700 truncate text-right">{pass.passNumber}</span>
                 </div>
-                <div className="flex justify-between pt-1 border-t border-slate-200">
-                  <span className="text-slate-500">Valid Until:</span>
-                  <span className="font-bold text-slate-900">{pass.validUntil}</span>
+                <div className="flex justify-between items-center pt-1 border-t border-slate-200 gap-2">
+                  <span className="text-slate-500 shrink-0">Valid Until:</span>
+                  <span className="font-bold text-slate-900 truncate text-right">{pass.validUntil}</span>
                 </div>
               </div>
 
@@ -324,10 +324,10 @@ export default function VehiclePass() {
                 </span>
               </div>
 
-              <div className="py-1">
+              <div className="py-1 min-w-0">
                 <p className="text-xs text-slate-500">Vehicle Description</p>
-                <p className="text-base font-bold text-slate-900">{vehicle.make} {vehicle.model}</p>
-                <p className="text-xl font-black font-mono tracking-widest text-emerald-700 mt-1">{vehicle.plateNumber}</p>
+                <p className="text-base font-bold text-slate-900 truncate px-2" title={`${vehicle.make} ${vehicle.model}`}>{vehicle.make} {vehicle.model}</p>
+                <p className="text-xl font-black font-mono tracking-widest text-emerald-700 mt-1 truncate px-2">{vehicle.plateNumber}</p>
               </div>
 
               {/* Dynamic Sticker QR Preview */}
@@ -409,7 +409,7 @@ export default function VehiclePass() {
               </div>
             </div>
 
-            <p className="text-xs font-bold text-slate-800 mt-4">{vehicle.make} {vehicle.model} • <span className="font-mono text-emerald-700">{vehicle.plateNumber}</span></p>
+            <p className="text-xs font-bold text-slate-800 mt-4 truncate px-2">{vehicle.make} {vehicle.model} • <span className="font-mono text-emerald-700">{vehicle.plateNumber}</span></p>
             <p className="text-[11px] text-slate-500 mt-0.5">Present this QR code to the gate security officer scanner.</p>
             
             <div className="mt-5 space-y-2">

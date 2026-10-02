@@ -312,6 +312,7 @@ export default function Register() {
                 <input
                   type="text"
                   required
+                  maxLength={35}
                   placeholder="e.g. Dela Cruz"
                   value={formData.lastName}
                   onChange={(e) => handleChange('lastName', e.target.value)}
@@ -326,6 +327,7 @@ export default function Register() {
                 <input
                   type="text"
                   required
+                  maxLength={35}
                   placeholder="e.g. Juan"
                   value={formData.firstName}
                   onChange={(e) => handleChange('firstName', e.target.value)}
@@ -339,6 +341,7 @@ export default function Register() {
                 </label>
                 <input
                   type="text"
+                  maxLength={35}
                   placeholder="e.g. Santos"
                   value={formData.middleName}
                   onChange={(e) => handleChange('middleName', e.target.value)}
@@ -357,6 +360,7 @@ export default function Register() {
                   <input
                     type="tel"
                     required
+                    maxLength={13}
                     placeholder="0912 345 6789"
                     value={formData.cellphoneNo}
                     onChange={(e) => handleChange('cellphoneNo', e.target.value)}
@@ -373,9 +377,10 @@ export default function Register() {
                   type="number"
                   placeholder="e.g. 21"
                   min="16"
-                  max="80"
+                  max="99"
+                  maxLength={2}
                   value={formData.age}
-                  onChange={(e) => handleChange('age', e.target.value)}
+                  onChange={(e) => handleChange('age', e.target.value.slice(0, 2))}
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-emerald-500 outline-none"
                 />
               </div>
@@ -388,6 +393,7 @@ export default function Register() {
                   <CreditCard className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
                   <input
                     type="text"
+                    maxLength={20}
                     placeholder="e.g. D02-24-123456"
                     value={formData.driversLicenseNo}
                     onChange={(e) => handleChange('driversLicenseNo', e.target.value)}
@@ -407,6 +413,7 @@ export default function Register() {
                   <input
                     type="text"
                     required
+                    maxLength={100}
                     placeholder="e.g. Liwanag, Odiongan, Romblon (Boarding House / Residence)"
                     value={formData.currentAddress}
                     onChange={(e) => handleChange('currentAddress', e.target.value)}
@@ -423,6 +430,7 @@ export default function Register() {
                   <MapPin className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
                   <input
                     type="text"
+                    maxLength={100}
                     placeholder="e.g. Brgy. Tulay, Odiongan / Hometown"
                     value={formData.permanentAddress}
                     onChange={(e) => handleChange('permanentAddress', e.target.value)}
@@ -462,6 +470,7 @@ export default function Register() {
                   <input
                     type="text"
                     required
+                    maxLength={18}
                     placeholder="e.g. 2026-00001"
                     value={formData.studentIdNo}
                     onChange={(e) => handleChange('studentIdNo', e.target.value)}
@@ -479,6 +488,7 @@ export default function Register() {
                   <input
                     type="text"
                     required
+                    maxLength={50}
                     placeholder="e.g. 3rd Year - BS Information Technology"
                     value={formData.yearAndCourse}
                     onChange={(e) => handleChange('yearAndCourse', e.target.value)}
@@ -495,6 +505,7 @@ export default function Register() {
                   <input
                     type="text"
                     required
+                    maxLength={18}
                     placeholder="e.g. EMP-2024-001"
                     value={formData.employeeIdNo}
                     onChange={(e) => handleChange('employeeIdNo', e.target.value)}
@@ -512,6 +523,7 @@ export default function Register() {
                   <input
                     type="text"
                     required
+                    maxLength={50}
                     placeholder="e.g. College of Engineering & Technology / Registrar"
                     value={formData.departmentUnit}
                     onChange={(e) => handleChange('departmentUnit', e.target.value)}
@@ -539,6 +551,7 @@ export default function Register() {
                 <input
                   type="text"
                   required
+                  maxLength={40}
                   placeholder="e.g. Maria Dela Cruz"
                   value={formData.emergencyName}
                   onChange={(e) => handleChange('emergencyName', e.target.value)}
@@ -553,6 +566,7 @@ export default function Register() {
                 <input
                   type="text"
                   required
+                  maxLength={25}
                   placeholder="e.g. Mother / Parent / Spouse"
                   value={formData.relationship}
                   onChange={(e) => handleChange('relationship', e.target.value)}
@@ -569,6 +583,7 @@ export default function Register() {
                   <input
                     type="tel"
                     required
+                    maxLength={13}
                     placeholder="0918 765 4321"
                     value={formData.emergencyCellphoneNo}
                     onChange={(e) => handleChange('emergencyCellphoneNo', e.target.value)}
@@ -598,6 +613,7 @@ export default function Register() {
                   <input
                     type="email"
                     required
+                    maxLength={50}
                     placeholder="e.g. juan@rsu.edu.ph"
                     value={formData.email}
                     onChange={(e) => handleChange('email', e.target.value)}
@@ -613,6 +629,7 @@ export default function Register() {
                 <input
                   type="password"
                   required
+                  maxLength={40}
                   placeholder="Min 6 characters"
                   value={formData.password}
                   onChange={(e) => handleChange('password', e.target.value)}
@@ -627,6 +644,7 @@ export default function Register() {
                 <input
                   type="password"
                   required
+                  maxLength={40}
                   placeholder="Confirm password"
                   value={formData.confirmPassword}
                   onChange={(e) => handleChange('confirmPassword', e.target.value)}

@@ -226,7 +226,7 @@ export default function AdminApplications() {
           <div className="divide-y divide-slate-100">
             {filteredApps.map((app) => (
               <div key={app.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-start space-x-3.5">
+                <div className="flex items-start space-x-3.5 min-w-0 flex-1">
                   {/* Photo Preview */}
                   {app.applicant_photo ? (
                     <img
@@ -240,7 +240,7 @@ export default function AdminApplications() {
                     </div>
                   )}
 
-                  <div className="space-y-1">
+                  <div className="space-y-1 min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="font-mono font-bold text-xs text-emerald-700">{app.id}</span>
                       <span className="text-xs text-slate-400">•</span>
@@ -271,10 +271,10 @@ export default function AdminApplications() {
                       </span>
                     </div>
 
-                    <p className="text-sm font-bold text-slate-900">
+                    <p className="text-sm font-bold text-slate-900 truncate" title={app.applicant_name}>
                       {app.applicant_name} <span className="font-normal text-xs text-slate-500">({app.school_id})</span>
                     </p>
-                    <p className="text-xs text-slate-600">
+                    <p className="text-xs text-slate-600 truncate">
                       {app.vehicle?.make} {app.vehicle?.model} ({app.vehicle?.year}) • Plate:{' '}
                       <span className="font-mono font-bold text-slate-900">{app.vehicle?.plateNumber}</span>
                     </p>
@@ -742,8 +742,9 @@ export default function AdminApplications() {
             <textarea
               required
               rows={3}
+              maxLength={300}
               value={receiptRejectReason}
-              onChange={(e) => setReceiptRejectReason(e.target.value)}
+              onChange={(e) => setReceiptRejectReason(e.target.value.slice(0, 300))}
               placeholder="e.g. Unreadable receipt photo, missing official seal, or incorrect payment amount..."
               className="w-full p-3 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
             />
@@ -778,8 +779,9 @@ export default function AdminApplications() {
             <textarea
               required
               rows={3}
+              maxLength={300}
               value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
+              onChange={(e) => setRejectionReason(e.target.value.slice(0, 300))}
               placeholder="e.g. Expired Driver's License or unreadable OR/CR photo..."
               className="w-full p-3 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
             />

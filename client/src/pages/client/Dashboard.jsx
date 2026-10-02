@@ -143,19 +143,19 @@ export default function Dashboard() {
 
           <div className="mt-5 p-5 rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/40 via-white to-slate-50/50">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 min-w-0 flex-1">
                 <div className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                   <span>ACTIVE PASS</span>
                 </div>
-                <h3 className="text-xl font-black text-slate-900">{activePass.vehicle}</h3>
-                <p className="text-xs text-slate-500">Plate: <span className="font-mono font-bold text-slate-800">{activePass.plateNumber}</span> • Type: {activePass.vehicleType}</p>
-                <p className="text-xs text-slate-600">Pass No: <strong className="font-mono text-emerald-700">{activePass.passNumber}</strong></p>
-                <p className="text-xs text-slate-500">Valid Until: <span className="font-semibold text-slate-700">{activePass.validUntil}</span></p>
+                <h3 className="text-xl font-black text-slate-900 truncate" title={activePass.vehicle}>{activePass.vehicle}</h3>
+                <p className="text-xs text-slate-500 truncate">Plate: <span className="font-mono font-bold text-slate-800">{activePass.plateNumber}</span> • Type: {activePass.vehicleType}</p>
+                <p className="text-xs text-slate-600 truncate">Pass No: <strong className="font-mono text-emerald-700">{activePass.passNumber}</strong></p>
+                <p className="text-xs text-slate-500 truncate">Valid Until: <span className="font-semibold text-slate-700">{activePass.validUntil}</span></p>
               </div>
 
               {/* QR Preview Widget */}
-              <div className="text-center bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex flex-col items-center">
+              <div className="text-center bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex flex-col items-center shrink-0">
                 <div className="w-24 h-24 bg-slate-50 border border-slate-100 rounded-lg flex items-center justify-center">
                   <QrCode className="w-16 h-16 text-emerald-700" />
                 </div>

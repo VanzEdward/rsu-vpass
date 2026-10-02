@@ -205,7 +205,7 @@ export default function Payments() {
                     </div>
                     <div className="p-2.5 rounded-xl bg-white/80 border border-amber-200 text-amber-900">
                       <p className="font-semibold text-[11px] text-amber-800">Reason / Note from PASO:</p>
-                      <p className="font-medium text-xs mt-0.5 italic">&ldquo;{selectedApp.receiptRejectionRemark}&rdquo;</p>
+                      <p className="font-medium text-xs mt-0.5 italic break-words">&ldquo;{selectedApp.receiptRejectionRemark}&rdquo;</p>
                     </div>
                     <p className="text-[11px] text-amber-800 leading-relaxed">
                       You do not need to restart your vehicle registration. Simply correct the mistake (e.g., retake a clearer photo of the official receipt or check the OR number) and re-submit below for PASO verification.
@@ -234,9 +234,10 @@ export default function Payments() {
                 <input
                   type="text"
                   required
+                  maxLength={20}
                   placeholder="e.g. 2026-98123"
                   value={orNumber}
-                  onChange={(e) => setOrNumber(e.target.value)}
+                  onChange={(e) => setOrNumber(e.target.value.slice(0, 20))}
                   className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 font-mono"
                 />
               </div>

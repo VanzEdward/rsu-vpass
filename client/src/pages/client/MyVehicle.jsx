@@ -309,17 +309,17 @@ export default function MyVehicle() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {vehicles.map((v) => (
           <div key={v.id} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center space-x-3 min-w-0 flex-1">
+                <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
                   <Car className="w-6 h-6" />
                 </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">{v.make} {v.model} ({v.year})</h3>
-                  <p className="text-xs text-slate-500">{v.type} • {v.color}</p>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-base font-bold text-slate-900 truncate">{v.make} {v.model} ({v.year})</h3>
+                  <p className="text-xs text-slate-500 truncate">{v.type} • {v.color}</p>
                 </div>
               </div>
-              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
                 v.status === 'Active Pass'
                   ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
                   : 'bg-slate-100 text-slate-700 border-slate-200'
@@ -328,9 +328,9 @@ export default function MyVehicle() {
               </span>
             </div>
 
-            <div className="mt-5 pt-4 border-t border-slate-100 flex justify-between items-center text-xs">
-              <span className="text-slate-500">Plate Number:</span>
-              <span className="font-mono font-black text-slate-900 text-sm tracking-wider">{v.plateNumber}</span>
+            <div className="mt-5 pt-4 border-t border-slate-100 flex justify-between items-center text-xs gap-2">
+              <span className="text-slate-500 shrink-0">Plate Number:</span>
+              <span className="font-mono font-black text-slate-900 text-sm tracking-wider truncate">{v.plateNumber}</span>
             </div>
           </div>
         ))}
@@ -480,9 +480,10 @@ export default function MyVehicle() {
                       <input
                         type="text"
                         required
+                        maxLength={10}
                         placeholder="e.g. ABC 1234 or MV File No."
                         value={formData.plateNumber}
-                        onChange={(e) => handleFieldChange('plateNumber', e.target.value.toUpperCase())}
+                        onChange={(e) => handleFieldChange('plateNumber', e.target.value.toUpperCase().slice(0, 10))}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono font-bold uppercase text-slate-900 outline-none transition-all placeholder:font-normal placeholder:normal-case placeholder:text-slate-400"
                       />
                       {errors.plateNumber && <p className="text-rose-600 text-[11px] font-semibold mt-1">{errors.plateNumber}</p>}
@@ -516,11 +517,13 @@ export default function MyVehicle() {
                       <input
                         type="text"
                         required
+                        maxLength={25}
                         placeholder="e.g. Honda, Yamaha, Toyota, Suzuki"
                         value={formData.brand || formData.make}
                         onChange={(e) => {
-                          handleFieldChange('brand', e.target.value);
-                          handleFieldChange('make', e.target.value);
+                          const val = e.target.value.slice(0, 25);
+                          handleFieldChange('brand', val);
+                          handleFieldChange('make', val);
                         }}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-semibold text-slate-900 outline-none transition-all placeholder:font-normal placeholder:text-slate-400"
                       />
@@ -535,9 +538,10 @@ export default function MyVehicle() {
                       <input
                         type="text"
                         required
+                        maxLength={25}
                         placeholder="e.g. Click 125, Vios, Aerox, Wigo"
                         value={formData.model}
-                        onChange={(e) => handleFieldChange('model', e.target.value)}
+                        onChange={(e) => handleFieldChange('model', e.target.value.slice(0, 25))}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-semibold text-slate-900 outline-none transition-all placeholder:font-normal placeholder:text-slate-400"
                       />
                       {errors.model && <p className="text-rose-600 text-[11px] font-semibold mt-1">{errors.model}</p>}
@@ -551,9 +555,10 @@ export default function MyVehicle() {
                       <input
                         type="text"
                         required
+                        maxLength={20}
                         placeholder="e.g. Matte Black, Pearl White, Red"
                         value={formData.color}
-                        onChange={(e) => handleFieldChange('color', e.target.value)}
+                        onChange={(e) => handleFieldChange('color', e.target.value.slice(0, 20))}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-semibold text-slate-900 outline-none transition-all placeholder:font-normal placeholder:text-slate-400"
                       />
                       {errors.color && <p className="text-rose-600 text-[11px] font-semibold mt-1">{errors.color}</p>}
@@ -567,8 +572,11 @@ export default function MyVehicle() {
                       <input
                         type="number"
                         placeholder="e.g. 2026"
+                        min="1970"
+                        max="2035"
+                        maxLength={4}
                         value={formData.year}
-                        onChange={(e) => handleFieldChange('year', e.target.value)}
+                        onChange={(e) => handleFieldChange('year', e.target.value.slice(0, 4))}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-semibold text-slate-900 outline-none transition-all placeholder:font-normal placeholder:text-slate-400"
                       />
                     </div>
