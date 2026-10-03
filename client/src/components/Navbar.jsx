@@ -115,8 +115,8 @@ export default function Navbar() {
                 <div className="mt-0.5">{getRoleBadge(user.role)}</div>
               </div>
 
-              {/* NOTIFICATION FEATURE: Positioned on the HEADER to the LEFT of the profile icon */}
-              {user.role !== 'GUARD' && (
+              {/* NOTIFICATION FEATURE: Positioned on the HEADER to the LEFT of the profile icon (Client side only) */}
+              {user.role === 'CLIENT' && (
                 <div className="relative" ref={notifRef}>
                   <button
                     type="button"
