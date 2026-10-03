@@ -325,7 +325,8 @@ export default function GuardScanner() {
   const handleIssueVisitorPass = (e) => {
     e.preventDefault();
     if (!visitorForm.name.trim() || !visitorForm.plateNumber.trim()) {
-      alert('Please enter visitor name and vehicle plate number.');
+      setLogSuccessMessage('Please enter visitor name and vehicle plate number.');
+      setTimeout(() => setLogSuccessMessage(''), 3500);
       return;
     }
 

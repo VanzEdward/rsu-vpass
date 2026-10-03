@@ -34,6 +34,7 @@ export default function AdminApplications() {
   // Registration Form Rejection State
   const [rejectModalApp, setRejectModalApp] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [rejectError, setRejectError] = useState('');
 
   // Receipt Verification & QR Generation Modal State
   const [qrModalApp, setQrModalApp] = useState(null);
@@ -43,9 +44,16 @@ export default function AdminApplications() {
   // Receipt Rejection State
   const [receiptRejectModalApp, setReceiptRejectModalApp] = useState(null);
   const [receiptRejectReason, setReceiptRejectReason] = useState('');
+  const [receiptRejectError, setReceiptRejectError] = useState('');
 
   // Full-size Receipt Image Preview
   const [zoomReceiptPhoto, setZoomReceiptPhoto] = useState(null);
+
+  // In-App Approval Confirmation Modal State (replaces native alert)
+  const [approveConfirmApp, setApproveConfirmApp] = useState(null);
+
+  // In-App Confirmation / Result Dialog State (replaces native alert popup)
+  const [inAppConfirmModal, setInAppConfirmModal] = useState(null); // { title: string, message: string, type: 'success' | 'warning' | 'error' }
 
   const filteredApps = (applications || []).filter((app) => {
     // Status filter
@@ -71,22 +79,53 @@ export default function AdminApplications() {
     return true;
   });
 
-  const handleApprove = (appId) => {
+  const handleOpenApproveConfirm = (app) => {
+    setApproveConfirmApp(app);
+  };
+
+  const handleConfirmApprove = () => {
+    if (!approveConfirmApp) return;
+    const appId = approveConfirmApp.id;
     reviewApplication(appId, 'APPROVED');
+    setApproveConfirmApp(null);
     setSelectedApp(null);
-    alert('Application Approved! The applicant can now proceed to Milestone 3 (Cashier Payment & Official Receipt Upload).');
+    setInAppConfirmModal({
+      title: 'Application Approved!',
+      message: 'The applicant can now proceed to Milestone 3 (Cashier Payment & Official Receipt Upload).',
+      type: 'success'
+    });
+  };
+
+  const handleApprove = (appId) => {
+    const target = (applications || []).find((a) => a.id === appId);
+    if (target) {
+      setApproveConfirmApp(target);
+    } else {
+      reviewApplication(appId, 'APPROVED');
+      setSelectedApp(null);
+      setInAppConfirmModal({
+        title: 'Application Approved!',
+        message: 'The applicant can now proceed to Milestone 3 (Cashier Payment & Official Receipt Upload).',
+        type: 'success'
+      });
+    }
   };
 
   const handleReject = () => {
     if (!rejectionReason.trim()) {
-      alert('Please provide a specific reason for rejection.');
+      setRejectError('Please provide a specific reason for rejection.');
       return;
     }
     reviewApplication(rejectModalApp.id, 'REJECTED', rejectionReason.trim());
     setRejectModalApp(null);
     setSelectedApp(null);
     setRejectionReason('');
-    alert('Application rejected with stated reason.');
+    setRejectError('');
+    setInAppConfirmModal({
+      title: 'Application Returned for Correction',
+      message: 'The application was returned with the stated remark and the applicant has been notified.',
+      type: 'warning'
+    });
   };
 
   // Open the QR Generation & Confirmation Modal
@@ -116,20 +155,29 @@ export default function AdminApplications() {
     if (selectedApp?.id === qrModalApp.id) {
       setSelectedApp(null);
     }
-    alert(`Official Pass ${issuedPass} successfully generated and granted to ${issuedName}! The QR code is now live and active on the client side.`);
+    setInAppConfirmModal({
+      title: 'Official Gate QR Pass Issued!',
+      message: `Pass ${issuedPass} successfully generated and granted to ${issuedName}! The QR code is now live and active on the client side.`,
+      type: 'success'
+    });
   };
 
   // Reject Receipt (returns application back to APPROVED so applicant can re-upload)
   const handleRejectReceipt = () => {
     if (!receiptRejectReason.trim()) {
-      alert('Please state why the receipt was rejected (e.g. blurry photo, unreadable OR number).');
+      setReceiptRejectError('Please state why the receipt was rejected (e.g. blurry photo, unreadable OR number).');
       return;
     }
     rejectReceipt(receiptRejectModalApp.id, receiptRejectReason.trim());
     setReceiptRejectModalApp(null);
     setSelectedApp(null);
     setReceiptRejectReason('');
-    alert('Receipt rejected. The applicant has been notified to re-upload a valid Cashier receipt.');
+    setReceiptRejectError('');
+    setInAppConfirmModal({
+      title: 'Receipt Returned',
+      message: 'The cashier receipt was declined and returned to the applicant to re-upload a valid photo.',
+      type: 'warning'
+    });
   };
 
   const countByStatus = (status) => {
@@ -325,7 +373,7 @@ export default function AdminApplications() {
                     <>
                       <button
                         type="button"
-                        onClick={() => handleApprove(app.id)}
+                        onClick={() => handleOpenApproveConfirm(app)}
                         className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold cursor-pointer shadow-xs"
                       >
                         Approve
@@ -558,7 +606,7 @@ export default function AdminApplications() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleApprove(selectedApp.id)}
+                    onClick={() => handleOpenApproveConfirm(selectedApp)}
                     className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer shadow-sm"
                   >
                     Approve & Unlock Payment Milestone
@@ -748,10 +796,16 @@ export default function AdminApplications() {
               placeholder="e.g. Unreadable receipt photo, missing official seal, or incorrect payment amount..."
               className="w-full p-3 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
             />
+            {receiptRejectError && (
+              <p className="text-rose-600 text-xs font-semibold mt-1">{receiptRejectError}</p>
+            )}
             <div className="flex justify-end space-x-2 pt-2">
               <button
                 type="button"
-                onClick={() => setReceiptRejectModalApp(null)}
+                onClick={() => {
+                  setReceiptRejectModalApp(null);
+                  setReceiptRejectError('');
+                }}
                 className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 Cancel
@@ -781,14 +835,23 @@ export default function AdminApplications() {
               rows={3}
               maxLength={300}
               value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value.slice(0, 300))}
+              onChange={(e) => {
+                setRejectionReason(e.target.value.slice(0, 300));
+                if (rejectError) setRejectError('');
+              }}
               placeholder="e.g. Expired Driver's License or unreadable OR/CR photo..."
               className="w-full p-3 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
             />
+            {rejectError && (
+              <p className="text-rose-600 text-xs font-semibold mt-1">{rejectError}</p>
+            )}
             <div className="flex justify-end space-x-2 pt-2">
               <button
                 type="button"
-                onClick={() => setRejectModalApp(null)}
+                onClick={() => {
+                  setRejectModalApp(null);
+                  setRejectError('');
+                }}
                 className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 Cancel
@@ -830,6 +893,118 @@ export default function AdminApplications() {
                 className="px-5 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 cursor-pointer"
               >
                 Close Fullscreen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* IN-APP APPROVAL CONFIRMATION MODAL (Replaces localhost alert) */}
+      {/* ========================================================================= */}
+      {approveConfirmApp && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl relative space-y-4 border border-slate-100 animate-in zoom-in-95 duration-150">
+            <button
+              onClick={() => setApproveConfirmApp(null)}
+              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center space-x-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div>
+                <span className="font-mono text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                  {approveConfirmApp.id}
+                </span>
+                <h3 className="text-base font-black text-slate-900 mt-0.5">Approve Vehicle Registration?</h3>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs space-y-1.5">
+              <p className="text-slate-700">
+                <span className="font-semibold text-slate-500">Applicant:</span>{' '}
+                <strong className="text-slate-900">{approveConfirmApp.applicant_name}</strong> ({approveConfirmApp.school_id})
+              </p>
+              <p className="text-slate-700">
+                <span className="font-semibold text-slate-500">Vehicle:</span>{' '}
+                <strong className="text-slate-900">{approveConfirmApp.vehicle?.make} {approveConfirmApp.vehicle?.model}</strong> • Plate:{' '}
+                <span className="font-mono font-bold text-slate-900">{approveConfirmApp.vehicle?.plateNumber}</span>
+              </p>
+            </div>
+
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Approving this application completes Milestone 2 (PASO Review). The applicant will be notified to proceed to <strong>Milestone 3 (Cashier Payment & Official Receipt Upload)</strong>.
+            </p>
+
+            <div className="flex items-center justify-end space-x-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setApproveConfirmApp(null)}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmApprove}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm flex items-center space-x-1.5 cursor-pointer transition-colors"
+              >
+                <Check className="w-4 h-4" />
+                <span>Confirm & Approve</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* IN-APP SUCCESS / CONFIRMATION RESULT MODAL (Replaces localhost alert) */}
+      {/* ========================================================================= */}
+      {inAppConfirmModal && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl space-y-4 border border-slate-100 animate-in zoom-in-95 duration-150 relative">
+            <div className={`w-14 h-14 rounded-2xl mx-auto flex items-center justify-center shadow-xs ${
+              inAppConfirmModal.type === 'warning'
+                ? 'bg-amber-100 text-amber-700 ring-8 ring-amber-50'
+                : inAppConfirmModal.type === 'error'
+                ? 'bg-rose-100 text-rose-700 ring-8 ring-rose-50'
+                : 'bg-emerald-100 text-emerald-700 ring-8 ring-emerald-50'
+            }`}>
+              {inAppConfirmModal.type === 'warning' ? (
+                <AlertCircle className="w-7 h-7" />
+              ) : inAppConfirmModal.type === 'error' ? (
+                <XCircle className="w-7 h-7" />
+              ) : (
+                <CheckCircle2 className="w-7 h-7" />
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="text-base font-black text-slate-900 tracking-tight">
+                {inAppConfirmModal.title}
+              </h3>
+              <p className="text-xs text-slate-500 leading-relaxed max-w-xs mx-auto">
+                {inAppConfirmModal.message}
+              </p>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setInAppConfirmModal(null)}
+                className={`w-full py-2.5 px-4 rounded-xl text-white font-bold text-xs shadow-sm cursor-pointer transition-colors ${
+                  inAppConfirmModal.type === 'warning'
+                    ? 'bg-amber-600 hover:bg-amber-700'
+                    : inAppConfirmModal.type === 'error'
+                    ? 'bg-rose-600 hover:bg-rose-700'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
+              >
+                OK
               </button>
             </div>
           </div>
