@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { usePass } from '../../context/PassContext';
+import jsQR from 'jsqr';
 import { 
   Camera, 
   Search, 
@@ -31,7 +32,9 @@ import {
   Phone,
   FileText,
   Users,
-  AlertCircle
+  AlertCircle,
+  SwitchCamera,
+  Upload
 } from 'lucide-react';
 
 export default function GuardScanner() {
@@ -53,6 +56,9 @@ export default function GuardScanner() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
+  const [facingMode, setFacingMode] = useState('environment'); // 'environment' | 'user'
+  const [scanPulse, setScanPulse] = useState(false);
+  const [lastScannedPayload, setLastScannedPayload] = useState('');
   const [logSuccessMessage, setLogSuccessMessage] = useState('');
   const [logFilter, setLogFilter] = useState('ALL'); // 'ALL' | 'ENTRY' | 'EXIT'
 
@@ -75,6 +81,10 @@ export default function GuardScanner() {
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const scanCanvasRef = useRef(null);
+  const lastScanTimeRef = useRef(0);
+  const lastCodeRef = useRef('');
+  const fileInputRef = useRef(null);
 
   // Web Audio API beep feedback
   const playBeep = (isSuccess = true) => {
@@ -113,33 +123,98 @@ export default function GuardScanner() {
     }
   };
 
-  // Camera stream controls
-  const toggleCamera = async () => {
-    if (cameraActive) {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
+  // Stop camera feed and cleanup tracks
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCameraActive(false);
+  };
+
+  // Start live camera with requested lens
+  const startCamera = async (mode = facingMode) => {
+    setCameraError('');
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraError('Camera access requires HTTPS or a modern browser with mediaDevices support.');
       setCameraActive(false);
       return;
     }
 
-    setCameraError('');
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+
     try {
-      const constraints = {
-        video: { facingMode: { ideal: 'environment' } }
-      };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: mode },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+      } catch (e1) {
+        // Fallback without resolution constraints
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: mode },
+          audio: false
+        });
+      }
+
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        try {
+          await videoRef.current.play();
+        } catch (playErr) {
+          console.warn('Autoplay warning:', playErr);
+        }
       }
       setCameraActive(true);
     } catch (err) {
-      setCameraError('Camera access denied or unavailable. Using simulated scanner.');
+      console.error('Camera stream access failed:', err);
+      setCameraError('Camera access denied or unavailable. Please enable camera permissions in your browser or use the quick presets.');
       setCameraActive(false);
     }
   };
 
+  // Toggle Camera on/off
+  const toggleCamera = () => {
+    if (cameraActive) {
+      stopCamera();
+    } else {
+      startCamera(facingMode);
+    }
+  };
+
+  // Flip between front and rear camera
+  const flipCamera = async () => {
+    const next = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(next);
+    if (cameraActive) {
+      await startCamera(next);
+    }
+  };
+
+  // Keep video element attached to active stream
+  useEffect(() => {
+    if (cameraActive && streamRef.current && videoRef.current) {
+      if (videoRef.current.srcObject !== streamRef.current) {
+        videoRef.current.srcObject = streamRef.current;
+      }
+      videoRef.current.play().catch(e => console.warn('Video play effect:', e));
+    }
+  }, [cameraActive]);
+
+  // Clean up stream on unmount
   useEffect(() => {
     return () => {
       if (streamRef.current) {
@@ -147,6 +222,67 @@ export default function GuardScanner() {
       }
     };
   }, []);
+
+  // Live QR Code Frame Processing Loop using jsQR
+  useEffect(() => {
+    if (!cameraActive) return;
+
+    let intervalId;
+    const canvas = scanCanvasRef.current || document.createElement('canvas');
+    scanCanvasRef.current = canvas;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    const processFrame = () => {
+      if (!videoRef.current || videoRef.current.readyState < 2) return;
+
+      const video = videoRef.current;
+      const now = Date.now();
+
+      // Scan every ~180ms to conserve device battery and maintain high FPS
+      if (now - lastScanTimeRef.current < 180) return;
+      lastScanTimeRef.current = now;
+
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      if (!vw || !vh) return;
+
+      // Downsample large camera feeds for ultra-fast QR decoding
+      const maxDim = 512;
+      const scale = Math.min(1, maxDim / Math.max(vw, vh));
+      const width = Math.floor(vw * scale);
+      const height = Math.floor(vh * scale);
+
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+
+      ctx.drawImage(video, 0, 0, width, height);
+      const imgData = ctx.getImageData(0, 0, width, height);
+
+      const code = jsQR(imgData.data, imgData.width, imgData.height, {
+        inversionAttempts: 'dontInvert'
+      });
+
+      if (code && code.data) {
+        const raw = code.data.trim();
+        // Prevent duplicate re-scans within 2.5 seconds
+        if (raw === lastCodeRef.current && now - (lastScanTimeRef.current || 0) < 2500) {
+          return;
+        }
+        lastCodeRef.current = raw;
+        setScanPulse(true);
+        setTimeout(() => setScanPulse(false), 900);
+        handleDecodedQr(raw);
+      }
+    };
+
+    intervalId = setInterval(processFrame, 180);
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [cameraActive, applications, visitors]);
 
   // Demo pass scanner simulator
   const handleScanPass = (passType = 'VALID_EMPLOYEE') => {
@@ -294,6 +430,133 @@ export default function GuardScanner() {
     } else {
       handleScanPass('EXPIRED');
     }
+  };
+
+  // Decode and resolve scanned QR code payloads
+  const handleDecodedQr = (rawQr) => {
+    if (!rawQr) return;
+    const q = rawQr.trim();
+    setLastScannedPayload(q);
+
+    let explicitPass = '';
+    let explicitPlate = '';
+    let searchTarget = q;
+
+    if (q.startsWith('RSU-VPASS:')) {
+      // Format: RSU-VPASS:passNumber:plateNumber:schoolId
+      const parts = q.split(':');
+      explicitPass = parts[1] || '';
+      explicitPlate = parts[2] || '';
+      searchTarget = explicitPass || explicitPlate || q;
+    }
+
+    const cleanSearchPlate = (explicitPlate || q).toLowerCase().replace(/[^a-z0-9]/g, '');
+    const cleanSearchPass = (explicitPass || q).toLowerCase();
+
+    // 1. Search in active/issued applications
+    const matchingApp = (applications || []).find((a) => {
+      const aPass = (a.pass?.passNumber || '').toLowerCase();
+      const aPlate = (a.vehicle?.plateNumber || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const aId = (a.school_id || '').toLowerCase();
+
+      return (
+        (cleanSearchPass && aPass === cleanSearchPass) ||
+        (cleanSearchPlate && aPlate && (aPlate === cleanSearchPlate || cleanSearchPlate.includes(aPlate) || aPlate.includes(cleanSearchPlate))) ||
+        (aId && q.toLowerCase().includes(aId)) ||
+        (aPass && q.toLowerCase().includes(aPass))
+      );
+    });
+
+    if (matchingApp && matchingApp.pass) {
+      const isEmployee = (matchingApp.classification || '').toUpperCase() === 'EMPLOYEE';
+      playBeep(true);
+      triggerHaptic(true);
+      setVerifiedPass({
+        passNumber: matchingApp.pass.passNumber,
+        client: matchingApp.applicant_name,
+        schoolId: matchingApp.school_id,
+        classification: isEmployee ? 'EMPLOYEE' : 'STUDENT',
+        vehicle: `${matchingApp.vehicle.make} ${matchingApp.vehicle.model}`,
+        plateNumber: matchingApp.vehicle.plateNumber,
+        vehicleType: matchingApp.vehicle.type,
+        color: matchingApp.vehicle.color,
+        validUntil: matchingApp.pass.validUntil,
+        status: matchingApp.pass.status,
+        isValid: matchingApp.pass.status === 'ACTIVE',
+        department: matchingApp.department
+      });
+      setLogSuccessMessage(`Pass Verified: ${matchingApp.vehicle.plateNumber} (${matchingApp.pass.passNumber})`);
+      setTimeout(() => setLogSuccessMessage(''), 3500);
+      return;
+    }
+
+    // 2. Search in temporary visitor passes
+    const matchingVisitor = (visitors || []).find((v) => {
+      const vId = (v.id || '').toLowerCase();
+      const vPlate = (v.plateNumber || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      return (
+        (cleanSearchPass && vId === cleanSearchPass) ||
+        (cleanSearchPlate && vPlate && (vPlate === cleanSearchPlate || cleanSearchPlate.includes(vPlate) || vPlate.includes(cleanSearchPlate))) ||
+        q.toLowerCase().includes(vId)
+      );
+    });
+
+    if (matchingVisitor) {
+      playBeep(true);
+      triggerHaptic(true);
+      setVerifiedPass({
+        passNumber: matchingVisitor.id,
+        client: matchingVisitor.name,
+        schoolId: `VISITOR (${matchingVisitor.idPresented || 'ID'})`,
+        classification: 'VISITOR',
+        vehicle: matchingVisitor.vehicleType,
+        plateNumber: matchingVisitor.plateNumber,
+        vehicleType: matchingVisitor.vehicleType,
+        color: 'N/A',
+        validUntil: matchingVisitor.validUntil,
+        status: matchingVisitor.status === 'INSIDE' ? 'INSIDE' : 'EXITED',
+        isValid: true,
+        department: `Destination: ${matchingVisitor.destination}`
+      });
+      setLogSuccessMessage(`Visitor Pass Verified: ${matchingVisitor.name} (${matchingVisitor.plateNumber})`);
+      setTimeout(() => setLogSuccessMessage(''), 3500);
+      return;
+    }
+
+    // 3. Fallback to manual search presets
+    handleManualSearch(searchTarget);
+  };
+
+  // Decode QR code from uploaded image file
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imgData.data, imgData.width, imgData.height);
+        if (code && code.data) {
+          handleDecodedQr(code.data);
+        } else {
+          playBeep(false);
+          triggerHaptic(false);
+          setCameraError('No readable QR code found in the image. Please upload a clear photo of the sticker or pass QR code.');
+          setTimeout(() => setCameraError(''), 4000);
+        }
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   // Log ENTRY / EXIT event
@@ -491,82 +754,134 @@ export default function GuardScanner() {
         <div className="space-y-4">
           <div className="bg-slate-800 rounded-3xl border border-slate-700 p-4 sm:p-6 shadow-xl relative overflow-hidden">
             {/* Viewfinder Frame */}
-            <div className="aspect-square max-w-[280px] sm:max-w-xs mx-auto rounded-2xl bg-black flex flex-col items-center justify-center relative overflow-hidden border-2 border-slate-700 shadow-inner">
-              {cameraActive ? (
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover"
-                />
-              ) : (
+            <div className={`aspect-square max-w-[280px] sm:max-w-xs mx-auto rounded-2xl bg-black flex flex-col items-center justify-center relative overflow-hidden border-2 transition-all duration-300 shadow-inner ${
+              scanPulse ? 'border-emerald-400 ring-4 ring-emerald-400/40 shadow-emerald-950/60' : 'border-slate-700'
+            }`}>
+              {/* The video element is ALWAYS mounted to guarantee videoRef.current is ready */}
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className={`w-full h-full object-cover transition-opacity duration-300 ${
+                  cameraActive ? 'opacity-100 block' : 'opacity-0 hidden'
+                }`}
+              />
+
+              {!cameraActive && (
                 <div className="text-center p-6 space-y-2">
                   <Camera className="w-12 h-12 text-slate-600 mx-auto animate-pulse" />
                   <p className="text-xs text-slate-400 font-semibold">Camera is idle</p>
-                  <p className="text-[11px] text-slate-500">Tap below to activate phone camera or use quick presets</p>
+                  <p className="text-[11px] text-slate-500">Tap "Start Camera Scanner" or use quick presets</p>
+                </div>
+              )}
+
+              {/* Live Scanner indicator overlay */}
+              {cameraActive && (
+                <div className="absolute top-2.5 left-2.5 z-10 bg-slate-950/80 backdrop-blur-md border border-emerald-500/40 text-emerald-400 px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center space-x-1.5 shadow-sm">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                  <span>Active • {facingMode === 'environment' ? 'Back' : 'Front'} Camera</span>
                 </div>
               )}
 
               {/* Viewfinder Target Framing Overlay (Clean Corner Brackets without middle line) */}
               <div className="absolute inset-8 pointer-events-none">
-                <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-emerald-400 rounded-tl-xl"></div>
-                <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-emerald-400 rounded-tr-xl"></div>
-                <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-emerald-400 rounded-bl-xl"></div>
-                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-emerald-400 rounded-br-xl"></div>
+                <div className={`absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 rounded-tl-xl transition-colors ${scanPulse ? 'border-emerald-300' : 'border-emerald-400'}`}></div>
+                <div className={`absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 rounded-tr-xl transition-colors ${scanPulse ? 'border-emerald-300' : 'border-emerald-400'}`}></div>
+                <div className={`absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 rounded-bl-xl transition-colors ${scanPulse ? 'border-emerald-300' : 'border-emerald-400'}`}></div>
+                <div className={`absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 rounded-br-xl transition-colors ${scanPulse ? 'border-emerald-300' : 'border-emerald-400'}`}></div>
               </div>
 
               {cameraError && (
-                <div className="absolute inset-0 bg-slate-900/90 p-4 flex flex-col items-center justify-center text-center">
-                  <AlertTriangle className="w-8 h-8 text-amber-400 mb-2" />
-                  <p className="text-xs text-slate-200">{cameraError}</p>
+                <div className="absolute inset-0 z-20 bg-slate-900/95 p-4 flex flex-col items-center justify-center text-center space-y-2">
+                  <AlertTriangle className="w-8 h-8 text-amber-400" />
+                  <p className="text-xs text-slate-200 font-semibold">{cameraError}</p>
+                  <button
+                    type="button"
+                    onClick={() => startCamera(facingMode)}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold cursor-pointer"
+                  >
+                    Retry Camera
+                  </button>
                 </div>
               )}
             </div>
+
+            {/* Hidden file input for scanning saved QR code images */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="hidden"
+            />
 
             {/* Camera Controls & Quick Preset Simulators */}
             <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-2">
               <button
                 type="button"
                 onClick={toggleCamera}
-                className={`w-full sm:w-auto px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center space-x-2 transition-colors cursor-pointer ${
+                className={`w-full sm:w-auto px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer ${
                   cameraActive 
-                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                    : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30'
+                    : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-md shadow-emerald-950/40'
                 }`}
               >
-                {cameraActive ? <VideoOff className="w-4 h-4" /> : <Video className="w-4 h-4 text-emerald-400" />}
-                <span>{cameraActive ? 'Stop Camera' : 'Use Phone Camera'}</span>
+                {cameraActive ? <VideoOff className="w-4 h-4" /> : <Video className="w-4 h-4" />}
+                <span>{cameraActive ? 'Stop Camera' : 'Start Camera Scanner'}</span>
               </button>
 
-              <div className="flex flex-wrap gap-1.5 justify-center w-full sm:w-auto">
+              {cameraActive && (
                 <button
                   type="button"
-                  onClick={() => handleScanPass('VALID_EMPLOYEE')}
-                  className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center space-x-1 cursor-pointer"
+                  onClick={flipCamera}
+                  className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer border border-slate-600"
+                  title="Switch between front and back camera"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Scan Employee</span>
+                  <SwitchCamera className="w-4 h-4 text-emerald-400" />
+                  <span>Flip Lens ({facingMode === 'environment' ? 'Back' : 'Front'})</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => handleScanPass('VALID_STUDENT')}
-                  className="px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-[11px] flex items-center space-x-1 cursor-pointer"
-                >
-                  <span>Student Pass</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleScanPass('VISITOR_PASS')}
-                  className="px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-[11px] flex items-center space-x-1 cursor-pointer"
-                >
-                  <span>Visitor Pass</span>
-                </button>
-              </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-700/80 text-slate-300 hover:text-white font-bold text-xs flex items-center justify-center space-x-1.5 border border-slate-700 cursor-pointer"
+                title="Scan QR from saved photo or image"
+              >
+                <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Upload QR Image</span>
+              </button>
+            </div>
+
+            {/* Quick Presets row */}
+            <div className="mt-3 flex flex-wrap gap-1.5 justify-center w-full">
+              <button
+                type="button"
+                onClick={() => handleScanPass('VALID_EMPLOYEE')}
+                className="px-3 py-1.5 rounded-xl bg-slate-700/80 hover:bg-emerald-600 text-slate-200 hover:text-white font-bold text-[11px] flex items-center space-x-1 cursor-pointer transition-colors border border-slate-600/60"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Demo Employee</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleScanPass('VALID_STUDENT')}
+                className="px-3 py-1.5 rounded-xl bg-slate-700/80 hover:bg-teal-600 text-slate-200 hover:text-white font-bold text-[11px] flex items-center space-x-1 cursor-pointer transition-colors border border-slate-600/60"
+              >
+                <span>Demo Student</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleScanPass('VISITOR_PASS')}
+                className="px-3 py-1.5 rounded-xl bg-slate-700/80 hover:bg-amber-600 text-slate-200 hover:text-white font-bold text-[11px] flex items-center space-x-1 cursor-pointer transition-colors border border-slate-600/60"
+              >
+                <span>Demo Visitor</span>
+              </button>
             </div>
 
             <p className="text-[10px] text-slate-400 text-center mt-3">
-              Note: Students with visible gate stickers pass smoothly. Guards scan when verification is needed or suspicious.
+              Point your camera directly at the vehicle windshield sticker QR or client phone pass.
             </p>
           </div>
         </div>
