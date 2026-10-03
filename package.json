@@ -6,8 +6,8 @@
   "scripts": {
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
-    "build:client": "cd client && npm run build",
-    "build": "npm run build:client",
+    "build:client": "npm --prefix client install && npm --prefix client run build",
+    "build": "npm --prefix client install && npm --prefix client run build && node -e \"const fs = require('fs'); if (fs.existsSync('client/dist')) { fs.cpSync('client/dist', 'dist', { recursive: true }); }\"",
     "start": "cd server && npm start",
     "db:check": "node -e \"import('./server/config/db.js').then(async m => { const h = await m.checkDatabaseHealth(); console.log(JSON.stringify(h, null, 2)); process.exit(h.status === 'connected' ? 0 : 1); })\"",
     "logs:errors": "node -e \"import('fs').then(f => { const p = './server/logs/error.log'; if (f.existsSync(p)) console.log(f.readFileSync(p, 'utf8')); else console.log('No error logs found.'); })\""
