@@ -11,7 +11,7 @@ const INITIAL_APPLICATIONS = [
     classification: 'Employee',
     department: 'College of Engineering & Technology (Faculty)',
     contact_number: '+63 912 345 6789',
-    applicant_photo: null,
+    applicant_photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80',
     vehicle: {
       make: 'Honda',
       model: 'Click 125',
@@ -45,9 +45,10 @@ const INITIAL_APPLICATIONS = [
     applicant_name: 'Chrizhel Anne Cuenco',
     school_id: '2023-00192',
     classification: 'Student',
-    department: 'College of Computing, Multimedia Arts & Digital Innovation',
+    department: 'College of Engineering and Technology',
+    year_course: '4th Year • BS Information Technology',
     contact_number: '+63 918 222 3344',
-    applicant_photo: null,
+    applicant_photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80',
     vehicle: {
       make: 'Yamaha',
       model: 'Mio Sporty',
@@ -789,6 +790,32 @@ export const PassProvider = ({ children }) => {
     return renewedItem;
   };
 
+  // Extend Visitor Stay (Adds days for visitor already INSIDE campus, WITHOUT duplicate ENTRY log)
+  const extendVisitorPass = (idOrPlate, additionalDays = 1) => {
+    let extendedItem = null;
+
+    setVisitorPasses(prev => prev.map(v => {
+      if (v.id === idOrPlate || v.plateNumber === idOrPlate) {
+        const currentDays = parseInt(v.validDays, 10) || 1;
+        const newDays = currentDays + additionalDays;
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + additionalDays);
+        const expiryStr = `${expiryDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} (${newDays} Days Extended)`;
+
+        extendedItem = {
+          ...v,
+          validDays: newDays,
+          validUntil: expiryStr,
+          status: 'INSIDE', // Stays inside campus
+        };
+        return extendedItem;
+      }
+      return v;
+    }));
+
+    return extendedItem;
+  };
+
   return (
     <PassContext.Provider
       value={{
@@ -815,6 +842,8 @@ export const PassProvider = ({ children }) => {
         addGateLog,
         issueVisitorPass,
         logVisitorExit,
+        renewVisitorPass,
+        extendVisitorPass,
       }}
     >
       {children}

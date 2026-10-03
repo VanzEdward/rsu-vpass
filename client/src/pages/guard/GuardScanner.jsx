@@ -34,7 +34,8 @@ import {
   Users,
   AlertCircle,
   SwitchCamera,
-  Upload
+  ArrowLeft,
+  ZoomIn
 } from 'lucide-react';
 
 export default function GuardScanner() {
@@ -46,13 +47,15 @@ export default function GuardScanner() {
     addGateLog, 
     issueVisitorPass, 
     logVisitorExit, 
-    renewVisitorPass 
+    renewVisitorPass,
+    extendVisitorPass 
   } = usePass();
 
   const [activeTab, setActiveTab] = useState('scan'); // 'scan' | 'search' | 'visitor' | 'logs'
   const [searchQuery, setSearchQuery] = useState('');
   const [searchClassification, setSearchClassification] = useState('ALL'); // 'ALL' | 'STUDENT' | 'EMPLOYEE' | 'VISITOR'
   const [verifiedPass, setVerifiedPass] = useState(null);
+  const [isPhotoExpanded, setIsPhotoExpanded] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
@@ -65,6 +68,7 @@ export default function GuardScanner() {
   const [visitorSubTab, setVisitorSubTab] = useState('active'); // 'new' | 'active' | 'history'
   const [selectedVisitorModal, setSelectedVisitorModal] = useState(null);
   const [copiedPassId, setCopiedPassId] = useState(false);
+  const [renewSearchQuery, setRenewSearchQuery] = useState('');
 
   // New Visitor Form State
   const [visitorForm, setVisitorForm] = useState({
@@ -84,7 +88,6 @@ export default function GuardScanner() {
   const scanLoopRef = useRef(null);
   const lastScanTimestampRef = useRef(0);
   const cooldownUntilRef = useRef(0);
-  const fileInputRef = useRef(null);
 
   // Web Audio API beep feedback
   const playBeep = (isSuccess = true) => {
@@ -238,7 +241,7 @@ export default function GuardScanner() {
       setVerifiedPass({
         passNumber: 'VP-2026-0001',
         client: 'Prof. Juan Dela Cruz',
-        schoolId: 'EMP-2026-0001',
+        schoolId: 'EMP-2026-0812',
         classification: 'EMPLOYEE',
         vehicle: 'Honda Click 125',
         plateNumber: 'XYZ 5678',
@@ -247,7 +250,9 @@ export default function GuardScanner() {
         validUntil: 'December 31, 2026',
         status: 'ACTIVE',
         isValid: true,
-        department: 'College of Computing & Arts'
+        department: 'College of Engineering & Technology (Faculty)',
+        yearCourse: '',
+        photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80'
       });
     } else if (passType === 'VALID_STUDENT') {
       playBeep(true);
@@ -264,7 +269,9 @@ export default function GuardScanner() {
         validUntil: 'December 31, 2026',
         status: 'ACTIVE',
         isValid: true,
-        department: 'College of Computing & Multimedia'
+        department: 'College of Engineering and Technology',
+        yearCourse: '4th Year • BS Information Technology',
+        photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80'
       });
     } else if (passType === 'VISITOR_PASS') {
       playBeep(true);
@@ -281,7 +288,9 @@ export default function GuardScanner() {
         validUntil: 'Today • 11:59 PM (1 Day)',
         status: 'INSIDE',
         isValid: true,
-        department: 'Destination: Office of the President'
+        department: 'Destination: Office of the President',
+        yearCourse: '',
+        photo: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80'
       });
     } else {
       playBeep(false);
@@ -298,7 +307,9 @@ export default function GuardScanner() {
         validUntil: 'August 15, 2025',
         status: 'EXPIRED',
         isValid: false,
-        department: 'Expired Pass Clearance'
+        department: 'Expired Pass Clearance',
+        yearCourse: '3rd Year • BS Criminology',
+        photo: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&auto=format&fit=crop&q=80'
       });
     }
   };
@@ -341,7 +352,9 @@ export default function GuardScanner() {
         validUntil: matchingApp.pass.validUntil,
         status: matchingApp.pass.status,
         isValid: matchingApp.pass.status === 'ACTIVE',
-        department: matchingApp.department
+        department: matchingApp.department || (isEmployee ? 'RSU University Personnel' : 'College of Engineering and Technology'),
+        yearCourse: matchingApp.year_course || matchingApp.department || (isEmployee ? '' : 'BS Information Technology'),
+        photo: matchingApp.applicant_photo || null
       });
       return;
     }
@@ -440,7 +453,9 @@ export default function GuardScanner() {
         validUntil: matchApp.pass.validUntil || 'Active Clearance',
         status: matchApp.pass.status || 'ACTIVE',
         isValid: matchApp.pass.status === 'ACTIVE',
-        department: matchApp.department || (isEmployee ? 'RSU University Personnel' : 'College Student')
+        department: matchApp.department || (isEmployee ? 'RSU University Personnel' : 'College of Engineering and Technology'),
+        yearCourse: matchApp.year_course || matchApp.department || (isEmployee ? '' : 'BS Information Technology'),
+        photo: matchApp.applicant_photo || null
       });
       return;
     }
@@ -482,41 +497,6 @@ export default function GuardScanner() {
 
     // Fallback search
     handleManualSearch(text);
-  };
-
-  // Upload and scan QR Code image file
-  const handleImageUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0);
-          const imageData = ctx.getImageData(0, 0, img.width, img.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height);
-          if (code && code.data) {
-            handleScannedData(code.data);
-          } else {
-            setCameraError('No QR code detected in the selected image. Please try another clear photo.');
-            setTimeout(() => setCameraError(''), 4000);
-          }
-        } catch (err) {
-          console.error('Image scan error:', err);
-          setCameraError('Failed to read image file. Please try again.');
-          setTimeout(() => setCameraError(''), 4000);
-        }
-      };
-      img.src = event.target.result;
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
   };
 
   // Live video frame QR scanner loop
@@ -700,6 +680,50 @@ export default function GuardScanner() {
     setVisitorSubTab('new');
   };
 
+  // Handle pass renewal from the "Past & Renew" section
+  const handleRenewVisitor = (visitor) => {
+    if (visitor.status === 'INSIDE') {
+      // Visitor extends their stay! Renew pass duration WITHOUT duplicate ENTRY log
+      const updated = extendVisitorPass(visitor.id, 1);
+      playBeep(true);
+      triggerHaptic(true);
+      setLogSuccessMessage(`Pass renewed (+1 Day) for ${visitor.plateNumber}! Stay extended (No duplicate ENTRY logged).`);
+      setTimeout(() => setLogSuccessMessage(''), 4000);
+      setSelectedVisitorModal(updated || {
+        ...visitor,
+        validDays: (visitor.validDays || 1) + 1,
+        validUntil: 'Today • 11:59 PM (1 Day Extended)'
+      });
+    } else {
+      // Departed visitor returning; pre-fill new pass issuance form
+      handleStartRenewVisitor(visitor);
+    }
+  };
+
+  // Extend stay directly when scanning visitor QR code with camera or from modal
+  const handleExtendFromScanner = (pass) => {
+    if (!pass) return;
+    const targetId = pass.passNumber || pass.plateNumber || pass.id;
+    const updated = extendVisitorPass(targetId, 1);
+    playBeep(true);
+    triggerHaptic(true);
+    setLogSuccessMessage(`Stay extended (+1 Day) for ${pass.plateNumber}! Pass renewed.`);
+    setTimeout(() => setLogSuccessMessage(''), 4000);
+
+    const fullVisitor = visitors.find(v => v.id === targetId || v.plateNumber === pass.plateNumber);
+    setVerifiedPass(null);
+    setSelectedVisitorModal(updated || fullVisitor || {
+      id: pass.passNumber || pass.id,
+      plateNumber: pass.plateNumber,
+      name: pass.client || pass.name,
+      vehicleType: pass.vehicleType || 'Vehicle',
+      destination: pass.department ? pass.department.replace('Destination: ', '') : (pass.destination || 'Administration Building'),
+      purpose: pass.purpose || 'Official Business / Visit Extension',
+      validUntil: 'Tomorrow • 11:59 PM (Extended)',
+      status: 'INSIDE'
+    });
+  };
+
   // Quick 1-tap exit for active visitor
   const handleVisitorQuickExit = (visitorId) => {
     logVisitorExit(visitorId);
@@ -720,6 +744,11 @@ export default function GuardScanner() {
   const totalEntries = logs.filter(l => l.type === 'ENTRY').length;
   const totalExits = logs.filter(l => l.type === 'EXIT').length;
   const activeVisitorsInside = visitors.filter(v => v.status === 'INSIDE');
+
+  // Check if plate matches any previously registered visitor for quick auto-fill
+  const pastVisitorMatch = visitorForm.plateNumber.trim().length >= 3
+    ? visitors.find(v => v.plateNumber.replace(/\s+/g, '').toUpperCase() === visitorForm.plateNumber.replace(/\s+/g, '').toUpperCase())
+    : null;
 
   const filteredLogs = logs.filter(log => {
     if (logFilter === 'ALL') return true;
@@ -908,7 +937,7 @@ export default function GuardScanner() {
               <button
                 type="button"
                 onClick={toggleCamera}
-                className={`w-full sm:w-auto px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-md ${
+                className={`w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-md ${
                   cameraActive 
                     ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30'
                     : 'bg-emerald-600 hover:bg-emerald-500 text-white active:scale-95'
@@ -916,24 +945,6 @@ export default function GuardScanner() {
               >
                 {cameraActive ? <VideoOff className="w-4 h-4 text-rose-400" /> : <Video className="w-4 h-4 text-emerald-100" />}
                 <span>{cameraActive ? 'Stop Camera' : 'Use Phone Camera'}</span>
-              </button>
-
-              {/* Upload QR Image from Device / Gallery */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleImageUpload}
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center space-x-2 bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600 transition-colors cursor-pointer"
-                title="Scan QR from saved photo or screenshot"
-              >
-                <Upload className="w-4 h-4 text-emerald-400" />
-                <span>Upload QR Image</span>
               </button>
 
               <div className="flex flex-wrap gap-1.5 justify-center w-full sm:w-auto">
@@ -1035,16 +1046,16 @@ export default function GuardScanner() {
       {activeTab === 'visitor' && (
         <div className="bg-slate-800 rounded-3xl border border-slate-700 p-4 sm:p-5 shadow-xl space-y-4">
           {/* Sub-Tabs: Active Visitors vs Issue New Pass vs History */}
-          <div className="flex space-x-1.5 bg-slate-900 p-1 rounded-xl border border-slate-700">
+          <div className="grid grid-cols-3 gap-1.5 bg-slate-900 p-1.5 rounded-2xl border border-slate-700">
             <button
               type="button"
               onClick={() => setVisitorSubTab('active')}
-              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+              className={`py-2 px-1 rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer text-center ${
                 visitorSubTab === 'active' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
               }`}
             >
-              <span>Inside Campus</span>
-              <span className="px-1.5 py-0.2 rounded-full bg-slate-950 text-[10px] text-amber-300 font-black">
+              <span className="whitespace-nowrap">Inside</span>
+              <span className="px-1.5 py-0.5 rounded-full bg-slate-950 text-[10px] text-amber-300 font-black leading-none shrink-0">
                 {activeVisitorsInside.length}
               </span>
             </button>
@@ -1052,23 +1063,23 @@ export default function GuardScanner() {
             <button
               type="button"
               onClick={() => setVisitorSubTab('new')}
-              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+              className={`py-2 px-1 rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center space-x-1 cursor-pointer text-center ${
                 visitorSubTab === 'new' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
               }`}
             >
-              <PlusCircle className="w-3.5 h-3.5" />
-              <span>Issue New Pass</span>
+              <PlusCircle className="w-3.5 h-3.5 shrink-0" />
+              <span className="whitespace-nowrap">Issue Pass</span>
             </button>
 
             <button
               type="button"
               onClick={() => setVisitorSubTab('history')}
-              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+              className={`py-2 px-1 rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center space-x-1 cursor-pointer text-center ${
                 visitorSubTab === 'history' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'
               }`}
             >
-              <History className="w-3.5 h-3.5" />
-              <span>Past & Renew</span>
+              <History className="w-3.5 h-3.5 shrink-0" />
+              <span className="whitespace-nowrap">Past & Renew</span>
             </button>
           </div>
 
@@ -1199,6 +1210,20 @@ export default function GuardScanner() {
                     placeholder="e.g. NBM 9012"
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono font-bold uppercase focus:ring-2 focus:ring-emerald-500 outline-none"
                   />
+                  {pastVisitorMatch && pastVisitorMatch.name !== visitorForm.name && (
+                    <div className="mt-1.5 p-2 rounded-lg bg-blue-500/15 border border-blue-500/30 flex items-center justify-between text-[11px] text-blue-200">
+                      <span className="truncate">
+                        Past visitor: <strong>{pastVisitorMatch.name}</strong>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleStartRenewVisitor(pastVisitorMatch)}
+                        className="ml-2 px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] cursor-pointer shrink-0 transition-colors"
+                      >
+                        Auto-fill
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1271,32 +1296,81 @@ export default function GuardScanner() {
             <div className="space-y-3">
               <div className="flex items-center justify-between text-xs text-slate-400 px-1">
                 <span>Past & Expired Visitor Records</span>
-                <span className="text-[11px] text-slate-500">Tap "Renew" for quick re-issuance</span>
+                <span className="text-[11px] text-slate-500">Tap "Renew Pass" to extend or re-issue</span>
+              </div>
+
+              {/* Quick Search in Past & Renew */}
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+                <input
+                  type="text"
+                  value={renewSearchQuery}
+                  onChange={(e) => setRenewSearchQuery(e.target.value)}
+                  placeholder="Search plate, visitor name, or pass # to renew..."
+                  className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500 outline-none"
+                />
               </div>
 
               <div className="space-y-2.5">
-                {visitors.filter(v => v.status !== 'INSIDE').map((v) => (
-                  <div key={v.id} className="p-3.5 rounded-2xl bg-slate-900 border border-slate-700 flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <span className="font-mono font-bold text-white text-sm">{v.plateNumber}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">({v.id})</span>
-                      </div>
-                      <h4 className="text-xs font-bold text-slate-200">{v.name}</h4>
-                      <p className="text-[11px] text-slate-400">{v.vehicleType} • {v.destination}</p>
-                      <p className="text-[10px] text-rose-400 mt-0.5">Status: Departed ({v.exitTime || 'Exited'})</p>
-                    </div>
+                {visitors
+                  .filter((v) => {
+                    const isDeparted = v.status !== 'INSIDE';
+                    const isExpired = v.validUntil && (v.validUntil.toLowerCase().includes('expired') || v.validUntil.includes('Sept 26'));
 
-                    <button
-                      type="button"
-                      onClick={() => handleStartRenewVisitor(v)}
-                      className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center space-x-1.5 shadow-sm cursor-pointer"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Renew Pass</span>
-                    </button>
-                  </div>
-                ))}
+                    if (renewSearchQuery.trim()) {
+                      const q = renewSearchQuery.trim().toLowerCase();
+                      return (
+                        (v.plateNumber || '').toLowerCase().includes(q) ||
+                        (v.name || '').toLowerCase().includes(q) ||
+                        (v.id || '').toLowerCase().includes(q)
+                      );
+                    }
+                    return true;
+                  })
+                  .map((v) => {
+                    const isInside = v.status === 'INSIDE';
+                    return (
+                      <div key={v.id} className="p-4 rounded-2xl bg-slate-900 border border-slate-700 space-y-2.5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-mono text-base font-black text-white whitespace-nowrap tracking-wide">
+                                {v.plateNumber}
+                              </span>
+                              <span className="text-[11px] text-slate-400 font-mono whitespace-nowrap">
+                                ({v.id})
+                              </span>
+                            </div>
+                            <h4 className="text-sm font-bold text-slate-200 mt-1 truncate">{v.name}</h4>
+                            <p className="text-[11px] text-slate-400 truncate">{v.vehicleType} • {v.destination}</p>
+                          </div>
+
+                          <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full shrink-0 uppercase tracking-wider ${
+                            isInside 
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' 
+                              : 'bg-slate-800 text-slate-400 border border-slate-700'
+                          }`}>
+                            {isInside ? 'INSIDE' : 'DEPARTED'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2.5 border-t border-slate-800/80 gap-2">
+                          <span className={`text-[11px] truncate ${isInside ? 'text-amber-300 font-medium' : 'text-slate-400'}`}>
+                            {isInside ? `Valid: ${v.validUntil}` : `Status: Departed (${v.exitTime || 'Exited'})`}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => handleRenewVisitor(v)}
+                            className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center space-x-1.5 shadow-sm cursor-pointer transition-all active:scale-95 shrink-0"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            <span>{isInside ? 'Extend Pass' : 'Renew Pass'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
           )}
@@ -1375,116 +1449,328 @@ export default function GuardScanner() {
         </div>
       )}
 
-      {/* VERIFIED PASS RESULT POPUP (Appears when Scanned or Searched) */}
+      {/* VERIFIED PASS RESULT INSTANT MODAL (Appears directly over screen on Scan / Search - No Scrolling Needed) */}
       {verifiedPass && (
-        <div className={`p-4 sm:p-5 rounded-3xl border-2 space-y-4 animate-in zoom-in-95 duration-200 shadow-2xl ${
-          verifiedPass.isValid 
-            ? 'bg-slate-800 border-emerald-500 shadow-emerald-950/50 ring-4 ring-emerald-500/20' 
-            : 'bg-slate-800 border-rose-500 shadow-rose-950/50 ring-4 ring-rose-500/20'
-        }`}>
-          {/* Status Banner */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2.5">
-              {verifiedPass.isValid ? (
-                <div className="w-10 h-10 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-bold">
-                  <CheckCircle2 className="w-6 h-6 text-white" />
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200 overflow-y-auto">
+          <div className={`max-w-md w-full rounded-3xl border-2 p-5 sm:p-6 shadow-2xl relative space-y-4 my-auto animate-in zoom-in-95 duration-200 text-white ${
+            verifiedPass.isValid 
+              ? 'bg-slate-900 border-emerald-500 shadow-emerald-950/50 ring-4 ring-emerald-500/20' 
+              : 'bg-slate-900 border-rose-500 shadow-rose-950/50 ring-4 ring-rose-500/20'
+          }`}>
+            {/* Top Status Banner with Dismiss Button */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center space-x-2.5">
+                {verifiedPass.isValid ? (
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-bold shadow-md shrink-0">
+                    <CheckCircle2 className="w-5 h-5 text-white" />
+                  </div>
+                ) : (
+                  <div className="w-9 h-9 rounded-xl bg-rose-500 text-white flex items-center justify-center font-bold shadow-md shrink-0">
+                    <XCircle className="w-5 h-5 text-white" />
+                  </div>
+                )}
+                <div>
+                  <span className={`text-xs sm:text-sm font-black tracking-tight block ${
+                    verifiedPass.isValid ? 'text-emerald-400' : 'text-rose-400'
+                  }`}>
+                    {verifiedPass.isValid ? 'VALID PASS • ACCESS GRANTED' : 'ACCESS DENIED • EXPIRED / INVALID'}
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-mono">{verifiedPass.passNumber}</span>
                 </div>
-              ) : (
-                <div className="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center font-bold">
-                  <XCircle className="w-6 h-6 text-white" />
-                </div>
-              )}
-              <div>
-                <span className={`text-sm font-black tracking-tight block ${
-                  verifiedPass.isValid ? 'text-emerald-400' : 'text-rose-400'
+              </div>
+
+              <div className="flex items-center space-x-2 shrink-0">
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-black tracking-wider ${
+                  verifiedPass.isValid ? 'bg-emerald-500 text-slate-950' : 'bg-rose-500 text-white'
                 }`}>
-                  {verifiedPass.isValid ? 'VALID PASS • ACCESS GRANTED' : 'ACCESS DENIED • EXPIRED'}
+                  {verifiedPass.status}
                 </span>
-                <span className="text-xs text-slate-400 font-mono">{verifiedPass.passNumber}</span>
+                <button
+                  type="button"
+                  onClick={() => setVerifiedPass(null)}
+                  className="p-1 rounded-full text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
+                  title="Close and scan next"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
-            <span className={`px-3 py-1 rounded-full text-xs font-black tracking-wider ${
-              verifiedPass.isValid ? 'bg-emerald-500 text-slate-950' : 'bg-rose-500 text-white'
-            }`}>
-              {verifiedPass.status}
-            </span>
-          </div>
+            {/* Driver Identity Card: Registration Selfie Photo + Academic/Unit Info */}
+            <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 flex items-center gap-3.5">
+              {/* Actual Selfie Photo Captured in Registration (Clickable to Expand) */}
+              <button
+                type="button"
+                onClick={() => verifiedPass.photo && setIsPhotoExpanded(true)}
+                title={verifiedPass.photo ? "Tap to expand and zoom photo" : "No photo available"}
+                className={`w-20 h-24 sm:w-22 sm:h-26 rounded-xl overflow-hidden bg-slate-800 border-2 shrink-0 flex items-center justify-center relative group transition-all ${
+                  verifiedPass.photo 
+                    ? 'cursor-pointer hover:border-emerald-400 hover:ring-2 hover:ring-emerald-400/40 border-slate-700 active:scale-95' 
+                    : 'border-slate-700 cursor-default'
+                }`}
+              >
+                {verifiedPass.photo ? (
+                  <>
+                    <img
+                      src={verifiedPass.photo}
+                      alt={verifiedPass.client}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                    />
+                    <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <ZoomIn className="w-5 h-5 text-emerald-300 drop-shadow-md" />
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-slate-500 p-2 text-center">
+                    <User className="w-8 h-8 text-slate-400 mb-1" />
+                    <span className="text-[9px] font-semibold text-slate-400">No Photo</span>
+                  </div>
+                )}
+                <div className="absolute bottom-0 inset-x-0 bg-slate-950/85 text-[8px] font-bold text-center py-0.5 text-slate-300 tracking-wider flex items-center justify-center space-x-1">
+                  <span>DRIVER SELFIE</span>
+                  {verifiedPass.photo && <ZoomIn className="w-2.5 h-2.5 text-emerald-400" />}
+                </div>
+              </button>
 
-          {/* Huge License Plate Callout */}
-          <div className="bg-slate-950 rounded-2xl p-4 border border-slate-700 text-center">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Registered License Plate</span>
-            <span className="text-3xl sm:text-4xl font-black text-white font-mono tracking-wider block mt-1">
-              {verifiedPass.plateNumber}
-            </span>
-            <span className="text-xs text-emerald-400 font-semibold mt-1 block">
-              {verifiedPass.vehicle} ({verifiedPass.color || ''} {verifiedPass.vehicleType})
-            </span>
-          </div>
+              {/* Driver Details */}
+              <div className="flex-1 min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider ${
+                    verifiedPass.classification === 'EMPLOYEE'
+                      ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                      : verifiedPass.classification === 'VISITOR'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  }`}>
+                    {verifiedPass.classification === 'EMPLOYEE'
+                      ? 'RSU Employee'
+                      : verifiedPass.classification === 'VISITOR'
+                      ? 'Temporary Visitor'
+                      : 'RSU Student'}
+                  </span>
+                </div>
 
-          {/* Driver & Details Grid */}
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-700/80">
-              <span className="text-slate-400 text-[10px] font-bold uppercase block">Owner / Classification</span>
-              <span className="font-bold text-white block mt-0.5">{verifiedPass.client}</span>
-              <span className="text-[11px] text-emerald-400 font-mono font-semibold">
-                {verifiedPass.classification || 'STUDENT'}
+                <h4 className="text-sm sm:text-base font-black text-white leading-tight truncate">
+                  {verifiedPass.client}
+                </h4>
+
+                <div className="text-[11px] font-mono text-emerald-400 font-semibold truncate">
+                  {verifiedPass.classification === 'EMPLOYEE' ? 'Employee ID: ' : verifiedPass.classification === 'VISITOR' ? 'Visitor ID: ' : 'Student ID: '}
+                  <span className="text-white">{verifiedPass.schoolId}</span>
+                </div>
+
+                <p className="text-[11px] text-slate-400 leading-snug line-clamp-2">
+                  {verifiedPass.classification === 'STUDENT'
+                    ? (verifiedPass.yearCourse || verifiedPass.department || 'College Student')
+                    : (verifiedPass.department || 'University Personnel')}
+                </p>
+              </div>
+            </div>
+
+            {/* Giant Registered License Plate Callout */}
+            <div className="bg-slate-950 rounded-2xl p-3.5 border border-slate-800 text-center">
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">
+                Registered License Plate
+              </span>
+              <span className="text-3xl font-black text-white font-mono tracking-wider block mt-0.5">
+                {verifiedPass.plateNumber}
+              </span>
+              <span className="text-xs text-emerald-400 font-semibold mt-0.5 block truncate">
+                {verifiedPass.vehicle} {verifiedPass.color && verifiedPass.color !== 'N/A' ? `• ${verifiedPass.color}` : ''} ({verifiedPass.vehicleType})
               </span>
             </div>
 
-            <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-700/80">
-              <span className="text-slate-400 text-[10px] font-bold uppercase block">Clearance Validity</span>
-              <span className="font-bold text-white block mt-0.5">{verifiedPass.validUntil}</span>
-              <span className="text-[11px] text-slate-400">{verifiedPass.department}</span>
+            {/* Pass Validity Record */}
+            <div className="flex items-center justify-between text-[11px] px-3 py-2 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-400">
+              <span>Pass Clearance:</span>
+              <span className="font-bold text-slate-200">{verifiedPass.validUntil}</span>
+            </div>
+
+            {/* Action Buttons: Visitor vs Employee vs Student */}
+            {verifiedPass.classification === 'VISITOR' ? (
+              <div className="space-y-2.5 pt-1">
+                {verifiedPass.status !== 'EXITED' ? (
+                  <>
+                    <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-center space-y-1">
+                      <div className="flex items-center justify-center space-x-1.5 text-amber-400 font-bold text-xs">
+                        <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                        <span>Visitor Campus Clearance</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400">
+                        Choose action: extend stay validity or confirm vehicle gate departure.
+                      </p>
+                    </div>
+
+                    {/* Dual Action Buttons: Extend Stay (+1 Day) & Log Exit */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => handleExtendFromScanner(verifiedPass)}
+                        className="h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center space-x-1.5 shadow-lg shadow-emerald-600/25 cursor-pointer transition-all"
+                      >
+                        <RefreshCw className="w-4 h-4 shrink-0" />
+                        <span>Extend (+1 Day)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleLogEvent('EXIT')}
+                        className="h-12 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 active:scale-95 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center space-x-1.5 shadow-lg shadow-amber-500/25 cursor-pointer transition-all"
+                      >
+                        <LogOut className="w-4 h-4 text-slate-950 shrink-0" />
+                        <span>LOG EXIT</span>
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setVerifiedPass(null)}
+                      className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs transition-colors cursor-pointer mt-1"
+                    >
+                      Scan Next Vehicle
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 text-center space-y-1">
+                      <p className="text-xs text-rose-400 font-bold">Visitor Already Logged Departed</p>
+                      <p className="text-[10px] text-slate-400">
+                        This visitor pass has completed its campus clearance and exited.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setVerifiedPass(null)}
+                      className="w-full h-11 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer"
+                    >
+                      Scan Next Vehicle
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : verifiedPass.classification === 'EMPLOYEE' ? (
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
+                  <span>Employee Gate Presence Record</span>
+                  <span className="text-emerald-400 font-semibold">Required Log</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => handleLogEvent('ENTRY')}
+                    className="h-12 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-lg shadow-emerald-500/25 cursor-pointer transition-all"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span>LOG ENTRY</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleLogEvent('EXIT')}
+                    className="h-12 rounded-xl bg-slate-700 hover:bg-slate-600 active:scale-95 text-white font-black text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-lg shadow-slate-900/40 cursor-pointer transition-all"
+                  >
+                    <LogOut className="w-4 h-4 text-slate-300" />
+                    <span>LOG EXIT</span>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setVerifiedPass(null)}
+                  className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs transition-colors cursor-pointer mt-1"
+                >
+                  Scan Next Vehicle
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2.5 pt-1">
+                {/* Student: NO Log Entry / Log Exit. Direct Clearance Confirmation & Giant Scan Next Button */}
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-center">
+                  <p className="text-xs text-emerald-400 font-bold flex items-center justify-center space-x-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Student Clearance Verified • Gate Cleared</span>
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    Gate sticker verified. No highway queue logging delay for students.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => { setVerifiedPass(null); setIsPhotoExpanded(false); }}
+                  className="w-full h-12 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-lg shadow-emerald-500/30 cursor-pointer transition-all"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Scan Next Vehicle</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* EXPANDED DRIVER SELFIE FULL LIGHTBOX MODAL */}
+      {isPhotoExpanded && verifiedPass?.photo && (
+        <div 
+          onClick={() => setIsPhotoExpanded(false)}
+          className="fixed inset-0 z-60 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
+        >
+
+          {/* High-Resolution Expanded Photo Card */}
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-3xl overflow-hidden bg-slate-900 border-2 border-emerald-500 shadow-2xl shadow-emerald-950/60 relative animate-in zoom-in-95 duration-200 flex flex-col"
+          >
+            <div className="aspect-3/4 max-h-[58vh] w-full bg-black flex items-center justify-center overflow-hidden relative">
+              <img
+                src={verifiedPass.photo}
+                alt={verifiedPass.client}
+                className="w-full h-full object-contain"
+              />
+            </div>
+
+            {/* Driver identification footer */}
+            <div className="p-4 bg-slate-900 border-t border-slate-800 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider ${
+                  verifiedPass.classification === 'EMPLOYEE'
+                    ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                    : verifiedPass.classification === 'VISITOR'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                }`}>
+                  {verifiedPass.classification === 'EMPLOYEE'
+                    ? 'RSU Employee'
+                    : verifiedPass.classification === 'VISITOR'
+                    ? 'Temporary Visitor'
+                    : 'RSU Student'}
+                </span>
+                <span className="text-xs font-mono font-bold text-emerald-400">
+                  {verifiedPass.schoolId}
+                </span>
+              </div>
+
+              <h3 className="text-base font-black text-white truncate">
+                {verifiedPass.client}
+              </h3>
+
+              <p className="text-xs text-slate-400 truncate">
+                {verifiedPass.classification === 'STUDENT'
+                  ? (verifiedPass.yearCourse || verifiedPass.department)
+                  : verifiedPass.department}
+              </p>
+
+              {/* Bottom Return Button */}
+              <button
+                type="button"
+                onClick={() => setIsPhotoExpanded(false)}
+                className="w-full mt-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 font-bold text-xs flex items-center justify-center space-x-1.5 border border-slate-700 transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Return to Verification Card</span>
+              </button>
             </div>
           </div>
-
-          {/* Action Buttons according to classification */}
-          {verifiedPass.classification === 'EMPLOYEE' || verifiedPass.classification === 'VISITOR' ? (
-            <div className="space-y-1.5 pt-1">
-              <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
-                <span>{verifiedPass.classification === 'EMPLOYEE' ? 'University Employee Gate Presence' : 'Visitor Gate Clearance'}</span>
-                <span className="text-emerald-400 font-semibold">Required Log</span>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => handleLogEvent('ENTRY')}
-                  className="h-13 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-lg shadow-emerald-500/25 cursor-pointer transition-all"
-                >
-                  <LogIn className="w-5 h-5" />
-                  <span>LOG ENTRY</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleLogEvent('EXIT')}
-                  className="h-13 rounded-2xl bg-slate-700 hover:bg-slate-600 active:scale-95 text-white font-black text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-lg shadow-slate-900/40 cursor-pointer transition-all"
-                >
-                  <LogOut className="w-5 h-5 text-slate-300" />
-                  <span>LOG EXIT</span>
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="p-3 rounded-xl bg-slate-900 border border-slate-700 text-center">
-              <p className="text-xs text-emerald-400 font-semibold flex items-center justify-center space-x-1">
-                <Check className="w-4 h-4 text-emerald-400" />
-                <span>Student Clearance Verified • Access Cleared</span>
-              </p>
-              <p className="text-[10px] text-slate-500 mt-0.5">
-                Spot-check complete. No highway queue delay.
-              </p>
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setVerifiedPass(null)}
-            className="w-full py-2 text-center text-xs text-slate-400 hover:text-white font-bold cursor-pointer"
-          >
-            Clear / Scan Next Vehicle
-          </button>
         </div>
       )}
 
@@ -1563,20 +1849,34 @@ export default function GuardScanner() {
             </div>
 
             {/* Action buttons */}
-            <div className="flex items-center space-x-2 pt-1">
-              <button
-                type="button"
-                onClick={() => handleCopyPass(selectedVisitorModal.id)}
-                className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 flex items-center justify-center space-x-1 cursor-pointer"
-              >
-                {copiedPassId ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedPassId ? 'Copied!' : 'Copy Pass #'}</span>
-              </button>
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => handleCopyPass(selectedVisitorModal.id)}
+                  className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 flex items-center justify-center space-x-1 cursor-pointer border border-slate-700"
+                >
+                  {copiedPassId ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedPassId ? 'Copied!' : 'Copy Pass #'}</span>
+                </button>
+
+                {selectedVisitorModal.status === 'INSIDE' && (
+                  <button
+                    type="button"
+                    onClick={() => handleExtendFromScanner(selectedVisitorModal)}
+                    className="py-2 px-3 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center justify-center space-x-1.5 cursor-pointer transition-colors"
+                    title="Prolong pass duration by +1 Day"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>+1 Day Stay</span>
+                  </button>
+                )}
+              </div>
 
               <button
                 type="button"
                 onClick={() => setSelectedVisitorModal(null)}
-                className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white cursor-pointer shadow-md"
+                className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white cursor-pointer shadow-md"
               >
                 Done / Gate Open
               </button>
