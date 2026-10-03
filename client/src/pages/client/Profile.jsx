@@ -65,7 +65,9 @@ export default function Profile() {
 
   // Calculate Metrics
   const activePassesCount = applications.filter((app) => app.pass?.status === 'ACTIVE').length;
-  const registeredVehiclesCount = vehicles.length;
+  const activeVehiclesCount = vehicles.filter((v) => v.status === 'Active Pass').length;
+  const pendingVehiclesCount = vehicles.filter((v) => v.status !== 'Active Pass').length;
+  const totalVehiclesCount = vehicles.length;
 
   // Handle Copy ID
   const handleCopyId = () => {
@@ -134,22 +136,26 @@ export default function Profile() {
       {/* Main Profile Identity Header Card */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         {/* University Header Accent */}
-        <div className="bg-gradient-to-r from-emerald-800 via-emerald-700 to-teal-700 px-6 py-6 text-white relative">
+        <div className="bg-gradient-to-r from-emerald-800 via-emerald-700 to-teal-700 p-5 sm:p-7 text-white relative">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none -mr-20 -mt-20" />
-          <div className="flex flex-wrap items-center justify-between gap-4 relative z-10">
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/30 text-emerald-100 text-[11px] font-semibold border border-emerald-400/30">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 relative z-10">
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/30 text-emerald-100 text-[10px] sm:text-[11px] font-bold border border-emerald-400/30 shrink-0">
                   Romblon State University
                 </span>
-                <span className="text-[11px] text-emerald-200">Main Campus (Odiongan)</span>
+                <span className="text-[11px] text-emerald-200/90 font-medium">
+                  • Main Campus (Odiongan)
+                </span>
               </div>
-              <h1 className="text-xl sm:text-2xl font-black text-white mt-1">Institutional Vehicle Pass Account</h1>
+              <h1 className="text-lg sm:text-2xl font-black text-white tracking-tight leading-snug">
+                Institutional Vehicle Pass Account
+              </h1>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-xs text-xs font-semibold text-emerald-100 border border-white/20">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" />
+            <div className="self-start sm:self-center shrink-0">
+              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-xs text-[11px] sm:text-xs font-semibold text-emerald-100 border border-white/20 shadow-2xs">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
                 <span>Good Standing • Gate Cleared</span>
               </span>
             </div>
@@ -211,23 +217,31 @@ export default function Profile() {
               </div>
 
               {/* Badges / Metrics Row */}
-              <div className="grid grid-cols-2 gap-3 pt-2 max-w-sm">
-                <div className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-100 text-center sm:text-left">
+              <div className="grid grid-cols-2 gap-3 pt-2 max-w-sm w-full mx-auto sm:mx-0">
+                <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-100 text-center sm:text-left flex flex-col justify-between">
                   <div className="flex items-center justify-center sm:justify-start space-x-1.5 text-emerald-700">
                     <Car className="w-4 h-4 shrink-0" />
-                    <span className="text-[11px] font-bold">Vehicles</span>
+                    <span className="text-[11px] font-bold">Total Vehicles</span>
                   </div>
-                  <div className="text-lg font-black text-emerald-950 mt-1">{registeredVehiclesCount}</div>
-                  <div className="text-[10px] text-emerald-700 font-medium">Registered</div>
+                  <div className="text-xl font-black text-emerald-950 my-1">{totalVehiclesCount}</div>
+                  <div className="text-[10px] text-emerald-700 font-semibold truncate">
+                    {pendingVehiclesCount > 0 ? (
+                      <span>{activeVehiclesCount} Active • {pendingVehiclesCount} Pending</span>
+                    ) : (
+                      <span>{activeVehiclesCount} Active Pass</span>
+                    )}
+                  </div>
                 </div>
 
-                <div className="p-3 rounded-2xl bg-teal-50/70 border border-teal-100 text-center sm:text-left">
+                <div className="p-3.5 rounded-2xl bg-teal-50/70 border border-teal-100 text-center sm:text-left flex flex-col justify-between">
                   <div className="flex items-center justify-center sm:justify-start space-x-1.5 text-teal-700">
                     <QrCode className="w-4 h-4 shrink-0" />
-                    <span className="text-[11px] font-bold">Passes</span>
+                    <span className="text-[11px] font-bold">Active Passes</span>
                   </div>
-                  <div className="text-lg font-black text-teal-950 mt-1">{activePassesCount}</div>
-                  <div className="text-[10px] text-teal-700 font-medium">Active Passes</div>
+                  <div className="text-xl font-black text-teal-950 my-1">{activePassesCount}</div>
+                  <div className="text-[10px] text-teal-700 font-semibold truncate">
+                    Official Gate QR
+                  </div>
                 </div>
               </div>
             </div>
