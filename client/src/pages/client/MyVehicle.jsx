@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { usePass } from '../../context/PassContext';
 import { useAuth } from '../../context/AuthContext';
@@ -22,8 +22,19 @@ import {
   FileEdit,
   Trash2,
   Clock,
-  Save
+  Save,
+  ChevronDown
 } from 'lucide-react';
+
+const VEHICLE_TYPES = [
+  { value: 'Motorcycle', label: 'Motorcycle (Standard 2-Wheels)' },
+  { value: 'Sedan', label: 'Sedan (4-Wheels)' },
+  { value: 'SUV', label: 'SUV (4-Wheels)' },
+  { value: 'Pickup', label: 'Pickup Truck' },
+  { value: 'Van', label: 'Van / Utility Vehicle' },
+  { value: 'Commercial', label: 'Commercial / Truck / Bus' },
+  { value: 'Other', label: 'Other' }
+];
 
 export default function MyVehicle() {
   const navigate = useNavigate();
@@ -41,6 +52,21 @@ export default function MyVehicle() {
   const [returnTo, setReturnTo] = useState(null);
   const [editingAppId, setEditingAppId] = useState(null);
   const [editingRejectionReason, setEditingRejectionReason] = useState('');
+  const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
+  const typeDropdownRef = useRef(null);
+
+  // Click outside listener for custom vehicle type dropdown
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (typeDropdownRef.current && !typeDropdownRef.current.contains(event.target)) {
+        setIsTypeDropdownOpen(false);
+      }
+    }
+    if (isTypeDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isTypeDropdownOpen]);
 
   const initialFormState = {
     // Registered client profile automatically loaded
@@ -489,24 +515,52 @@ export default function MyVehicle() {
                       {errors.plateNumber && <p className="text-rose-600 text-[11px] font-semibold mt-1">{errors.plateNumber}</p>}
                     </div>
 
-                    {/* Vehicle Classification / Type */}
-                    <div>
+                    {/* Vehicle Classification / Type (Custom Contained Dropdown) */}
+                    <div className="relative" ref={typeDropdownRef}>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
                         Vehicle Classification / Type <span className="text-rose-500">*</span>
                       </label>
-                      <select
-                        value={formData.type}
-                        onChange={(e) => handleFieldChange('type', e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-semibold text-slate-900 bg-white outline-none transition-all cursor-pointer"
+                      <button
+                        type="button"
+                        onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
+                        className={`w-full px-3.5 py-2.5 rounded-xl border bg-white flex items-center justify-between text-left font-semibold text-xs sm:text-sm text-slate-900 outline-none transition-all cursor-pointer shadow-xs ${
+                          isTypeDropdownOpen
+                            ? 'border-emerald-500 ring-2 ring-emerald-500/20'
+                            : 'border-slate-300 hover:border-slate-400'
+                        }`}
                       >
-                        <option value="Motorcycle">Motorcycle (Standard 2-Wheels)</option>
-                        <option value="Sedan">Sedan (4-Wheels)</option>
-                        <option value="SUV">SUV (4-Wheels)</option>
-                        <option value="Pickup">Pickup Truck</option>
-                        <option value="Van">Van / Utility Vehicle</option>
-                        <option value="Commercial">Commercial / Truck / Bus</option>
-                        <option value="Other">Other</option>
-                      </select>
+                        <span className="truncate">
+                          {VEHICLE_TYPES.find((t) => t.value === formData.type)?.label || formData.type || 'Select Vehicle Type'}
+                        </span>
+                        <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 ml-2 transition-transform duration-200 ${isTypeDropdownOpen ? 'rotate-180 text-emerald-600' : ''}`} />
+                      </button>
+
+                      {/* Dropdown Popover (Strictly bounded to input width, never overflows card) */}
+                      {isTypeDropdownOpen && (
+                        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white rounded-2xl border border-slate-200 shadow-xl py-1 z-30 animate-in fade-in zoom-in-95 duration-150 max-h-60 overflow-y-auto">
+                          {VEHICLE_TYPES.map((t) => {
+                            const isSelected = formData.type === t.value;
+                            return (
+                              <button
+                                key={t.value}
+                                type="button"
+                                onClick={() => {
+                                  handleFieldChange('type', t.value);
+                                  setIsTypeDropdownOpen(false);
+                                }}
+                                className={`w-full px-3.5 py-2.5 text-left text-xs sm:text-sm flex items-center justify-between transition-colors cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-emerald-50 text-emerald-800 font-bold'
+                                    : 'text-slate-700 hover:bg-slate-50 font-medium'
+                                }`}
+                              >
+                                <span className="truncate mr-2">{t.label}</span>
+                                {isSelected && <Check className="w-4 h-4 text-emerald-600 shrink-0" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
 
                     {/* Brand */}
@@ -799,13 +853,13 @@ export default function MyVehicle() {
               )}
             </div>
 
-            {/* Stepper Footer Controls */}
-            <div className="border-t border-slate-100 pt-4 flex items-center justify-between">
+            {/* Stepper Footer Controls (Balanced Button Sizing & Guaranteed Spacing) */}
+            <div className="border-t border-slate-100 pt-4 flex items-center justify-between gap-3">
               {currentStep > 1 ? (
                 <button
                   type="button"
                   onClick={handlePrev}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold flex items-center space-x-1.5 cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer shrink-0"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   <span>Previous</span>
@@ -814,7 +868,7 @@ export default function MyVehicle() {
                 <button
                   type="button"
                   onClick={handleCloseWizard}
-                  className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-100 text-xs font-semibold cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl text-slate-500 hover:bg-slate-100 text-xs font-semibold cursor-pointer shrink-0"
                 >
                   Save Draft & Exit
                 </button>
@@ -824,7 +878,7 @@ export default function MyVehicle() {
                 <button
                   type="button"
                   onClick={handleNext}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center space-x-1.5 cursor-pointer shadow-sm"
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center space-x-1.5 cursor-pointer shadow-sm shrink-0"
                 >
                   <span>Continue</span>
                   <ArrowRight className="w-4 h-4" />
@@ -833,10 +887,10 @@ export default function MyVehicle() {
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center space-x-1.5 cursor-pointer shadow-md transition-all active:scale-95"
+                  className="px-4 sm:px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center space-x-1.5 cursor-pointer shadow-md transition-all active:scale-95 shrink-0"
                 >
                   <Sparkles className="w-4 h-4 text-emerald-200" />
-                  <span>{editingAppId ? 'Re-submit Corrected Application' : 'Submit Request to PASO'}</span>
+                  <span>{editingAppId ? 'Re-submit Application' : 'Submit to PASO'}</span>
                 </button>
               )}
             </div>

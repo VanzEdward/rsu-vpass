@@ -1,11 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { usePass } from '../../context/PassContext';
-import CameraCaptureModal from '../../components/CameraCaptureModal';
-import ConfirmModal from '../../components/ConfirmModal';
 import {
   User,
-  Camera,
   ShieldCheck,
   Mail,
   Phone,
@@ -24,17 +21,12 @@ import {
   QrCode,
   ShieldAlert,
   HeartPulse,
-  RefreshCw,
-  Sparkles
+  RefreshCw
 } from 'lucide-react';
 
 export default function Profile() {
   const { user, updateUser, logout } = useAuth();
   const { vehicles = [], applications = [] } = usePass() || {};
-
-  // Live Selfie Modal State
-  const [showCameraModal, setShowCameraModal] = useState(false);
-  const [showRemovePhotoModal, setShowRemovePhotoModal] = useState(false);
 
   // Edit Contact Information State
   const [isEditingContact, setIsEditingContact] = useState(false);
@@ -81,20 +73,6 @@ export default function Profile() {
     navigator.clipboard?.writeText(idToCopy);
     setCopiedId(true);
     setTimeout(() => setCopiedId(false), 2000);
-  };
-
-  // Handle Live Selfie Capture
-  const handleCaptureSelfie = (photoDataUrl) => {
-    updateUser({
-      profile_image: photoDataUrl,
-      profile_verified_at: new Date().toLocaleDateString(),
-    });
-    setShowCameraModal(false);
-  };
-
-  // Remove Photo
-  const handleRemovePhoto = () => {
-    setShowRemovePhotoModal(true);
   };
 
   // Save Contact Details
@@ -181,62 +159,20 @@ export default function Profile() {
         {/* Profile Details Area */}
         <div className="p-6 sm:p-8">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-            {/* Live Selfie Avatar */}
+            {/* User Profile Avatar */}
             <div className="flex flex-col items-center shrink-0">
-              <div className="relative group">
-                <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-3xl overflow-hidden bg-slate-100 border-4 border-white shadow-lg ring-2 ring-emerald-500/30 flex items-center justify-center">
-                  {user?.profile_image ? (
-                    <img
-                      src={user.profile_image}
-                      alt={user.full_name || 'Profile'}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="text-center p-3 text-slate-400 flex flex-col items-center justify-center">
-                      <User className="w-12 h-12 text-slate-300 mb-1" />
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">No Live Selfie</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Floating Camera Button */}
-                <button
-                  type="button"
-                  onClick={() => setShowCameraModal(true)}
-                  title="Take Live Selfie"
-                  className="absolute -bottom-2 -right-2 w-10 h-10 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center shadow-md ring-4 ring-white transition-transform active:scale-95 cursor-pointer"
-                >
-                  <Camera className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Action Links under photo */}
-              <div className="mt-3 flex items-center space-x-2 text-center">
-                <button
-                  type="button"
-                  onClick={() => setShowCameraModal(true)}
-                  className="text-xs font-bold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center space-x-1 cursor-pointer"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>{user?.profile_image ? 'Retake Live Selfie' : 'Take Live Selfie'}</span>
-                </button>
-                {user?.profile_image && (
-                  <>
-                    <span className="text-slate-300">•</span>
-                    <button
-                      type="button"
-                      onClick={handleRemovePhoto}
-                      className="text-xs text-slate-400 hover:text-red-600 cursor-pointer"
-                    >
-                      Remove
-                    </button>
-                  </>
+              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl overflow-hidden bg-gradient-to-br from-emerald-50 to-teal-100 border-4 border-white shadow-md ring-2 ring-emerald-500/20 flex items-center justify-center">
+                {user?.profile_image ? (
+                  <img
+                    src={user.profile_image}
+                    alt={user.full_name || 'Profile'}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="text-center flex flex-col items-center justify-center text-emerald-700">
+                    <User className="w-12 h-12 text-emerald-600" />
+                  </div>
                 )}
-              </div>
-
-              <div className="mt-1 flex items-center space-x-1 text-[10px] text-slate-400">
-                <Lock className="w-2.5 h-2.5" />
-                <span>Camera Only (Uploads Disabled)</span>
               </div>
             </div>
 
@@ -565,14 +501,7 @@ export default function Profile() {
         </div>
       </div>
 
-      {/* Live Selfie Camera Modal (Upload disabled, live webcam only) */}
-      <CameraCaptureModal
-        isOpen={showCameraModal}
-        onClose={() => setShowCameraModal(false)}
-        onCapture={handleCaptureSelfie}
-        title="Take Live ID Verification Selfie"
-        selfieOnly={true}
-      />
+
 
       {/* Change Password Modal */}
       {showPasswordModal && (
@@ -667,17 +596,6 @@ export default function Profile() {
         </div>
       )}
 
-      {/* Unified In-App Confirm Remove Photo Dialog */}
-      <ConfirmModal
-        isOpen={showRemovePhotoModal}
-        onClose={() => setShowRemovePhotoModal(false)}
-        onConfirm={() => updateUser({ profile_image: null })}
-        title="Remove Profile Selfie?"
-        message="Are you sure you want to remove your verification photo? You will need to take a new live selfie for gate identification."
-        confirmText="Yes, Remove Photo"
-        cancelText="Keep Photo"
-        variant="danger"
-      />
     </div>
   );
 }
