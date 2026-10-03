@@ -29,3 +29,30 @@ body {
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
 }
+
+@keyframes qrLaser {
+  0% {
+    top: 12%;
+    opacity: 0.7;
+  }
+  50% {
+    top: 86%;
+    opacity: 1;
+  }
+  100% {
+    top: 12%;
+    opacity: 0.7;
+  }
+}
+
+.qr-laser-line {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #10b981, #34d399, transparent);
+  box-shadow: 0 0 12px #10b981, 0 0 4px #34d399;
+  animation: qrLaser 2.2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 10;
+}
