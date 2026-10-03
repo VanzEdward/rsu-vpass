@@ -346,9 +346,9 @@ export default function MyVehicle() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900">My Registered Vehicles</h1>
+          <h1 className="text-2xl font-black text-slate-900">My Vehicles</h1>
           <p className="text-xs text-slate-500 mt-1">
-            Register and manage vehicles cleared by the Physical Assets and Security Office (PASO).
+            Register and manage your campus vehicles, active passes, and pending clearances.
           </p>
         </div>
         <button
