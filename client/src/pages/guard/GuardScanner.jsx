@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import jsQR from 'jsqr';
 import { usePass } from '../../context/PassContext';
 import jsQR from 'jsqr';
 import { 
@@ -61,6 +62,8 @@ export default function GuardScanner() {
   const [lastScannedPayload, setLastScannedPayload] = useState('');
   const [logSuccessMessage, setLogSuccessMessage] = useState('');
   const [logFilter, setLogFilter] = useState('ALL'); // 'ALL' | 'ENTRY' | 'EXIT'
+  const [facingMode, setFacingMode] = useState('environment'); // 'environment' | 'user'
+  const [scanSuccessFlash, setScanSuccessFlash] = useState(false);
 
   // Visitor Sub-tab state
   const [visitorSubTab, setVisitorSubTab] = useState('active'); // 'new' | 'active' | 'history'
@@ -81,9 +84,16 @@ export default function GuardScanner() {
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+<<<<<<< HEAD
   const scanCanvasRef = useRef(null);
   const lastScanTimeRef = useRef(0);
   const lastCodeRef = useRef('');
+=======
+  const canvasRef = useRef(null);
+  const scanLoopRef = useRef(null);
+  const lastScanTimestampRef = useRef(0);
+  const cooldownUntilRef = useRef(0);
+>>>>>>> main
   const fileInputRef = useRef(null);
 
   // Web Audio API beep feedback
@@ -123,6 +133,7 @@ export default function GuardScanner() {
     }
   };
 
+<<<<<<< HEAD
   // Stop camera feed and cleanup tracks
   const stopCamera = () => {
     if (streamRef.current) {
@@ -142,11 +153,22 @@ export default function GuardScanner() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setCameraError('Camera access requires HTTPS or a modern browser with mediaDevices support.');
       setCameraActive(false);
+=======
+  // Camera stream controls
+  const startCamera = async (mode = facingMode) => {
+    setCameraError('');
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      setCameraError('Camera API is not supported in this browser or requires a secure HTTPS/localhost connection.');
+>>>>>>> main
       return;
     }
 
     if (streamRef.current) {
+<<<<<<< HEAD
       streamRef.current.getTracks().forEach(track => track.stop());
+=======
+      streamRef.current.getTracks().forEach((track) => track.stop());
+>>>>>>> main
       streamRef.current = null;
     }
 
@@ -157,6 +179,7 @@ export default function GuardScanner() {
           video: {
             facingMode: { ideal: mode },
             width: { ideal: 1280 },
+<<<<<<< HEAD
             height: { ideal: 720 }
           },
           audio: false
@@ -166,12 +189,24 @@ export default function GuardScanner() {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: mode },
           audio: false
+=======
+            height: { ideal: 720 },
+          },
+          audio: false,
+        });
+      } catch {
+        // Fallback without strict constraints if exact resolution or facingMode fails
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+>>>>>>> main
         });
       }
 
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+<<<<<<< HEAD
         try {
           await videoRef.current.play();
         } catch (playErr) {
@@ -182,11 +217,46 @@ export default function GuardScanner() {
     } catch (err) {
       console.error('Camera stream access failed:', err);
       setCameraError('Camera access denied or unavailable. Please enable camera permissions in your browser or use the quick presets.');
+=======
+        videoRef.current.setAttribute('playsinline', 'true');
+        await videoRef.current.play().catch((err) => console.warn('Video play warning:', err));
+      }
+      setCameraActive(true);
+    } catch (err) {
+      console.error('Camera access error:', err);
+      let msg = 'Camera access denied or unavailable.';
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        msg = 'Camera permission denied. Please allow camera access in your browser settings.';
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        msg = 'No camera device found on this system.';
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        msg = 'Camera is already in use by another app or browser tab.';
+      }
+      setCameraError(msg);
+>>>>>>> main
       setCameraActive(false);
     }
   };
 
+<<<<<<< HEAD
   // Toggle Camera on/off
+=======
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    if (scanLoopRef.current) {
+      cancelAnimationFrame(scanLoopRef.current);
+      scanLoopRef.current = null;
+    }
+    setCameraActive(false);
+  };
+
+>>>>>>> main
   const toggleCamera = () => {
     if (cameraActive) {
       stopCamera();
@@ -195,6 +265,7 @@ export default function GuardScanner() {
     }
   };
 
+<<<<<<< HEAD
   // Flip between front and rear camera
   const flipCamera = async () => {
     const next = facingMode === 'environment' ? 'user' : 'environment';
@@ -205,12 +276,27 @@ export default function GuardScanner() {
   };
 
   // Keep video element attached to active stream
+=======
+  const flipCamera = () => {
+    const nextMode = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(nextMode);
+    if (cameraActive) {
+      startCamera(nextMode);
+    }
+  };
+
+  // Ensure camera streams when video mounts or cameraActive changes
+>>>>>>> main
   useEffect(() => {
     if (cameraActive && streamRef.current && videoRef.current) {
       if (videoRef.current.srcObject !== streamRef.current) {
         videoRef.current.srcObject = streamRef.current;
       }
+<<<<<<< HEAD
       videoRef.current.play().catch(e => console.warn('Video play effect:', e));
+=======
+      videoRef.current.play().catch((err) => console.warn('Video play warning:', err));
+>>>>>>> main
     }
   }, [cameraActive]);
 
@@ -218,7 +304,10 @@ export default function GuardScanner() {
   useEffect(() => {
     return () => {
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      if (scanLoopRef.current) {
+        cancelAnimationFrame(scanLoopRef.current);
       }
     };
   }, []);
@@ -432,6 +521,7 @@ export default function GuardScanner() {
     }
   };
 
+<<<<<<< HEAD
   // Decode and resolve scanned QR code payloads
   const handleDecodedQr = (rawQr) => {
     if (!rawQr) return;
@@ -487,10 +577,77 @@ export default function GuardScanner() {
       });
       setLogSuccessMessage(`Pass Verified: ${matchingApp.vehicle.plateNumber} (${matchingApp.pass.passNumber})`);
       setTimeout(() => setLogSuccessMessage(''), 3500);
+=======
+  // Process scanned QR payload (from Live Camera, Uploaded Photo, or QR Scanner)
+  const handleScannedData = (rawText) => {
+    if (!rawText) return;
+    const text = String(rawText).trim();
+    if (!text) return;
+
+    // Trigger visual viewfinder glow
+    setScanSuccessFlash(true);
+    setTimeout(() => setScanSuccessFlash(false), 800);
+
+    // Extract parts if formatted as RSU-VPASS:passNumber:plateNumber:schoolId
+    let extractedPass = '';
+    let extractedPlate = '';
+    let extractedId = '';
+
+    if (text.startsWith('RSU-VPASS:')) {
+      const parts = text.split(':');
+      extractedPass = (parts[1] || '').trim();
+      extractedPlate = (parts[2] || '').trim().replace(/\s+/g, '');
+      extractedId = (parts[3] || '').trim();
+    } else {
+      extractedPass = text;
+    }
+
+    const cleanInput = text.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const cleanPass = extractedPass.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const cleanPlate = extractedPlate.toLowerCase();
+
+    // 1. Search in registered applications (issued passes)
+    const matchApp = (applications || []).find((a) => {
+      if (!a.pass) return false;
+      const appPassNum = (a.pass.passNumber || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const appPlate = (a.vehicle?.plateNumber || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const appQr = (a.pass.qrData || '').toLowerCase();
+      const appSchoolId = (a.school_id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      return (
+        (cleanPass && appPassNum === cleanPass) ||
+        (cleanPlate && appPlate === cleanPlate) ||
+        (cleanInput && appPassNum === cleanInput) ||
+        (cleanInput && appPlate === cleanInput) ||
+        (cleanInput && appSchoolId && appSchoolId === cleanInput) ||
+        (text && appQr === text.toLowerCase())
+      );
+    });
+
+    if (matchApp && matchApp.pass) {
+      playBeep(true);
+      triggerHaptic(true);
+      const isEmployee = (matchApp.classification || '').toUpperCase() === 'EMPLOYEE';
+      setVerifiedPass({
+        passNumber: matchApp.pass.passNumber,
+        client: matchApp.applicant_name,
+        schoolId: matchApp.school_id,
+        classification: isEmployee ? 'EMPLOYEE' : 'STUDENT',
+        vehicle: `${matchApp.vehicle?.make || ''} ${matchApp.vehicle?.model || ''}`.trim() || 'Vehicle',
+        plateNumber: matchApp.vehicle?.plateNumber || 'N/A',
+        vehicleType: matchApp.vehicle?.type || 'Vehicle',
+        color: matchApp.vehicle?.color || 'N/A',
+        validUntil: matchApp.pass.validUntil || 'Active Clearance',
+        status: matchApp.pass.status || 'ACTIVE',
+        isValid: matchApp.pass.status === 'ACTIVE',
+        department: matchApp.department || (isEmployee ? 'RSU University Personnel' : 'College Student')
+      });
+>>>>>>> main
       return;
     }
 
     // 2. Search in temporary visitor passes
+<<<<<<< HEAD
     const matchingVisitor = (visitors || []).find((v) => {
       const vId = (v.id || '').toLowerCase();
       const vPlate = (v.plateNumber || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -529,6 +686,47 @@ export default function GuardScanner() {
   };
 
   // Decode QR code from uploaded image file
+=======
+    const matchVisitor = (visitors || []).find((v) => {
+      const vId = (v.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const vPlate = (v.plateNumber || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const vQr = (v.qrData || '').toLowerCase();
+
+      return (
+        (cleanPass && vId === cleanPass) ||
+        (cleanPlate && vPlate === cleanPlate) ||
+        (cleanInput && vId === cleanInput) ||
+        (cleanInput && vPlate === cleanInput) ||
+        (text && vQr === text.toLowerCase())
+      );
+    });
+
+    if (matchVisitor) {
+      playBeep(true);
+      triggerHaptic(true);
+      setVerifiedPass({
+        passNumber: matchVisitor.id,
+        client: matchVisitor.name,
+        schoolId: `VISITOR (${matchVisitor.idPresented})`,
+        classification: 'VISITOR',
+        vehicle: matchVisitor.vehicleType,
+        plateNumber: matchVisitor.plateNumber,
+        vehicleType: matchVisitor.vehicleType,
+        color: 'N/A',
+        validUntil: matchVisitor.validUntil,
+        status: matchVisitor.status === 'INSIDE' ? 'INSIDE' : 'EXITED',
+        isValid: true,
+        department: `Destination: ${matchVisitor.destination}`
+      });
+      return;
+    }
+
+    // Fallback search
+    handleManualSearch(text);
+  };
+
+  // Upload and scan QR Code image file
+>>>>>>> main
   const handleImageUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -537,6 +735,7 @@ export default function GuardScanner() {
     reader.onload = (event) => {
       const img = new Image();
       img.onload = () => {
+<<<<<<< HEAD
         const canvas = document.createElement('canvas');
         canvas.width = img.width;
         canvas.height = img.height;
@@ -550,6 +749,25 @@ export default function GuardScanner() {
           playBeep(false);
           triggerHaptic(false);
           setCameraError('No readable QR code found in the image. Please upload a clear photo of the sticker or pass QR code.');
+=======
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          const imageData = ctx.getImageData(0, 0, img.width, img.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height);
+          if (code && code.data) {
+            handleScannedData(code.data);
+          } else {
+            setCameraError('No QR code detected in the selected image. Please try another clear photo.');
+            setTimeout(() => setCameraError(''), 4000);
+          }
+        } catch (err) {
+          console.error('Image scan error:', err);
+          setCameraError('Failed to read image file. Please try again.');
+>>>>>>> main
           setTimeout(() => setCameraError(''), 4000);
         }
       };
@@ -559,6 +777,116 @@ export default function GuardScanner() {
     e.target.value = '';
   };
 
+<<<<<<< HEAD
+=======
+  // Live video frame QR scanner loop
+  useEffect(() => {
+    if (!cameraActive) {
+      if (scanLoopRef.current) {
+        cancelAnimationFrame(scanLoopRef.current);
+        scanLoopRef.current = null;
+      }
+      return;
+    }
+
+    let isMounted = true;
+    const hasBarcodeDetector = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+    let barcodeDetector = null;
+    if (hasBarcodeDetector) {
+      try {
+        barcodeDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
+      } catch {
+        barcodeDetector = null;
+      }
+    }
+
+    const scanFrame = async (timestamp) => {
+      if (!isMounted) return;
+
+      const video = videoRef.current;
+      const now = Date.now();
+
+      // Check if video is loaded and ready
+      if (
+        video &&
+        video.readyState >= 2 &&
+        now > cooldownUntilRef.current &&
+        timestamp - lastScanTimestampRef.current > 100
+      ) {
+        lastScanTimestampRef.current = timestamp;
+
+        try {
+          let detected = null;
+
+          // 1. Hardware accelerated BarcodeDetector if available
+          if (barcodeDetector) {
+            try {
+              const barcodes = await barcodeDetector.detect(video);
+              if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                detected = barcodes[0].rawValue;
+              }
+            } catch {
+              // fallback to jsQR
+            }
+          }
+
+          // 2. Pure JS jsQR scanner
+          if (!detected && video.videoWidth && video.videoHeight) {
+            if (!canvasRef.current) {
+              canvasRef.current = document.createElement('canvas');
+            }
+            const canvas = canvasRef.current;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+            const maxDim = 640;
+            let w = video.videoWidth;
+            let h = video.videoHeight;
+            if (w > maxDim || h > maxDim) {
+              const ratio = Math.min(maxDim / w, maxDim / h);
+              w = Math.round(w * ratio);
+              h = Math.round(h * ratio);
+            }
+
+            canvas.width = w;
+            canvas.height = h;
+            ctx.drawImage(video, 0, 0, w, h);
+
+            const imgData = ctx.getImageData(0, 0, w, h);
+            const qrCode = jsQR(imgData.data, imgData.width, imgData.height, {
+              inversionAttempts: 'dontInvert',
+            });
+
+            if (qrCode && qrCode.data) {
+              detected = qrCode.data;
+            }
+          }
+
+          if (detected) {
+            cooldownUntilRef.current = now + 2500;
+            handleScannedData(detected);
+          }
+        } catch (err) {
+          // ignore transient frame read errors
+        }
+      }
+
+      if (isMounted && cameraActive) {
+        scanLoopRef.current = requestAnimationFrame(scanFrame);
+      }
+    };
+
+    scanLoopRef.current = requestAnimationFrame(scanFrame);
+
+    return () => {
+      isMounted = false;
+      if (scanLoopRef.current) {
+        cancelAnimationFrame(scanLoopRef.current);
+        scanLoopRef.current = null;
+      }
+    };
+  }, [cameraActive, applications, visitors]);
+
+>>>>>>> main
   // Log ENTRY / EXIT event
   const handleLogEvent = (type) => {
     if (!verifiedPass) return;
@@ -588,7 +916,8 @@ export default function GuardScanner() {
   const handleIssueVisitorPass = (e) => {
     e.preventDefault();
     if (!visitorForm.name.trim() || !visitorForm.plateNumber.trim()) {
-      alert('Please enter visitor name and vehicle plate number.');
+      setLogSuccessMessage('Please enter visitor name and vehicle plate number.');
+      setTimeout(() => setLogSuccessMessage(''), 3500);
       return;
     }
 
@@ -754,20 +1083,38 @@ export default function GuardScanner() {
         <div className="space-y-4">
           <div className="bg-slate-800 rounded-3xl border border-slate-700 p-4 sm:p-6 shadow-xl relative overflow-hidden">
             {/* Viewfinder Frame */}
+<<<<<<< HEAD
             <div className={`aspect-square max-w-[280px] sm:max-w-xs mx-auto rounded-2xl bg-black flex flex-col items-center justify-center relative overflow-hidden border-2 transition-all duration-300 shadow-inner ${
               scanPulse ? 'border-emerald-400 ring-4 ring-emerald-400/40 shadow-emerald-950/60' : 'border-slate-700'
             }`}>
               {/* The video element is ALWAYS mounted to guarantee videoRef.current is ready */}
+=======
+            <div className={`aspect-square max-w-[280px] sm:max-w-xs mx-auto rounded-2xl bg-black flex flex-col items-center justify-center relative overflow-hidden border-2 shadow-inner transition-all duration-300 ${
+              scanSuccessFlash 
+                ? 'border-emerald-400 ring-4 ring-emerald-500/40 shadow-emerald-500/30' 
+                : cameraActive
+                ? 'border-emerald-500/60 shadow-emerald-950/40'
+                : 'border-slate-700'
+            }`}>
+              {/* Video Element: Kept in DOM so videoRef is always attached immediately */}
+>>>>>>> main
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
+<<<<<<< HEAD
                 className={`w-full h-full object-cover transition-opacity duration-300 ${
                   cameraActive ? 'opacity-100 block' : 'opacity-0 hidden'
                 }`}
               />
 
+=======
+                className={cameraActive ? 'w-full h-full object-cover' : 'hidden'}
+              />
+
+              {/* Idle Placeholder when camera is inactive */}
+>>>>>>> main
               {!cameraActive && (
                 <div className="text-center p-6 space-y-2">
                   <Camera className="w-12 h-12 text-slate-600 mx-auto animate-pulse" />
@@ -784,15 +1131,56 @@ export default function GuardScanner() {
                 </div>
               )}
 
-              {/* Viewfinder Target Framing Overlay (Clean Corner Brackets without middle line) */}
+              {/* Target Framing Overlay with dynamic glow when camera is active */}
               <div className="absolute inset-8 pointer-events-none">
+<<<<<<< HEAD
                 <div className={`absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 rounded-tl-xl transition-colors ${scanPulse ? 'border-emerald-300' : 'border-emerald-400'}`}></div>
                 <div className={`absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 rounded-tr-xl transition-colors ${scanPulse ? 'border-emerald-300' : 'border-emerald-400'}`}></div>
                 <div className={`absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 rounded-bl-xl transition-colors ${scanPulse ? 'border-emerald-300' : 'border-emerald-400'}`}></div>
                 <div className={`absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 rounded-br-xl transition-colors ${scanPulse ? 'border-emerald-300' : 'border-emerald-400'}`}></div>
+=======
+                <div className={`absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 rounded-tl-xl transition-colors duration-200 ${
+                  cameraActive ? 'border-emerald-400 shadow-[0_0_8px_#34d399]' : 'border-slate-600'
+                }`} />
+                <div className={`absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 rounded-tr-xl transition-colors duration-200 ${
+                  cameraActive ? 'border-emerald-400 shadow-[0_0_8px_#34d399]' : 'border-slate-600'
+                }`} />
+                <div className={`absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 rounded-bl-xl transition-colors duration-200 ${
+                  cameraActive ? 'border-emerald-400 shadow-[0_0_8px_#34d399]' : 'border-slate-600'
+                }`} />
+                <div className={`absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 rounded-br-xl transition-colors duration-200 ${
+                  cameraActive ? 'border-emerald-400 shadow-[0_0_8px_#34d399]' : 'border-slate-600'
+                }`} />
+>>>>>>> main
               </div>
 
+              {/* Active Scanner Laser Sweep Line */}
+              {cameraActive && <div className="qr-laser-line" />}
+
+              {/* Switch Camera Button (Front / Rear Camera) */}
+              {cameraActive && (
+                <button
+                  type="button"
+                  onClick={flipCamera}
+                  title="Switch Camera (Front / Rear)"
+                  className="absolute top-3 right-3 z-20 p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-200 shadow-md transition-colors cursor-pointer"
+                >
+                  <SwitchCamera className="w-4 h-4 text-emerald-400" />
+                </button>
+              )}
+
+              {/* Live Scanner Guide Pill */}
+              {cameraActive && (
+                <div className="absolute bottom-3 inset-x-0 flex justify-center z-20 pointer-events-none">
+                  <span className="px-2.5 py-0.5 rounded-full bg-slate-950/85 backdrop-blur-xs text-[10px] font-bold text-emerald-300 border border-emerald-500/30 flex items-center space-x-1.5 shadow-md">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                    <span>Position QR Code inside box</span>
+                  </span>
+                </div>
+              )}
+
               {cameraError && (
+<<<<<<< HEAD
                 <div className="absolute inset-0 z-20 bg-slate-900/95 p-4 flex flex-col items-center justify-center text-center space-y-2">
                   <AlertTriangle className="w-8 h-8 text-amber-400" />
                   <p className="text-xs text-slate-200 font-semibold">{cameraError}</p>
@@ -802,6 +1190,17 @@ export default function GuardScanner() {
                     className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold cursor-pointer"
                   >
                     Retry Camera
+=======
+                <div className="absolute inset-0 bg-slate-900/95 p-4 flex flex-col items-center justify-center text-center z-30">
+                  <AlertTriangle className="w-8 h-8 text-amber-400 mb-2" />
+                  <p className="text-xs text-slate-200 max-w-xs">{cameraError}</p>
+                  <button
+                    type="button"
+                    onClick={() => setCameraError('')}
+                    className="mt-3 px-3 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs hover:text-white border border-slate-700 cursor-pointer"
+                  >
+                    Dismiss
+>>>>>>> main
                   </button>
                 </div>
               )}
@@ -821,6 +1220,7 @@ export default function GuardScanner() {
               <button
                 type="button"
                 onClick={toggleCamera}
+<<<<<<< HEAD
                 className={`w-full sm:w-auto px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer ${
                   cameraActive 
                     ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30'
@@ -837,10 +1237,46 @@ export default function GuardScanner() {
                   onClick={flipCamera}
                   className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer border border-slate-600"
                   title="Switch between front and back camera"
+=======
+                className={`w-full sm:w-auto px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-md ${
+                  cameraActive 
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white active:scale-95'
+                }`}
+              >
+                {cameraActive ? <VideoOff className="w-4 h-4 text-rose-400" /> : <Video className="w-4 h-4 text-emerald-100" />}
+                <span>{cameraActive ? 'Stop Camera' : 'Use Phone Camera'}</span>
+              </button>
+
+              {/* Upload QR Image from Device / Gallery */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageUpload}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center space-x-2 bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600 transition-colors cursor-pointer"
+                title="Scan QR from saved photo or screenshot"
+              >
+                <Upload className="w-4 h-4 text-emerald-400" />
+                <span>Upload QR Image</span>
+              </button>
+
+              <div className="flex flex-wrap gap-1.5 justify-center w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => handleScanPass('VALID_EMPLOYEE')}
+                  className="px-3 py-2 rounded-xl bg-emerald-600/80 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center space-x-1 cursor-pointer transition-colors"
+>>>>>>> main
                 >
                   <SwitchCamera className="w-4 h-4 text-emerald-400" />
                   <span>Flip Lens ({facingMode === 'environment' ? 'Back' : 'Front'})</span>
                 </button>
+<<<<<<< HEAD
               )}
 
               <button
@@ -878,6 +1314,23 @@ export default function GuardScanner() {
               >
                 <span>Demo Visitor</span>
               </button>
+=======
+                <button
+                  type="button"
+                  onClick={() => handleScanPass('VALID_STUDENT')}
+                  className="px-3 py-2 rounded-xl bg-teal-600/80 hover:bg-teal-500 text-white font-bold text-[11px] flex items-center space-x-1 cursor-pointer transition-colors"
+                >
+                  <span>Student Pass</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleScanPass('VISITOR_PASS')}
+                  className="px-3 py-2 rounded-xl bg-amber-600/80 hover:bg-amber-500 text-white font-bold text-[11px] flex items-center space-x-1 cursor-pointer transition-colors"
+                >
+                  <span>Visitor Pass</span>
+                </button>
+              </div>
+>>>>>>> main
             </div>
 
             <p className="text-[10px] text-slate-400 text-center mt-3">

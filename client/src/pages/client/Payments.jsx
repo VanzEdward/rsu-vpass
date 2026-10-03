@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { usePass } from '../../context/PassContext';
 import CameraCaptureModal from '../../components/CameraCaptureModal';
@@ -10,10 +10,13 @@ import {
   UploadCloud, 
   QrCode, 
   ArrowRight,
-  ShieldCheck,
+  ShieldCheck, 
   RefreshCw,
   AlertCircle,
-  AlertTriangle
+  AlertTriangle,
+  ChevronDown,
+  Check,
+  Car
 } from 'lucide-react';
 
 export default function Payments() {
@@ -21,10 +24,32 @@ export default function Payments() {
   const navigate = useNavigate();
   const { applications, submitReceiptPayment } = usePass();
 
-  const approvedApps = applications.filter((a) => a.status === 'APPROVED');
+  const approvedApps = applications.filter((a) => a.status === 'APPROVED' || a.receiptRejectionRemark);
   const queryAppId = searchParams.get('appId');
 
+  // If a specific application was targeted (e.g. clicked "Upload Receipt" on Euro Step by Step),
+  // strictly isolate to that specific application so no other vehicle is shown or mixed in!
+  const targetApps = queryAppId
+    ? applications.filter((a) => a.id === queryAppId)
+    : approvedApps;
+
   const [selectedAppId, setSelectedAppId] = useState(queryAppId || (approvedApps[0]?.id || ''));
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Click outside to close custom dropdown
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    }
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isDropdownOpen]);
+
   const [orNumber, setOrNumber] = useState('');
   const [receiptPhoto, setReceiptPhoto] = useState(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -37,10 +62,10 @@ export default function Payments() {
   useEffect(() => {
     if (queryAppId) {
       setSelectedAppId(queryAppId);
-    } else if (approvedApps.length > 0 && !selectedAppId) {
-      setSelectedAppId(approvedApps[0].id);
+    } else if (targetApps.length > 0 && !selectedAppId) {
+      setSelectedAppId(targetApps[0].id);
     }
-  }, [queryAppId, approvedApps]);
+  }, [queryAppId, targetApps, selectedAppId]);
 
   useEffect(() => {
     if (selectedApp?.receipt?.orNumber && !orNumber) {
@@ -214,19 +239,97 @@ export default function Payments() {
                 </div>
               )}
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Select Approved Application</label>
-                <select
-                  value={selectedAppId}
-                  onChange={(e) => setSelectedAppId(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500"
+              {/* Select Approved Application (Custom Styled Dropdown strictly bounded to system design) */}
+              <div className="relative" ref={dropdownRef}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block font-bold text-slate-700 text-xs">
+                    Approved Vehicle Registration <span className="text-rose-500">*</span>
+                  </label>
+                  {queryAppId && (
+                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                      Targeted Vehicle Only
+                    </span>
+                  )}
+                </div>
+
+                {/* Custom Styled Trigger */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (targetApps.length > 1) {
+                      setIsDropdownOpen(!isDropdownOpen);
+                    }
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border bg-white flex items-center justify-between text-left transition-all shadow-xs ${
+                    targetApps.length > 1 ? 'cursor-pointer hover:border-slate-400' : 'cursor-default'
+                  } ${
+                    isDropdownOpen
+                      ? 'border-emerald-500 ring-2 ring-emerald-500/20'
+                      : 'border-slate-300'
+                  }`}
                 >
-                  {approvedApps.map((app) => (
-                    <option key={app.id} value={app.id}>
-                      {app.id} — {app.vehicle.make} {app.vehicle.model} ({app.vehicle.plateNumber})
-                    </option>
-                  ))}
-                </select>
+                  <div className="flex items-center space-x-2.5 min-w-0 pr-2">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-100">
+                      <Car className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center space-x-1.5 truncate">
+                        <span className="font-mono text-xs font-bold text-emerald-800">
+                          {selectedApp?.id || 'Select Application'}
+                        </span>
+                        <span className="text-slate-400 text-xs">•</span>
+                        <span className="text-xs font-bold text-slate-900 truncate">
+                          {selectedApp?.vehicle?.make} {selectedApp?.vehicle?.model}
+                        </span>
+                        <span className="font-mono text-xs text-slate-600 shrink-0">
+                          ({selectedApp?.vehicle?.plateNumber})
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {targetApps.length > 1 && (
+                    <ChevronDown
+                      className={`w-4 h-4 text-slate-400 shrink-0 ml-2 transition-transform duration-200 ${
+                        isDropdownOpen ? 'rotate-180 text-emerald-600' : ''
+                      }`}
+                    />
+                  )}
+                </button>
+
+                {/* Custom Popover Options List */}
+                {isDropdownOpen && targetApps.length > 1 && (
+                  <div className="absolute top-full left-0 right-0 mt-1.5 bg-white rounded-2xl border border-slate-200 shadow-xl py-1 z-30 animate-in fade-in zoom-in-95 duration-150 max-h-60 overflow-y-auto">
+                    {targetApps.map((app) => {
+                      const isSelected = selectedAppId === app.id;
+                      return (
+                        <button
+                          key={app.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedAppId(app.id);
+                            setIsDropdownOpen(false);
+                          }}
+                          className={`w-full px-3.5 py-2.5 text-left text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                            isSelected
+                              ? 'bg-emerald-50 text-emerald-900 font-bold'
+                              : 'text-slate-700 hover:bg-slate-50 font-medium'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-2 min-w-0 pr-2 truncate">
+                            <span className="font-mono text-[11px] font-bold text-emerald-700 shrink-0">
+                              {app.id}
+                            </span>
+                            <span className="truncate">
+                              {app.vehicle?.make} {app.vehicle?.model} ({app.vehicle?.plateNumber})
+                            </span>
+                          </div>
+                          {isSelected && <Check className="w-4 h-4 text-emerald-600 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div>
