@@ -97,6 +97,21 @@ export default function MyVehicle() {
   const [errors, setErrors] = useState({});
 
   // Check for editAppId (Correcting a rejected application) or resume draft
+  // Cleanup any lingering draft that matches an existing submitted application
+  useEffect(() => {
+    if (draftApplication && applications && applications.length > 0) {
+      const draftPlate = draftApplication.data?.plateNumber?.replace(/\s+/g, '').toUpperCase();
+      const isDuplicate = applications.some((app) => {
+        const appPlate = app.vehicle?.plateNumber?.replace(/\s+/g, '').toUpperCase();
+        return Boolean(draftPlate && appPlate && draftPlate === appPlate);
+      });
+      if (isDuplicate) {
+        clearDraft();
+      }
+    }
+  }, [draftApplication, applications, clearDraft]);
+
+  // Check for editAppId (Correcting a rejected application) or resume draft
   useEffect(() => {
     const editId = searchParams.get('editAppId');
     if (editId && (applications || []).length > 0) {
@@ -125,6 +140,15 @@ export default function MyVehicle() {
         setCurrentStep(1);
         setShowWizard(true);
         setSearchParams({}, { replace: true });
+
+        // If a draft exists for this vehicle, clear it so it doesn't appear as a duplicate
+        if (draftApplication) {
+          const draftPlate = draftApplication.data?.plateNumber?.replace(/\s+/g, '').toUpperCase();
+          const appPlate = appToEdit.vehicle?.plateNumber?.replace(/\s+/g, '').toUpperCase();
+          if (draftPlate && appPlate && draftPlate === appPlate) {
+            clearDraft();
+          }
+        }
         return;
       }
     }
@@ -151,8 +175,10 @@ export default function MyVehicle() {
   const handleFieldChange = (field, value) => {
     setFormData((prev) => {
       const updated = { ...prev, [field]: value };
-      // Auto-save draft on change
-      saveDraft(updated, currentStep);
+      // Auto-save draft on change ONLY for brand new applications (not when editing an existing rejected application)
+      if (!editingAppId) {
+        saveDraft(updated, currentStep);
+      }
       return updated;
     });
     if (errors[field]) {
@@ -161,13 +187,20 @@ export default function MyVehicle() {
   };
 
   const handleCloseWizard = () => {
-    // Auto-save progress before closing
-    saveDraft(formData, currentStep);
+    const wasEditing = Boolean(editingAppId);
+    // Auto-save progress before closing ONLY for brand new applications
+    if (!editingAppId) {
+      saveDraft(formData, currentStep);
+    }
     setShowWizard(false);
+    if (editingAppId) {
+      setEditingAppId(null);
+      setEditingRejectionReason('');
+    }
 
     if (returnTo === 'applications') {
       navigate('/client/applications');
-    } else {
+    } else if (!wasEditing) {
       showToastNotification('Draft auto-saved! You can resume anytime from Requests or My Vehicle.');
     }
   };
@@ -232,14 +265,18 @@ export default function MyVehicle() {
     if (validateStep(currentStep)) {
       const nextStep = Math.min(currentStep + 1, 4);
       setCurrentStep(nextStep);
-      saveDraft(formData, nextStep);
+      if (!editingAppId) {
+        saveDraft(formData, nextStep);
+      }
     }
   };
 
   const handlePrev = () => {
     const prevStep = Math.max(currentStep - 1, 1);
     setCurrentStep(prevStep);
-    saveDraft(formData, prevStep);
+    if (!editingAppId) {
+      saveDraft(formData, prevStep);
+    }
   };
 
   const handleSubmit = (e) => {
@@ -316,9 +353,19 @@ export default function MyVehicle() {
         </div>
         <button
           onClick={() => {
-            if (draftApplication) {
+            const isDuplicate = Boolean(
+              draftApplication &&
+              (applications || []).some((app) => {
+                const draftPlate = draftApplication.data?.plateNumber?.replace(/\s+/g, '').toUpperCase();
+                const appPlate = app.vehicle?.plateNumber?.replace(/\s+/g, '').toUpperCase();
+                return Boolean(draftPlate && appPlate && draftPlate === appPlate);
+              })
+            );
+
+            if (draftApplication && !isDuplicate) {
               setShowResumeModal(true);
             } else {
+              if (isDuplicate) clearDraft();
               setFormData(initialFormState);
               setCurrentStep(1);
               setShowWizard(true);
@@ -407,7 +454,7 @@ export default function MyVehicle() {
               </div>
               <button
                 onClick={handleCloseWizard}
-                title="Save Draft & Close"
+                title={editingAppId ? "Close Correction Form" : "Save Draft & Close"}
                 className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full cursor-pointer transition-colors text-base"
               >
                 ✕
@@ -718,65 +765,177 @@ export default function MyVehicle() {
                     </p>
                   </div>
 
+                  {/* Contextual PASO Rejection Notice during Correction */}
+                  {editingAppId && editingRejectionReason && (
+                    <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-start space-x-3">
+                      <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 mt-0.5">
+                        <AlertCircle className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-rose-950 flex items-center gap-1.5">
+                          <span>PASO Reason for Returning Application:</span>
+                        </p>
+                        <p className="text-rose-800 text-xs font-semibold mt-0.5 leading-relaxed bg-white/70 p-2 rounded-lg border border-rose-200/60">
+                          "{editingRejectionReason}"
+                        </p>
+                        <p className="text-[11px] text-rose-600 mt-1">
+                          Please verify and re-upload the requested document(s) below.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                     {/* Driver's License */}
-                    <div className="p-4 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 text-center space-y-2">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center">
-                        <FileText className="w-5 h-5" />
-                      </div>
-                      <div>
+                    <div className="p-4 rounded-2xl border-2 border-slate-200 bg-slate-50 text-center space-y-3 flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center">
+                          <FileText className="w-5 h-5" />
+                        </div>
                         <p className="font-bold text-slate-900">Driver's License</p>
                         <p className="text-[11px] text-slate-500">Valid Philippine Driver's License</p>
                       </div>
 
                       {formData.driverLicense ? (
-                        <div className="p-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold flex items-center justify-center space-x-1">
-                          <Check className="w-3.5 h-3.5" />
-                          <span>License Attached</span>
+                        <div className="space-y-2.5">
+                          {/* Preview container if data URL or image */}
+                          {typeof formData.driverLicense === 'string' && (formData.driverLicense.startsWith('data:image') || formData.driverLicense.startsWith('http') || formData.driverLicense.startsWith('/')) ? (
+                            <div className="relative group rounded-xl overflow-hidden border border-emerald-300 bg-white max-h-36 flex items-center justify-center p-1.5 shadow-2xs">
+                              <img
+                                src={formData.driverLicense}
+                                alt="Driver's License Preview"
+                                className="max-h-28 w-auto object-contain rounded-lg"
+                              />
+                              <div className="absolute top-2 right-2">
+                                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold shadow-xs">
+                                  <Check className="w-3 h-3" />
+                                  <span>Attached</span>
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold flex items-center justify-between">
+                              <span className="truncate">Driver's License Attached</span>
+                              <span className="text-[10px] bg-emerald-200/80 text-emerald-900 px-2 py-0.5 rounded-md font-bold shrink-0">✓ Valid</span>
+                            </div>
+                          )}
+
+                          {/* Action Buttons: Re-upload / Replace & Remove */}
+                          <div className="flex items-center justify-center gap-2 pt-1">
+                            <label className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold text-xs cursor-pointer shadow-2xs transition-colors">
+                              <RefreshCw className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Re-upload / Change</span>
+                              <input
+                                type="file"
+                                accept="image/*,.pdf"
+                                onChange={(e) => handleFileChange('driverLicense', e)}
+                                className="hidden"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => handleFieldChange('driverLicense', null)}
+                              className="inline-flex items-center justify-center p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors cursor-pointer shadow-2xs"
+                              title="Remove and upload different file"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       ) : (
-                        <label className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-semibold cursor-pointer">
-                          <UploadCloud className="w-4 h-4 text-emerald-600" />
-                          <span>Upload / Camera</span>
+                        <label className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-slate-300 hover:border-emerald-500 bg-white hover:bg-emerald-50/40 transition-all cursor-pointer group">
+                          <div className="w-9 h-9 rounded-xl bg-slate-100 group-hover:bg-emerald-100 text-slate-500 group-hover:text-emerald-700 flex items-center justify-center transition-colors mb-1.5">
+                            <UploadCloud className="w-5 h-5" />
+                          </div>
+                          <span className="font-bold text-slate-800 group-hover:text-emerald-800 text-xs">
+                            Upload License
+                          </span>
+                          <span className="text-[10px] text-slate-400 mt-0.5">Scanned copy or photo</span>
                           <input
                             type="file"
-                            accept="image/*"
+                            accept="image/*,.pdf"
                             onChange={(e) => handleFileChange('driverLicense', e)}
                             className="hidden"
                           />
                         </label>
                       )}
-                      {errors.driverLicense && <p className="text-red-500 text-[11px]">{errors.driverLicense}</p>}
+                      {errors.driverLicense && <p className="text-rose-600 font-semibold text-[11px]">{errors.driverLicense}</p>}
                     </div>
 
                     {/* Official OR/CR */}
-                    <div className="p-4 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 text-center space-y-2">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center">
-                        <FileText className="w-5 h-5" />
-                      </div>
-                      <div>
+                    <div className="p-4 rounded-2xl border-2 border-slate-200 bg-slate-50 text-center space-y-3 flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center">
+                          <FileText className="w-5 h-5" />
+                        </div>
                         <p className="font-bold text-slate-900">Official OR / CR</p>
                         <p className="text-[11px] text-slate-500">Official Receipt & Cert. of Registration</p>
                       </div>
 
                       {formData.orCr ? (
-                        <div className="p-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold flex items-center justify-center space-x-1">
-                          <Check className="w-3.5 h-3.5" />
-                          <span>OR/CR Attached</span>
+                        <div className="space-y-2.5">
+                          {/* Preview container if data URL or image */}
+                          {typeof formData.orCr === 'string' && (formData.orCr.startsWith('data:image') || formData.orCr.startsWith('http') || formData.orCr.startsWith('/')) ? (
+                            <div className="relative group rounded-xl overflow-hidden border border-emerald-300 bg-white max-h-36 flex items-center justify-center p-1.5 shadow-2xs">
+                              <img
+                                src={formData.orCr}
+                                alt="Official OR/CR Preview"
+                                className="max-h-28 w-auto object-contain rounded-lg"
+                              />
+                              <div className="absolute top-2 right-2">
+                                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold shadow-xs">
+                                  <Check className="w-3 h-3" />
+                                  <span>Attached</span>
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold flex items-center justify-between">
+                              <span className="truncate">Official OR/CR Attached</span>
+                              <span className="text-[10px] bg-emerald-200/80 text-emerald-900 px-2 py-0.5 rounded-md font-bold shrink-0">✓ Valid</span>
+                            </div>
+                          )}
+
+                          {/* Action Buttons: Re-upload / Replace & Remove */}
+                          <div className="flex items-center justify-center gap-2 pt-1">
+                            <label className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold text-xs cursor-pointer shadow-2xs transition-colors">
+                              <RefreshCw className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Re-upload / Change</span>
+                              <input
+                                type="file"
+                                accept="image/*,.pdf"
+                                onChange={(e) => handleFileChange('orCr', e)}
+                                className="hidden"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => handleFieldChange('orCr', null)}
+                              className="inline-flex items-center justify-center p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors cursor-pointer shadow-2xs"
+                              title="Remove and upload different file"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       ) : (
-                        <label className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-semibold cursor-pointer">
-                          <UploadCloud className="w-4 h-4 text-emerald-600" />
-                          <span>Upload / Camera</span>
+                        <label className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-slate-300 hover:border-emerald-500 bg-white hover:bg-emerald-50/40 transition-all cursor-pointer group">
+                          <div className="w-9 h-9 rounded-xl bg-slate-100 group-hover:bg-emerald-100 text-slate-500 group-hover:text-emerald-700 flex items-center justify-center transition-colors mb-1.5">
+                            <UploadCloud className="w-5 h-5" />
+                          </div>
+                          <span className="font-bold text-slate-800 group-hover:text-emerald-800 text-xs">
+                            Upload OR / CR
+                          </span>
+                          <span className="text-[10px] text-slate-400 mt-0.5">Scanned copy or photo</span>
                           <input
                             type="file"
-                            accept="image/*"
+                            accept="image/*,.pdf"
                             onChange={(e) => handleFileChange('orCr', e)}
                             className="hidden"
                           />
                         </label>
                       )}
-                      {errors.orCr && <p className="text-red-500 text-[11px]">{errors.orCr}</p>}
+                      {errors.orCr && <p className="text-rose-600 font-semibold text-[11px]">{errors.orCr}</p>}
                     </div>
                   </div>
                 </div>

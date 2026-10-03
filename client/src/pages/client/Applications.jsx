@@ -23,6 +23,22 @@ export default function Applications() {
   const { applications, draftApplication, clearDraft } = usePass();
   const [showDiscardModal, setShowDiscardModal] = useState(false);
 
+  // Detect if draft belongs to an already submitted/existing application (e.g. user was editing a rejected application)
+  const isDraftDuplicateOfSubmitted = Boolean(
+    draftApplication &&
+    (applications || []).some((app) => {
+      const draftPlate = draftApplication.data?.plateNumber?.replace(/\s+/g, '').toUpperCase();
+      const appPlate = app.vehicle?.plateNumber?.replace(/\s+/g, '').toUpperCase();
+      return Boolean(draftPlate && appPlate && draftPlate === appPlate);
+    })
+  );
+
+  React.useEffect(() => {
+    if (isDraftDuplicateOfSubmitted && clearDraft) {
+      clearDraft();
+    }
+  }, [isDraftDuplicateOfSubmitted, clearDraft]);
+
   const getStatusBadge = (status) => {
     switch (status) {
       case 'PENDING':
@@ -89,8 +105,8 @@ export default function Applications() {
         </p>
       </div>
 
-      {/* In-Progress Draft Application Card (Auto-saved) */}
-      {draftApplication && (
+      {/* In-Progress Draft Application Card (Auto-saved) - Hidden if duplicate of submitted application */}
+      {draftApplication && !isDraftDuplicateOfSubmitted && (
         <div className="bg-white rounded-3xl border border-emerald-200/90 p-5 sm:p-6 shadow-sm relative overflow-hidden space-y-4 animate-fadeIn">
           {/* Top Decorative Accent Line */}
           <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600" />
