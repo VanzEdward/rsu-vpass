@@ -1228,7 +1228,7 @@ export default function GuardScanner() {
                                 <span>Pass</span>
                               </button>
 
-                              {isInside ? (
+                              {isInside && (
                                 <button
                                   type="button"
                                   onClick={() => handleVisitorQuickExit(v.id)}
@@ -1236,18 +1236,6 @@ export default function GuardScanner() {
                                 >
                                   <LogOut className="w-3.5 h-3.5 text-rose-300" />
                                   <span>Exit</span>
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleStartNewEntryForVisitor(v)
-                                  }
-                                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center space-x-1 cursor-pointer transition-colors"
-                                  title="Register this returning visitor for today's entry"
-                                >
-                                  <LogIn className="w-3.5 h-3.5" />
-                                  <span>New Entry</span>
                                 </button>
                               )}
                             </div>
