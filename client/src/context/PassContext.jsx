@@ -815,55 +815,6 @@ export const PassProvider = ({ children }) => {
     }
   };
 
-  // Renew Visitor Pass (for returning guests/delegates)
-  const renewVisitorPass = (idOrPlate, days = 1) => {
-    const expiryDate = new Date();
-    expiryDate.setDate(expiryDate.getDate() + (days - 1));
-    const expiryStr =
-      days === 1
-        ? "Today • 11:59 PM (1 Day)"
-        : `${expiryDate.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })} (${days} Days)`;
-
-    let renewedItem = null;
-    const currentPost = activeGate || "Gate 1";
-
-    setVisitorPasses((prev) =>
-      prev.map((v) => {
-        if (v.id === idOrPlate || v.plateNumber === idOrPlate) {
-          renewedItem = {
-            ...v,
-            validDays: days,
-            validUntil: expiryStr,
-            status: "INSIDE",
-            exitGate: null,
-            exitTime: null,
-            entryGate: currentPost,
-            entryTime:
-              new Date().toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              }) + " Today",
-          };
-          return renewedItem;
-        }
-        return v;
-      }),
-    );
-
-    if (renewedItem) {
-      addGateLog({
-        passNumber: renewedItem.id,
-        plateNumber: renewedItem.plateNumber,
-        owner: renewedItem.name,
-        classification: "VISITOR",
-        type: "ENTRY",
-        gate: currentPost,
-        status: "VALID",
-      });
-    }
-
-    return renewedItem;
-  };
 
   // Extend Visitor Stay (Adds days for visitor already INSIDE campus, WITHOUT duplicate ENTRY log)
   const extendVisitorPass = (idOrPlate, additionalDays = 1) => {
@@ -919,7 +870,6 @@ export const PassProvider = ({ children }) => {
         addGateLog,
         issueVisitorPass,
         logVisitorExit,
-        renewVisitorPass,
         extendVisitorPass,
       }}
     >

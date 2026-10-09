@@ -41,7 +41,6 @@ export default function GuardScanner() {
     addGateLog,
     issueVisitorPass,
     logVisitorExit,
-    renewVisitorPass,
     extendVisitorPass,
   } = usePass();
 
@@ -701,8 +700,8 @@ export default function GuardScanner() {
     setVisitorSubTab("active");
   };
 
-  // Pre-fill form to renew departed visitor
-  const handleStartRenewVisitor = (visitor) => {
+  // Pre-fill form to register a new entry for a returning visitor
+  const handleStartNewEntryForVisitor = (visitor) => {
     setVisitorForm({
       name: visitor.name,
       contact: visitor.contact !== "N/A" ? visitor.contact : "",
@@ -716,28 +715,6 @@ export default function GuardScanner() {
     setVisitorSubTab("new");
   };
 
-  // Renew or extend pass from visitor list
-  const handleRenewVisitor = (visitor) => {
-    if (visitor.status === "INSIDE") {
-      const updated = extendVisitorPass(visitor.id, 1);
-      playBeep(true);
-      triggerHaptic(true);
-      setLogSuccessMessage(
-        `Pass renewed (+1 Day) for ${visitor.plateNumber}! Stay extended (No duplicate ENTRY).`,
-      );
-      setTimeout(() => setLogSuccessMessage(""), 4000);
-      setSelectedVisitorModal(
-        updated || {
-          ...visitor,
-          validDays: (visitor.validDays || 1) + 1,
-          validUntil: "Today • 11:59 PM (1 Day Extended)",
-        },
-      );
-    } else {
-      handleStartRenewVisitor(visitor);
-    }
-  };
-
   // Extend stay directly from scan result modal
   const handleExtendFromScanner = (pass) => {
     if (!pass) return;
@@ -746,7 +723,7 @@ export default function GuardScanner() {
     playBeep(true);
     triggerHaptic(true);
     setLogSuccessMessage(
-      `Stay extended (+1 Day) for ${pass.plateNumber}! Pass renewed.`,
+      `Stay extended (+1 Day) for ${pass.plateNumber}!`,
     );
     setTimeout(() => setLogSuccessMessage(""), 4000);
 
@@ -1263,11 +1240,14 @@ export default function GuardScanner() {
                               ) : (
                                 <button
                                   type="button"
-                                  onClick={() => handleRenewVisitor(v)}
+                                  onClick={() =>
+                                    handleStartNewEntryForVisitor(v)
+                                  }
                                   className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center space-x-1 cursor-pointer transition-colors"
+                                  title="Register this returning visitor for today's entry"
                                 >
-                                  <RefreshCw className="w-3.5 h-3.5" />
-                                  <span>Renew</span>
+                                  <LogIn className="w-3.5 h-3.5" />
+                                  <span>New Entry</span>
                                 </button>
                               )}
                             </div>
@@ -1327,12 +1307,12 @@ export default function GuardScanner() {
                     pastVisitorMatch.name !== visitorForm.name && (
                       <div className="mt-1.5 p-2 rounded-lg bg-blue-500/15 border border-blue-500/30 flex items-center justify-between text-[11px] text-blue-200">
                         <span className="truncate">
-                          Past visitor: <strong>{pastVisitorMatch.name}</strong>
+                          Returning visitor: <strong>{pastVisitorMatch.name}</strong>
                         </span>
                         <button
                           type="button"
                           onClick={() =>
-                            handleStartRenewVisitor(pastVisitorMatch)
+                            handleStartNewEntryForVisitor(pastVisitorMatch)
                           }
                           className="ml-2 px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] cursor-pointer shrink-0"
                         >
