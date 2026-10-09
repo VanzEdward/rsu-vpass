@@ -1425,7 +1425,7 @@ export default function GuardScanner() {
                 className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center justify-center space-x-2 shadow-lg shadow-emerald-950/40 active:scale-98 transition-all cursor-pointer mt-2"
               >
                 <LogIn className="w-4 h-4" />
-                <span>Issue Visitor Pass & Open Gate</span>
+                <span>Issue Visitor Pass & Log Entry</span>
               </button>
             </form>
           )}
@@ -1780,7 +1780,7 @@ export default function GuardScanner() {
                   className="w-full h-12 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-lg cursor-pointer transition-all"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Student Cleared • Open Gate & Next</span>
+                  <span>Student Cleared • Next Scan</span>
                 </button>
               </div>
             )}
@@ -1945,7 +1945,7 @@ export default function GuardScanner() {
                 onClick={() => setSelectedVisitorModal(null)}
                 className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white cursor-pointer shadow-md"
               >
-                Done / Gate Open
+                Done / Close Pass
               </button>
             </div>
           </div>
