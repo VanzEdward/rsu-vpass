@@ -33,11 +33,15 @@ export const register = async (req, res) => {
 
     // Check if user exists
     const [existing] = await pool.query(
-      'SELECT id FROM users WHERE school_id = ? OR email = ?',
-      [school_id, email]
+      'SELECT id, school_id, email FROM users WHERE LOWER(school_id) = LOWER(?) OR LOWER(email) = LOWER(?)',
+      [school_id.trim(), email.trim()]
     );
     if (existing.length > 0) {
-      return res.status(409).json({ message: 'Identification Card No. or Email is already registered.' });
+      const isDuplicateId = existing.some(u => (u.school_id || '').toLowerCase() === school_id.trim().toLowerCase());
+      if (isDuplicateId) {
+        return res.status(409).json({ message: 'Identification Card No. is already registered in the system.' });
+      }
+      return res.status(409).json({ message: 'Email address is already registered in the system.' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -176,5 +180,19 @@ export const getProfile = async (req, res) => {
     res.json(rows[0]);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch profile', error: error.message });
+  }
+};
+
+export const checkId = async (req, res) => {
+  try {
+    const { school_id } = req.query;
+    if (!school_id) return res.json({ exists: false });
+    const [rows] = await pool.query(
+      'SELECT id FROM users WHERE LOWER(school_id) = LOWER(?)',
+      [school_id.trim()]
+    );
+    res.json({ exists: rows.length > 0 });
+  } catch (error) {
+    res.json({ exists: false });
   }
 };
