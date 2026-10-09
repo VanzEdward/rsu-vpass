@@ -53,6 +53,7 @@ export default function GuardScanner() {
   // Verification Modal State
   const [verifiedPass, setVerifiedPass] = useState(null);
   const [isPhotoExpanded, setIsPhotoExpanded] = useState(false);
+  const [invalidScanAlert, setInvalidScanAlert] = useState(null);
 
   // Scanner Engine & Audio State
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -237,7 +238,6 @@ export default function GuardScanner() {
   // Simulator / Demo presets handler
   const handleSimulatePass = (passType) => {
     if (passType === "VALID_EMPLOYEE") {
-      playBeep(true);
       triggerHaptic(true);
       setVerifiedPass({
         passNumber: "E-081",
@@ -257,7 +257,6 @@ export default function GuardScanner() {
           "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80",
       });
     } else if (passType === "VALID_STUDENT") {
-      playBeep(true);
       triggerHaptic(true);
       setVerifiedPass({
         passNumber: "S-396",
@@ -277,7 +276,6 @@ export default function GuardScanner() {
           "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80",
       });
     } else if (passType === "VISITOR_PASS") {
-      playBeep(true);
       triggerHaptic(true);
       setVerifiedPass({
         passNumber: "TMP-2026-0042",
@@ -295,6 +293,18 @@ export default function GuardScanner() {
         yearCourse: "",
         photo:
           "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80",
+      });
+    } else if (passType === "TROLL_QR") {
+      playBeep(false);
+      triggerHaptic(false);
+      setVerifiedPass(null);
+      setInvalidScanAlert({
+        rawText: "https://www.youtube.com/watch?v=dQw4w9WgXcQ (Rickroll Meme Video)",
+        reason: "External Media / Meme QR Detected (Troll Code)",
+        details: "The scanned QR code links to an external image, video, or social media page instead of a verified campus vehicle pass.",
+        isTroll: true,
+        isUrl: true,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       });
     } else {
       playBeep(false);
@@ -334,8 +344,13 @@ export default function GuardScanner() {
     });
 
     if (matchingApp && matchingApp.pass) {
-      playBeep(true);
-      triggerHaptic(true);
+      const isExpired = matchingApp.pass.status === "EXPIRED" || matchingApp.pass.status === "REVOKED";
+      if (isExpired) {
+        playBeep(false);
+        triggerHaptic(false);
+      } else {
+        triggerHaptic(true);
+      }
       const isStudent = (matchingApp.classification || "").toLowerCase().includes("student");
       const isEmployee = !isStudent;
       setVerifiedPass({
@@ -373,8 +388,13 @@ export default function GuardScanner() {
     });
 
     if (matchingVisitor) {
-      playBeep(true);
-      triggerHaptic(true);
+      const isExpired = matchingVisitor.status === "EXITED";
+      if (isExpired) {
+        playBeep(false);
+        triggerHaptic(false);
+      } else {
+        triggerHaptic(true);
+      }
       setVerifiedPass({
         passNumber: matchingVisitor.id,
         client: matchingVisitor.name,
@@ -405,7 +425,15 @@ export default function GuardScanner() {
     } else if (q.includes("rsu") || q.includes("cuenco")) {
       handleSimulatePass("VALID_STUDENT");
     } else {
-      handleSimulatePass("EXPIRED");
+      playBeep(false);
+      triggerHaptic(false);
+      setInvalidScanAlert({
+        rawText: query || quickSearchQuery,
+        reason: "No Pass Found in Database",
+        details: `No active student, employee, or visitor pass found matching "${query || quickSearchQuery}".`,
+        isManualSearch: true,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      });
     }
   };
 
@@ -460,8 +488,13 @@ export default function GuardScanner() {
     });
 
     if (matchApp && matchApp.pass) {
-      playBeep(true);
-      triggerHaptic(true);
+      const isExpired = matchApp.pass.status === "EXPIRED" || matchApp.pass.status === "REVOKED";
+      if (isExpired) {
+        playBeep(false);
+        triggerHaptic(false);
+      } else {
+        triggerHaptic(true);
+      }
       const isStudent =
         (matchApp.classification || "").toLowerCase().includes("student");
       const isEmployee = !isStudent;
@@ -511,8 +544,13 @@ export default function GuardScanner() {
     });
 
     if (matchVisitor) {
-      playBeep(true);
-      triggerHaptic(true);
+      const isExpired = matchVisitor.status === "EXITED";
+      if (isExpired) {
+        playBeep(false);
+        triggerHaptic(false);
+      } else {
+        triggerHaptic(true);
+      }
       setVerifiedPass({
         passNumber: matchVisitor.id,
         client: matchVisitor.name,
@@ -530,7 +568,37 @@ export default function GuardScanner() {
       return;
     }
 
-    handleManualSearch(text);
+    // 3. UNRECOGNIZED / TROLL / INVALID QR CODE INTERCEPTOR
+    playBeep(false);
+    triggerHaptic(false);
+
+    const isUrl = /^https?:\/\//i.test(text) || text.includes("www.") || text.includes(".com") || text.includes(".ph") || text.includes(".org");
+    const isMemeOrMedia = /\.(jpg|jpeg|png|gif|webp|mp4|webm|avi)/i.test(text) || text.includes("youtube.com") || text.includes("youtu.be") || text.includes("tiktok.com");
+    const isForgedRsu = text.startsWith("RSU-VPASS:");
+
+    let reason = "Unrecognized QR Code (Not in System)";
+    let details = "This QR code does not belong to any authorized university vehicle or visitor.";
+
+    if (isMemeOrMedia) {
+      reason = "External Media / Meme QR Detected (Troll Code)";
+      details = "The scanned QR code links to an external image, video, or social media page instead of a verified campus vehicle pass.";
+    } else if (isUrl) {
+      reason = "External Website URL Detected";
+      details = "The scanned code points to an external web page. For security, non-university links are blocked from campus access.";
+    } else if (isForgedRsu) {
+      reason = "Counterfeit / Unregistered RSU Format";
+      details = "The QR code mimics an RSU Pass format, but this pass ID or vehicle is NOT registered in the official database.";
+    }
+
+    setVerifiedPass(null);
+    setInvalidScanAlert({
+      rawText: text,
+      reason,
+      details,
+      isTroll: isMemeOrMedia,
+      isUrl,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    });
   };
 
   // Video QR scan frame loop
@@ -1081,6 +1149,13 @@ export default function GuardScanner() {
                   className="py-2 px-2.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-bold text-center cursor-pointer transition-colors"
                 >
                   Expired (ABC 1234)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSimulatePass("TROLL_QR")}
+                  className="col-span-2 sm:col-span-4 py-2 px-2.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 font-bold text-center cursor-pointer transition-colors flex items-center justify-center space-x-1.5"
+                >
+                  <span>🎭 Test Fake / Meme Troll QR</span>
                 </button>
               </div>
             )}
@@ -1763,36 +1838,94 @@ export default function GuardScanner() {
                 </button>
               </div>
             ) : (
-              <div className="space-y-2 pt-1">
-                <div className="grid grid-cols-2 gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => handleLogEvent("ENTRY")}
-                    className="h-12 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-400 hover:to-rose-400 active:scale-95 text-white font-black text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-lg cursor-pointer transition-all"
-                  >
-                    <LogIn className="w-4 h-4" />
-                    <span>LOG ENTRY</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleLogEvent("EXIT")}
-                    className="h-12 rounded-xl bg-slate-700 hover:bg-slate-600 active:scale-95 text-white font-black text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-lg cursor-pointer transition-all"
-                  >
-                    <LogOut className="w-4 h-4 text-slate-300" />
-                    <span>LOG EXIT</span>
-                  </button>
-                </div>
-
+              <div className="space-y-2.5 pt-1">
+                {/* Student: Verification clearance confirmation only (No Entry/Exit) */}
                 <button
                   type="button"
-                  onClick={() => setVerifiedPass(null)}
-                  className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs cursor-pointer mt-1"
+                  onClick={() => {
+                    setVerifiedPass(null);
+                    setIsPhotoExpanded(false);
+                  }}
+                  className="w-full h-12 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-lg cursor-pointer transition-all"
                 >
-                  Scan Next Vehicle
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Student Cleared • Next Scan</span>
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* 4.1 SECURITY ALERT: INVALID / TROLL / FAKE QR MODAL      */}
+      {/* ======================================================== */}
+      {invalidScanAlert && (
+        <div
+          onClick={() => setInvalidScanAlert(null)}
+          className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200 overflow-y-auto"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-3xl p-5 space-y-4 my-auto border-2 border-rose-500 shadow-2xl bg-slate-900 shadow-rose-950/50 animate-in zoom-in-95 duration-200 relative"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-6 h-6 text-rose-400" />
+                </div>
+                <div>
+                  <span className="text-xs sm:text-sm font-black tracking-tight text-rose-400 block uppercase">
+                    Access Denied • Invalid QR
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-400">
+                    Security Clearance Blocked
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setInvalidScanAlert(null)}
+                className="p-1 rounded-full text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 cursor-pointer"
+                title="Close Alert"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Alert Category Callout */}
+            <div className="p-3.5 rounded-2xl bg-rose-950/40 border border-rose-800/40 space-y-1">
+              <div className="flex items-center space-x-1.5 text-rose-300 font-bold text-xs">
+                <span>⚠️</span>
+                <span>{invalidScanAlert.reason}</span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                {invalidScanAlert.details}
+              </p>
+            </div>
+
+
+            {/* Guard Instructions */}
+            <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-300 space-y-0.5">
+              <p className="font-bold text-white">Security Protocol:</p>
+              <p className="text-slate-400">
+                Do not clear gate. Advise the driver to present an authorized RSU Vehicle Pass or register as a legitimate visitor.
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => setInvalidScanAlert(null)}
+                className="w-full h-11 rounded-xl bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-black text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-lg cursor-pointer transition-all"
+              >
+                <XCircle className="w-4 h-4" />
+                <span>Deny Entry • Next Scan</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
