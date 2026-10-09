@@ -1,36 +1,40 @@
-import React, { useState } from 'react';
-import { usePass } from '../../context/PassContext';
-import { 
-  Layers, 
-  Search, 
-  QrCode, 
-  Eye, 
-  ShieldCheck, 
-  User, 
-  Car, 
-  CheckCircle, 
+import React, { useState } from "react";
+import { usePass } from "../../context/PassContext";
+import {
+  Layers,
+  Search,
+  QrCode,
+  Eye,
+  ShieldCheck,
+  User,
+  Car,
+  CheckCircle,
   AlertTriangle,
   X,
   Printer,
-  Ban
-} from 'lucide-react';
+  Ban,
+} from "lucide-react";
+import RsuStickerPass from "../../components/RsuStickerPass";
 
 export default function AdminPasses() {
   const { applications } = usePass();
 
-  const [classificationFilter, setClassificationFilter] = useState('ALL'); // 'ALL' | 'STUDENT' | 'EMPLOYEE'
-  const [searchQuery, setSearchQuery] = useState('');
+  const [classificationFilter, setClassificationFilter] = useState("ALL"); // 'ALL' | 'STUDENT' | 'EMPLOYEE'
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedPassModal, setSelectedPassModal] = useState(null);
 
   // Active or approved applications with passes
-  const passesList = (applications || []).filter((a) => a.status === 'PASS_ISSUED' || a.pass);
+  const passesList = (applications || []).filter(
+    (a) => a.status === "PASS_ISSUED" || a.pass,
+  );
 
   const filteredPasses = passesList.filter((app) => {
     // Classification filter
-    if (classificationFilter !== 'ALL') {
-      const cls = (app.classification || '').toUpperCase();
-      if (classificationFilter === 'STUDENT' && cls !== 'STUDENT') return false;
-      if (classificationFilter === 'EMPLOYEE' && cls !== 'EMPLOYEE') return false;
+    if (classificationFilter !== "ALL") {
+      const cls = (app.classification || "").toUpperCase();
+      if (classificationFilter === "STUDENT" && cls !== "STUDENT") return false;
+      if (classificationFilter === "EMPLOYEE" && cls !== "EMPLOYEE")
+        return false;
     }
 
     // Search query
@@ -54,9 +58,13 @@ export default function AdminPasses() {
           <Layers className="w-3.5 h-3.5 text-emerald-600" />
           <span>Vehicle Credentials & Clearance</span>
         </div>
-        <h1 className="text-2xl font-black text-slate-900 tracking-tight">Pass Management</h1>
+        <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+          Pass Management
+        </h1>
         <p className="text-xs text-slate-500 mt-0.5">
-          Monitor approved vehicle gate pass stickers, verify student and employee classifications, inspect encrypted QR payloads, and manage validity periods.
+          Monitor approved vehicle gate pass stickers, verify student and
+          employee classifications, inspect encrypted QR payloads, and manage
+          validity periods.
         </p>
       </div>
 
@@ -65,17 +73,23 @@ export default function AdminPasses() {
         {/* Classification Tabs */}
         <div className="flex items-center space-x-1.5 w-full sm:w-auto">
           {[
-            { id: 'ALL', label: `All Passes (${passesList.length})` },
-            { id: 'STUDENT', label: `Student Vehicles (${passesList.filter(p => (p.classification || '').toLowerCase() === 'student').length})` },
-            { id: 'EMPLOYEE', label: `Employee Vehicles (${passesList.filter(p => (p.classification || '').toLowerCase() === 'employee').length})` },
+            { id: "ALL", label: `All Passes (${passesList.length})` },
+            {
+              id: "STUDENT",
+              label: `Student Vehicles (${passesList.filter((p) => (p.classification || "").toLowerCase() === "student").length})`,
+            },
+            {
+              id: "EMPLOYEE",
+              label: `Employee Vehicles (${passesList.filter((p) => (p.classification || "").toLowerCase() === "employee").length})`,
+            },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setClassificationFilter(tab.id)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                 classificationFilter === tab.id
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? "bg-emerald-600 text-white shadow-xs"
+                  : "text-slate-600 hover:bg-slate-100"
               }`}
             >
               {tab.label}
@@ -100,8 +114,13 @@ export default function AdminPasses() {
       <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div>
-            <h2 className="text-base font-bold text-slate-900">Active Gate Clearances</h2>
-            <p className="text-xs text-slate-500">Official gate pass stickers equipped with encrypted database verification tokens</p>
+            <h2 className="text-base font-bold text-slate-900">
+              Active Gate Clearances
+            </h2>
+            <p className="text-xs text-slate-500">
+              Official gate pass stickers equipped with encrypted database
+              verification tokens
+            </p>
           </div>
           <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
             {filteredPasses.length} Total Passes
@@ -111,9 +130,12 @@ export default function AdminPasses() {
         {filteredPasses.length === 0 ? (
           <div className="p-12 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
             <Layers className="w-10 h-10 text-slate-400 mx-auto" />
-            <p className="text-sm font-bold text-slate-800">No vehicle passes match your criteria.</p>
+            <p className="text-sm font-bold text-slate-800">
+              No vehicle passes match your criteria.
+            </p>
             <p className="text-xs text-slate-500">
-              Clear your search term or review pending applications to issue new passes.
+              Clear your search term or review pending applications to issue new
+              passes.
             </p>
           </div>
         ) : (
@@ -138,26 +160,34 @@ export default function AdminPasses() {
                       {app.pass?.passNumber}
                     </td>
                     <td className="py-3 px-3">
-                      <div className="font-bold text-slate-900">{app.applicant_name}</div>
-                      <div className="text-[10px] text-slate-400 font-mono">ID: {app.school_id}</div>
+                      <div className="font-bold text-slate-900">
+                        {app.applicant_name}
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-mono">
+                        ID: {app.school_id}
+                      </div>
                     </td>
                     <td className="py-3 px-3">
-                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border ${
-                        (app.classification || '').toLowerCase() === 'employee'
-                          ? 'bg-blue-50 text-blue-800 border-blue-200'
-                          : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                      }`}>
-                        {app.classification || 'Student'}
+                      <span
+                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border ${
+                          (app.classification || "").toLowerCase() ===
+                          "employee"
+                            ? "bg-blue-50 text-blue-800 border-blue-200"
+                            : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                        }`}
+                      >
+                        {app.classification || "Student"}
                       </span>
                     </td>
                     <td className="py-3 px-3 font-mono font-black text-slate-900">
                       {app.vehicle?.plateNumber}
                     </td>
                     <td className="py-3 px-3">
-                      {app.vehicle?.make} {app.vehicle?.model} ({app.vehicle?.color})
+                      {app.vehicle?.make} {app.vehicle?.model} (
+                      {app.vehicle?.color})
                     </td>
                     <td className="py-3 px-3 text-slate-600 font-medium">
-                      {app.pass?.validUntil || 'Dec 31, 2026'}
+                      {app.pass?.validUntil || "Dec 31, 2026"}
                     </td>
                     <td className="py-3 px-3">
                       <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
@@ -203,44 +233,25 @@ export default function AdminPasses() {
               </button>
             </div>
 
-            {/* Sticker Graphic Preview */}
-            <div className="bg-slate-900 text-white rounded-2xl p-5 text-center space-y-3 border-2 border-emerald-500 shadow-md">
-              <div className="flex items-center justify-between border-b border-slate-700 pb-2">
-                <span className="font-black text-sm tracking-wider">
-                  RSU <span className="text-emerald-400">VPASS</span>
-                </span>
-                <span className="text-[9px] font-bold uppercase tracking-wider bg-emerald-500 text-slate-950 px-2 py-0.5 rounded-full">
-                  {selectedPassModal.classification || 'Vehicle Sticker'}
-                </span>
-              </div>
-
-              <div>
-                <p className="text-[11px] text-slate-400">Owner: {selectedPassModal.applicant_name}</p>
-                <p className="text-2xl font-black font-mono tracking-widest text-emerald-400 mt-0.5">
-                  {selectedPassModal.vehicle?.plateNumber}
-                </p>
-                <p className="text-xs text-slate-300">
-                  {selectedPassModal.vehicle?.make} {selectedPassModal.vehicle?.model} ({selectedPassModal.vehicle?.color})
-                </p>
-              </div>
-
-              <div className="flex justify-center py-1">
-                <div className="p-2 bg-white rounded-xl shadow-xs">
-                  <QrCode className="w-24 h-24 text-slate-900" />
-                </div>
-              </div>
-
-              <div className="pt-2 border-t border-slate-700 text-[11px] flex justify-between items-center text-slate-300">
-                <span className="font-mono">{selectedPassModal.pass?.passNumber}</span>
-                <span className="text-emerald-400 font-bold">VALID: {selectedPassModal.pass?.validUntil}</span>
-              </div>
+            {/* Official RSU Vehicle Pass Sticker Preview */}
+            <div className="flex flex-col items-center py-1">
+              <RsuStickerPass
+                classification={selectedPassModal.classification || "Student"}
+                passNumber={selectedPassModal.pass?.passNumber || "S-396"}
+                plateNumber={selectedPassModal.vehicle?.plateNumber || "RSU 2026"}
+                qrPayload={selectedPassModal.pass?.qrData || `RSU-VPASS:${selectedPassModal.pass?.passNumber}:${selectedPassModal.vehicle?.plateNumber}:${selectedPassModal.school_id}`}
+                showDownloadButton={true}
+              />
             </div>
 
             {/* Encrypted QR Payload Callout */}
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Encrypted Database QR Token</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Encrypted Database QR Token
+              </p>
               <p className="font-mono text-[11px] text-slate-700 break-all bg-white p-2 rounded-lg border border-slate-200">
-                {selectedPassModal.pass?.qrData || `RSU-VPASS:${selectedPassModal.pass?.passNumber}:${selectedPassModal.vehicle?.plateNumber}:${selectedPassModal.school_id}`}
+                {selectedPassModal.pass?.qrData ||
+                  `RSU-VPASS:${selectedPassModal.pass?.passNumber}:${selectedPassModal.vehicle?.plateNumber}:${selectedPassModal.school_id}`}
               </p>
             </div>
 
