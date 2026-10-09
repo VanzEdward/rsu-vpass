@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import jsQR from "jsqr";
+import QRCode from "qrcode";
 import { usePass } from "../../context/PassContext";
 import {
   Camera,
@@ -69,8 +70,27 @@ export default function GuardScanner() {
   // Visitor Hub State
   const [visitorSubTab, setVisitorSubTab] = useState("active"); // 'active' | 'new' | 'past'
   const [selectedVisitorModal, setSelectedVisitorModal] = useState(null);
+  const [visitorQrUrl, setVisitorQrUrl] = useState("");
   const [copiedPassId, setCopiedPassId] = useState(false);
   const [visitorSearchQuery, setVisitorSearchQuery] = useState("");
+
+  // Generate real scannable QR Code for temporary visitor digital card
+  useEffect(() => {
+    if (selectedVisitorModal) {
+      const payload =
+        selectedVisitorModal.qrData ||
+        `RSU-VPASS:${selectedVisitorModal.id}:${(selectedVisitorModal.plateNumber || "").replace(/\s+/g, "")}:VISITOR`;
+      QRCode.toDataURL(payload, {
+        width: 320,
+        margin: 1,
+        color: { dark: "#0f172a", light: "#ffffff" },
+      })
+        .then((url) => setVisitorQrUrl(url))
+        .catch(() => setVisitorQrUrl(""));
+    } else {
+      setVisitorQrUrl("");
+    }
+  }, [selectedVisitorModal]);
 
   // New Visitor Form State
   const [visitorForm, setVisitorForm] = useState({
@@ -317,13 +337,13 @@ export default function GuardScanner() {
     if (matchingApp && matchingApp.pass) {
       playBeep(true);
       triggerHaptic(true);
-      const isEmployee =
-        (matchingApp.classification || "").toUpperCase() === "EMPLOYEE";
+      const isStudent = (matchingApp.classification || "").toLowerCase().includes("student");
+      const isEmployee = !isStudent;
       setVerifiedPass({
         passNumber: matchingApp.pass.passNumber,
         client: matchingApp.applicant_name,
         schoolId: matchingApp.school_id,
-        classification: isEmployee ? "EMPLOYEE" : "STUDENT",
+        classification: isStudent ? "STUDENT" : "EMPLOYEE",
         vehicle: `${matchingApp.vehicle.make} ${matchingApp.vehicle.model}`,
         plateNumber: matchingApp.vehicle.plateNumber,
         vehicleType: matchingApp.vehicle.type,
@@ -443,13 +463,14 @@ export default function GuardScanner() {
     if (matchApp && matchApp.pass) {
       playBeep(true);
       triggerHaptic(true);
-      const isEmployee =
-        (matchApp.classification || "").toUpperCase() === "EMPLOYEE";
+      const isStudent =
+        (matchApp.classification || "").toLowerCase().includes("student");
+      const isEmployee = !isStudent;
       setVerifiedPass({
         passNumber: matchApp.pass.passNumber,
         client: matchApp.applicant_name,
         schoolId: matchApp.school_id,
-        classification: isEmployee ? "EMPLOYEE" : "STUDENT",
+        classification: isStudent ? "STUDENT" : "EMPLOYEE",
         vehicle:
           `${matchApp.vehicle?.make || ""} ${matchApp.vehicle?.model || ""}`.trim() ||
           "Vehicle",
@@ -624,18 +645,18 @@ export default function GuardScanner() {
     triggerHaptic(true);
     playBeep(true);
 
-    addGateLog({
-      passNumber: verifiedPass.passNumber,
-      plateNumber: verifiedPass.plateNumber,
-      owner: verifiedPass.client,
-      classification: verifiedPass.classification || "EMPLOYEE",
-      type,
-      gate: activeGate || "Gate 1",
-      status: verifiedPass.isValid ? "VALID" : "INVALID",
-    });
-
     if (verifiedPass.classification === "VISITOR" && type === "EXIT") {
       logVisitorExit(verifiedPass.passNumber || verifiedPass.plateNumber);
+    } else {
+      addGateLog({
+        passNumber: verifiedPass.passNumber,
+        plateNumber: verifiedPass.plateNumber,
+        owner: verifiedPass.client,
+        classification: verifiedPass.classification || "STUDENT",
+        type,
+        gate: activeGate || "Gate 1",
+        status: verifiedPass.isValid ? "VALID" : "INVALID",
+      });
     }
 
     setLogSuccessMessage(
@@ -1509,10 +1530,12 @@ export default function GuardScanner() {
                       <span>{log.time}</span>
                       {log.classification && (
                         <span
-                          className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                          className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
                             log.classification === "EMPLOYEE"
-                              ? "bg-blue-900/60 text-blue-300"
-                              : "bg-amber-900/60 text-amber-300"
+                              ? "bg-blue-900/60 text-blue-300 border border-blue-800/40"
+                              : log.classification === "STUDENT"
+                                ? "bg-pink-900/60 text-pink-300 border border-pink-800/40"
+                                : "bg-amber-900/60 text-amber-300 border border-amber-800/40"
                           }`}
                         >
                           {log.classification}
@@ -1677,6 +1700,9 @@ export default function GuardScanner() {
               </span>
               <span className="text-xs text-emerald-400 font-semibold mt-0.5 block truncate">
                 {verifiedPass.vehicle} ({verifiedPass.vehicleType})
+                {verifiedPass.color && verifiedPass.color !== "N/A"
+                  ? ` • ${verifiedPass.color}`
+                  : ""}
               </span>
             </div>
 
@@ -1769,18 +1795,33 @@ export default function GuardScanner() {
                 </button>
               </div>
             ) : (
-              <div className="space-y-2.5 pt-1">
-                {/* Student: 1-Tap Giant Clearance confirmation */}
+              <div className="space-y-2 pt-1">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => handleLogEvent("ENTRY")}
+                    className="h-12 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-400 hover:to-rose-400 active:scale-95 text-white font-black text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-lg cursor-pointer transition-all"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span>LOG ENTRY</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleLogEvent("EXIT")}
+                    className="h-12 rounded-xl bg-slate-700 hover:bg-slate-600 active:scale-95 text-white font-black text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-lg cursor-pointer transition-all"
+                  >
+                    <LogOut className="w-4 h-4 text-slate-300" />
+                    <span>LOG EXIT</span>
+                  </button>
+                </div>
+
                 <button
                   type="button"
-                  onClick={() => {
-                    setVerifiedPass(null);
-                    setIsPhotoExpanded(false);
-                  }}
-                  className="w-full h-12 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-lg cursor-pointer transition-all"
+                  onClick={() => setVerifiedPass(null)}
+                  className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs cursor-pointer mt-1"
                 >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Student Cleared • Next Scan</span>
+                  Scan Next Vehicle
                 </button>
               </div>
             )}
@@ -1877,9 +1918,17 @@ export default function GuardScanner() {
               </span>
             </div>
 
-            <div className="p-4 bg-white rounded-2xl flex flex-col items-center justify-center shadow-md">
-              <QrCode className="w-36 h-36 text-slate-900" />
-              <span className="text-[9px] font-mono text-slate-600 mt-1 font-bold">
+            <div className="p-3 bg-white rounded-2xl flex flex-col items-center justify-center shadow-md">
+              {visitorQrUrl ? (
+                <img
+                  src={visitorQrUrl}
+                  alt={`QR Code ${selectedVisitorModal.id}`}
+                  className="w-36 h-36 object-contain"
+                />
+              ) : (
+                <QrCode className="w-36 h-36 text-slate-900" />
+              )}
+              <span className="text-[9px] font-mono text-slate-700 mt-1 font-bold">
                 {selectedVisitorModal.id}
               </span>
             </div>

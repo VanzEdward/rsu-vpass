@@ -216,7 +216,7 @@ const INITIAL_LOGS = [
     plateNumber: "RSU 2026",
     owner: "Chrizhel Anne Cuenco",
     classification: "STUDENT",
-    type: "CHECK",
+    type: "ENTRY",
     gate: "Gate 2",
     time: "10:30 AM Today",
     status: "VALID",
