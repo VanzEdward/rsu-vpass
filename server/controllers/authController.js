@@ -100,7 +100,7 @@ export const register = async (req, res) => {
 
     const token = jwt.sign(
       { id: newUser.id, school_id: newUser.school_id, email: newUser.email, role: newUser.role, full_name: newUser.full_name },
-      process.env.JWT_SECRET || 'rsu_vpass_super_secret_jwt_token_2026_romblon',
+      process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
@@ -139,7 +139,7 @@ export const login = async (req, res) => {
 
     const token = jwt.sign(
       { id: user.id, school_id: user.school_id, email: user.email, role: user.role, full_name: user.full_name },
-      process.env.JWT_SECRET || 'rsu_vpass_super_secret_jwt_token_2026_romblon',
+      process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 

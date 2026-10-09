@@ -9,8 +9,8 @@ export default function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
   const { setActiveGate } = usePass();
-  const [identifier, setIdentifier] = useState('2026-00001');
-  const [password, setPassword] = useState('client123');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [guardPendingAuth, setGuardPendingAuth] = useState(null); // { user, token }
@@ -53,13 +53,13 @@ export default function Login() {
   const quickSwitch = (role) => {
     if (role === 'CLIENT') {
       setIdentifier('2026-00001');
-      setPassword('client123');
+      setPassword('');
     } else if (role === 'ADMIN') {
       setIdentifier('PASO-ADMIN-01');
-      setPassword('admin123');
+      setPassword('');
     } else {
       setIdentifier('GUARD-GATE-01');
-      setPassword('guard123');
+      setPassword('');
     }
   };
 
