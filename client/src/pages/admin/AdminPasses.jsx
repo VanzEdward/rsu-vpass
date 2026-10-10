@@ -54,10 +54,6 @@ export default function AdminPasses() {
     <div className="space-y-6 w-full pb-16">
       {/* Header */}
       <div>
-        <div className="inline-flex items-center space-x-2 px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold mb-1 border border-emerald-200">
-          <Layers className="w-3.5 h-3.5 text-emerald-600" />
-          <span>Vehicle Credentials & Clearance</span>
-        </div>
         <h1 className="text-2xl font-black text-slate-900 tracking-tight">
           Pass Management
         </h1>

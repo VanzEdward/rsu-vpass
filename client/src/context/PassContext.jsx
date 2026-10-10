@@ -89,6 +89,61 @@ export const CAMPUS_GATES = [
   { id: "Gate 4", name: "Gate 4" },
 ];
 
+export const DEFAULT_SETTINGS = {
+  academicYear: "2026-2027",
+  passValidityType: "ONE_YEAR", // Exactly 1 year from issuance
+  renewalWindowDays: "30",
+  motorcycleFee: "150",
+  fourWheelFee: "300",
+  commercialFee: "500",
+  studentScanPolicy: "SPOT_CHECK", // 'SPOT_CHECK' | 'STRICT_SCAN'
+  employeeLoggingEnforced: true,
+  defaultVisitorStayDays: "1",
+  maxVisitorStayDays: "7",
+  scannerAudioEnabled: true,
+  campusName: "Romblon State University • Odiongan Main Campus",
+  primaryGate: "Gate 1",
+};
+
+/**
+ * Checks whether a vehicle pass has expired
+ * Checks both status === 'EXPIRED' and date bounds (expiresAt / validUntil)
+ */
+export const isPassExpired = (pass) => {
+  if (!pass) return false;
+  if (pass.status === "EXPIRED" || pass.status === "REVOKED") return true;
+  if (pass.expiresAt) {
+    return new Date(pass.expiresAt).getTime() < Date.now();
+  }
+  if (pass.validUntil) {
+    const d = new Date(pass.validUntil);
+    if (!isNaN(d.getTime())) {
+      d.setHours(23, 59, 59, 999);
+      return d.getTime() < Date.now();
+    }
+  }
+  return false;
+};
+
+/**
+ * Calculates exactly 1 year of validity from a given date
+ * (e.g. Oct 10, 2026 -> Oct 10, 2027)
+ */
+export const calculateOneYearExpiry = (startDate = new Date()) => {
+  const d = new Date(startDate);
+  const exp = new Date(d);
+  exp.setFullYear(exp.getFullYear() + 1);
+  const formatted = exp.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  return {
+    expiresAt: exp.toISOString(),
+    validUntil: formatted,
+  };
+};
+
 const INITIAL_NOTIFICATIONS = [
   {
     id: "notif-1",
@@ -432,6 +487,20 @@ export const PassProvider = ({ children }) => {
     localStorage.setItem("vpass_active_gate", gate);
   };
 
+  // Persistent System Settings (Academic Year, Sticker Fees, Expiration Rules)
+  const [systemSettings, setSystemSettings] = useState(() => {
+    const saved = localStorage.getItem("vpass_admin_settings");
+    return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
+  });
+
+  const updateSystemSettings = (newSettings) => {
+    setSystemSettings((prev) => {
+      const updated = typeof newSettings === "function" ? newSettings(prev) : { ...prev, ...newSettings };
+      localStorage.setItem("vpass_admin_settings", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   // Sync to localStorage
   useEffect(() => {
     localStorage.setItem("vpass_applications", JSON.stringify(applications));
@@ -668,9 +737,8 @@ export const PassProvider = ({ children }) => {
     );
   };
 
-  // PASO Admin Verifies Cashier Receipt & Generates Official Gate QR Pass (Milestone 4)
+  // PASO Admin Verifies Cashier Receipt & Generates Official Gate QR Pass (Milestone 4 - Exactly 1 Year Validity)
   const verifyReceiptAndIssuePass = (appId, customDetails = {}) => {
-    const year = new Date().getFullYear();
     let targetedVehiclePlate = null;
     let affectedApp = null;
     let generatedPassNum = null;
@@ -679,8 +747,12 @@ export const PassProvider = ({ children }) => {
       const targetApp = prev.find((a) => a.id === appId);
       generatedPassNum =
         customDetails.passNumber ||
+        targetApp?.pass?.passNumber ||
         targetApp?.assignedPassNumber ||
         getSequentialPassNumber(targetApp, prev);
+
+      const now = new Date();
+      const oneYear = calculateOneYearExpiry(now);
 
       return prev.map((app) => {
         if (app.id === appId) {
@@ -690,11 +762,14 @@ export const PassProvider = ({ children }) => {
             passNumber: generatedPassNum,
             qrData:
               customDetails.qrData ||
+              targetApp?.pass?.qrData ||
               `RSU-VPASS:${generatedPassNum}:${app.vehicle?.plateNumber || ""}:${app.school_id || ""}`,
-            validUntil: customDetails.validUntil || `December 31, ${year}`,
+            validUntil: customDetails.validUntil || oneYear.validUntil,
+            expiresAt: customDetails.expiresAt || oneYear.expiresAt,
+            academicYear: systemSettings.academicYear || "2026-2027",
             status: "ACTIVE",
-            issuedAt: new Date().toLocaleDateString("en-US", {
-              month: "short",
+            issuedAt: now.toLocaleDateString("en-US", {
+              month: "long",
               day: "numeric",
               year: "numeric",
             }),
@@ -705,10 +780,12 @@ export const PassProvider = ({ children }) => {
             ...app,
             status: "PASS_ISSUED",
             assignedPassNumber: generatedPassNum,
+            isRenewal: false,
+            renewalPending: false,
             receipt: {
               ...(app.receipt || {}),
-              verifiedAt: new Date().toLocaleDateString("en-US", {
-                month: "short",
+              verifiedAt: now.toLocaleDateString("en-US", {
+                month: "long",
                 day: "numeric",
                 year: "numeric",
               }),
@@ -839,6 +916,93 @@ export const PassProvider = ({ children }) => {
       type: "APPLICATION_RESUBMITTED",
       title: "Registration Corrected & Re-submitted",
       message: `Your corrected vehicle registration for ${updatedData.make} ${updatedData.model} (${updatedData.plateNumber}) has been sent to PASO for re-evaluation.`,
+      link: "/client/applications",
+      appId,
+    });
+  };
+
+  // Submit Pass Renewal Application (Pre-filled vehicle data, FRESH LIVE SELFIE REQUIRED, preserves S-number & QR code)
+  const submitRenewalApplication = (appId, renewalData) => {
+    let preservedPassNumber = null;
+    let preservedQrData = null;
+
+    setApplications((prev) =>
+      prev.map((app) => {
+        if (app.id === appId) {
+          preservedPassNumber =
+            app.pass?.passNumber ||
+            app.assignedPassNumber ||
+            `S-${systemSettings.academicYear?.split("-")[0] || "2026"}-0001`;
+
+          preservedQrData =
+            app.pass?.qrData ||
+            `RSU-VPASS:${preservedPassNumber}:${renewalData.plateNumber || app.vehicle?.plateNumber || ""}:${renewalData.school_id || app.school_id || ""}`;
+
+          return {
+            ...app,
+            isRenewal: true,
+            renewalPending: true,
+            applicant_name: renewalData.applicant_name || app.applicant_name,
+            school_id: renewalData.school_id || app.school_id,
+            classification: renewalData.classification || app.classification,
+            department: renewalData.department || app.department,
+            contact_number: renewalData.contact_number || app.contact_number,
+            applicant_photo: renewalData.applicant_photo, // REQUIRED: Fresh live selfie from student
+            vehicle: {
+              ...(app.vehicle || {}),
+              make: renewalData.make || app.vehicle?.make,
+              model: renewalData.model || app.vehicle?.model,
+              year: renewalData.year || app.vehicle?.year,
+              color: renewalData.color || app.vehicle?.color,
+              plateNumber: renewalData.plateNumber || app.vehicle?.plateNumber,
+              type: renewalData.type || app.vehicle?.type,
+            },
+            documents: {
+              driverLicense: renewalData.driverLicense || app.documents?.driverLicense,
+              orCr: renewalData.orCr || app.documents?.orCr,
+            },
+            assignedPassNumber: preservedPassNumber,
+            pass: app.pass
+              ? {
+                  ...app.pass,
+                  passNumber: preservedPassNumber,
+                  qrData: preservedQrData,
+                  status: "EXPIRED", // Remains expired until cashier payment & admin verification
+                }
+              : null,
+            status: "PENDING", // Sent to PASO Admin for Renewal Evaluation
+            rejection_reason: null,
+            receipt: null, // Reset for new cashier renewal receipt upload
+            receiptRejectionRemark: null,
+            renewalSubmittedAt: new Date().toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            }),
+          };
+        }
+        return app;
+      })
+    );
+
+    setVehicles((prev) =>
+      prev.map((v) => {
+        const vPlate = (v.plateNumber || "").replace(/\s+/g, "").toUpperCase();
+        const targetPlate = (renewalData.plateNumber || "").replace(/\s+/g, "").toUpperCase();
+        if (vPlate === targetPlate) {
+          return {
+            ...v,
+            status: "Renewal Pending Review",
+          };
+        }
+        return v;
+      })
+    );
+
+    addNotification({
+      type: "RENEWAL_SUBMITTED",
+      title: "Pass Renewal Application Submitted",
+      message: `Your annual renewal application for ${renewalData.make || "Vehicle"} (${renewalData.plateNumber}) with updated photo verification was submitted to PASO.`,
       link: "/client/applications",
       appId,
     });
@@ -1005,6 +1169,54 @@ export const PassProvider = ({ children }) => {
     return extendedItem;
   };
 
+  // Automatic / Manual Pass Renewal for a Specific Registered Vehicle
+  const initiatePassRenewal = (plateNumber) => {
+    const cleanPlate = (plateNumber || "").replace(/\s+/g, "").toUpperCase();
+    let renewedApp = null;
+    setApplications((prev) =>
+      prev.map((app) => {
+        const appPlate = (app.vehicle?.plateNumber || "").replace(/\s+/g, "").toUpperCase();
+        if (appPlate === cleanPlate) {
+          renewedApp = app;
+          return {
+            ...app,
+            status: "APPROVED", // Directly unlocks Milestone 3 Cashier payment for renewed period
+            renewalPending: true,
+            receiptRejectionRemark: null,
+            pass: {
+              ...(app.pass || {}),
+              status: "EXPIRED",
+            },
+          };
+        }
+        return app;
+      })
+    );
+
+    setVehicles((prev) =>
+      prev.map((v) => {
+        const vPlate = (v.plateNumber || "").replace(/\s+/g, "").toUpperCase();
+        if (vPlate === cleanPlate) {
+          return {
+            ...v,
+            status: "Renewal Awaiting Payment",
+          };
+        }
+        return v;
+      })
+    );
+
+    if (renewedApp) {
+      addNotification({
+        type: "RENEWAL_OPEN",
+        title: "Vehicle Pass Renewal Unlocked",
+        message: `Pass renewal for ${renewedApp.vehicle?.make || "Vehicle"} (${renewedApp.vehicle?.plateNumber}) is ready for Academic Year ${systemSettings.academicYear}. Pay the fee at the Cashier window and upload your new receipt.`,
+        link: `/client/payments?appId=${renewedApp.id}`,
+        appId: renewedApp.id,
+      });
+    }
+  };
+
   return (
     <PassContext.Provider
       value={{
@@ -1019,6 +1231,12 @@ export const PassProvider = ({ children }) => {
         verifyReceiptAndIssuePass,
         rejectReceipt,
         resubmitApplication,
+        submitRenewalApplication,
+        initiatePassRenewal,
+        systemSettings,
+        updateSystemSettings,
+        isPassExpired,
+        calculateOneYearExpiry,
         notifications,
         addNotification,
         markNotificationAsRead,

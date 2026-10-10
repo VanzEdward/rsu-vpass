@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { usePass, getSequentialPassNumber } from '../../context/PassContext';
+import { usePass, getSequentialPassNumber, calculateOneYearExpiry } from '../../context/PassContext';
 import { 
   FileCheck, 
   Clock, 
@@ -26,7 +26,7 @@ import {
 import RsuStickerPass from '../../components/RsuStickerPass';
 
 export default function AdminApplications() {
-  const { applications, reviewApplication, verifyReceiptAndIssuePass, rejectReceipt } = usePass();
+  const { applications, reviewApplication, verifyReceiptAndIssuePass, rejectReceipt, systemSettings } = usePass();
 
   const [filterStatus, setFilterStatus] = useState('ALL'); // 'ALL' | 'RECEIPT_SUBMITTED' | 'PENDING' | 'APPROVED' | 'PASS_ISSUED' | 'REJECTED'
   const [searchQuery, setSearchQuery] = useState('');
@@ -141,16 +141,17 @@ export default function AdminApplications() {
     setQrModalApp(app);
   };
 
-  // Confirm and Release the Generated QR Code to Client
+  // Confirm and Release the Generated QR Code to Client (Exactly 1-Year Expiration)
   const handleConfirmIssuePass = () => {
     if (!qrModalApp) return;
-    const year = new Date().getFullYear();
+    const expiry = calculateOneYearExpiry(new Date());
     const qrData = `RSU-VPASS:${generatedPassNum}:${qrModalApp.vehicle?.plateNumber || ''}:${qrModalApp.school_id || ''}`;
 
     verifyReceiptAndIssuePass(qrModalApp.id, {
       passNumber: generatedPassNum,
       qrData,
-      validUntil: `December 31, ${year}`
+      validUntil: expiry.validUntil,
+      expiresAt: expiry.expiresAt
     });
 
     const issuedName = qrModalApp.applicant_name;
@@ -195,10 +196,6 @@ export default function AdminApplications() {
     <div className="space-y-6 w-full pb-16">
       {/* Header */}
       <div>
-        <div className="inline-flex items-center space-x-2 px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold mb-1 border border-emerald-200">
-          <FileCheck className="w-3.5 h-3.5 text-emerald-600" />
-          <span>PASO Administrative Evaluation & QR Release</span>
-        </div>
         <h1 className="text-2xl font-black text-slate-900 tracking-tight">Application & Receipt Verifications</h1>
         <p className="text-xs text-slate-500 mt-0.5">
           Examine submitted registrations, verify cashier official receipts, and generate active Gate QR Code passes.
@@ -303,6 +300,11 @@ export default function AdminApplications() {
                       }`}>
                         {app.classification || 'Student'}
                       </span>
+                      {app.isRenewal && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border bg-purple-50 text-purple-800 border-purple-200">
+                          Renewal ({app.pass?.passNumber || app.assignedPassNumber || 'Existing'})
+                        </span>
+                      )}
                       <span className="text-xs text-slate-400">•</span>
                       <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
                         app.status === 'PASS_ISSUED'
@@ -434,9 +436,16 @@ export default function AdminApplications() {
           <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                  Application Review
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                    Application Review
+                  </span>
+                  {selectedApp.isRenewal && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-purple-800 bg-purple-100 px-2 py-0.5 rounded-md border border-purple-300">
+                      Annual Pass Renewal
+                    </span>
+                  )}
+                </div>
                 <h3 className="text-base font-black text-slate-900 mt-1">
                   {selectedApp.applicant_name} ({selectedApp.id})
                 </h3>
@@ -448,6 +457,20 @@ export default function AdminApplications() {
                 ✕
               </button>
             </div>
+
+            {/* Renewal Guidance Notice */}
+            {selectedApp.isRenewal && (
+              <div className="p-3.5 rounded-2xl bg-purple-50 border border-purple-200 text-purple-950 text-xs flex items-start space-x-2.5">
+                <RefreshCw className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-purple-950 block">Annual Vehicle Pass Renewal Application</span>
+                  <p className="text-[11px] text-purple-900 mt-0.5 leading-relaxed">
+                    This applicant is renewing their pass for Academic Year <strong>{systemSettings?.academicYear || '2026-2027'}</strong> with an updated live selfie. 
+                    Their assigned Pass Number (<strong>{selectedApp.pass?.passNumber || selectedApp.assignedPassNumber || 'Existing'}</strong>) and physical QR sticker remain active upon verification.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Applicant & Live ID Photo */}
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-5">
@@ -770,7 +793,7 @@ export default function AdminApplications() {
                     onClick={() => handleOpenApproveConfirm(selectedApp)}
                     className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer shadow-sm"
                   >
-                    Approve & Unlock Payment Milestone
+                    {selectedApp.isRenewal ? 'Approve Renewal & Unlock Payment' : 'Approve & Unlock Payment Milestone'}
                   </button>
                 </>
               )}
@@ -875,6 +898,14 @@ export default function AdminApplications() {
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500 font-medium">Assigned Pass No:</span>
                   <span className="font-mono font-bold text-slate-800">{generatedPassNum}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Validity Period:</span>
+                  <span className="font-bold text-slate-800">1 Year (until {calculateOneYearExpiry(new Date()).validUntil})</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Academic Year:</span>
+                  <span className="font-bold text-emerald-700">A.Y. {systemSettings?.academicYear || '2026-2027'}</span>
                 </div>
               </div>
             </div>

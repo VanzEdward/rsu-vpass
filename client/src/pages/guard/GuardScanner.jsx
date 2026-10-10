@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import jsQR from "jsqr";
 import QRCode from "qrcode";
-import { usePass } from "../../context/PassContext";
+import { usePass, isPassExpired } from "../../context/PassContext";
 import {
   Camera,
   Search,
@@ -344,7 +344,7 @@ export default function GuardScanner() {
     });
 
     if (matchingApp && matchingApp.pass) {
-      const isExpired = matchingApp.pass.status === "EXPIRED" || matchingApp.pass.status === "REVOKED";
+      const isExpired = matchingApp.pass.status === "EXPIRED" || matchingApp.pass.status === "REVOKED" || isPassExpired(matchingApp.pass);
       if (isExpired) {
         playBeep(false);
         triggerHaptic(false);
@@ -363,8 +363,8 @@ export default function GuardScanner() {
         vehicleType: matchingApp.vehicle.type,
         color: matchingApp.vehicle.color,
         validUntil: matchingApp.pass.validUntil,
-        status: matchingApp.pass.status,
-        isValid: matchingApp.pass.status === "ACTIVE",
+        status: isExpired ? "EXPIRED" : matchingApp.pass.status,
+        isValid: !isExpired && matchingApp.pass.status === "ACTIVE",
         department:
           matchingApp.department ||
           (isEmployee
@@ -488,7 +488,7 @@ export default function GuardScanner() {
     });
 
     if (matchApp && matchApp.pass) {
-      const isExpired = matchApp.pass.status === "EXPIRED" || matchApp.pass.status === "REVOKED";
+      const isExpired = matchApp.pass.status === "EXPIRED" || matchApp.pass.status === "REVOKED" || isPassExpired(matchApp.pass);
       if (isExpired) {
         playBeep(false);
         triggerHaptic(false);
@@ -510,8 +510,8 @@ export default function GuardScanner() {
         vehicleType: matchApp.vehicle?.type || "Vehicle",
         color: matchApp.vehicle?.color || "N/A",
         validUntil: matchApp.pass.validUntil || "Active Clearance",
-        status: matchApp.pass.status || "ACTIVE",
-        isValid: matchApp.pass.status === "ACTIVE",
+        status: isExpired ? "EXPIRED" : (matchApp.pass.status || "ACTIVE"),
+        isValid: !isExpired && matchApp.pass.status === "ACTIVE",
         department:
           matchApp.department ||
           (isEmployee
@@ -1752,10 +1752,23 @@ export default function GuardScanner() {
             {/* Pass Validity Record */}
             <div className="flex items-center justify-between text-[11px] px-3 py-2 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-400">
               <span>Clearance Validity:</span>
-              <span className="font-bold text-slate-200">
+              <span className={`font-bold ${verifiedPass.status === 'EXPIRED' ? 'text-rose-400' : 'text-slate-200'}`}>
                 {verifiedPass.validUntil}
               </span>
             </div>
+
+            {/* Expired Pass Warning for Guard */}
+            {verifiedPass.status === "EXPIRED" && (
+              <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/50 text-rose-300 text-xs space-y-1">
+                <div className="flex items-center space-x-2 font-black text-rose-200">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>PASS EXPIRED — 1-YEAR VALIDITY LAPSED</span>
+                </div>
+                <p className="text-[11px] text-rose-300/90 leading-relaxed pl-6">
+                  This pass expired on <strong>{verifiedPass.validUntil}</strong>. Entry is restricted. Advise applicant to renew their vehicle pass at the PASO Administration Office.
+                </p>
+              </div>
+            )}
 
             {/* Unambiguous Role-Based Clearance Actions */}
             {verifiedPass.classification === "VISITOR" ? (

@@ -44,22 +44,11 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6 w-full pb-16">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="inline-flex items-center space-x-2 px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold mb-1 border border-emerald-200">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Executive Command Center</span>
-          </div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Dashboard Overview</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Romblon State University Physical Assets and Security Office (PASO) operational control panel.
-          </p>
-        </div>
-
-        <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 text-xs font-semibold shadow-xs">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>PASO Command Center • Monitoring Mode</span>
-        </div>
+      <div>
+        <h1 className="text-2xl font-black text-slate-900 tracking-tight">Dashboard Overview</h1>
+        <p className="text-xs text-slate-500 mt-0.5">
+          Romblon State University Physical Assets and Security Office (PASO) operational control panel.
+        </p>
       </div>
 
       {/* Metrics Row */}

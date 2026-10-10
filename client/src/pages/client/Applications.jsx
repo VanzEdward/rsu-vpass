@@ -236,10 +236,15 @@ export default function Applications() {
                     </div>
                   )}
                   <div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="font-mono font-bold text-sm text-emerald-700">{app.id}</span>
+                      {app.isRenewal && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-purple-800 bg-purple-100 px-2 py-0.5 rounded-md border border-purple-200">
+                          Pass Renewal
+                        </span>
+                      )}
                       <span className="text-xs text-slate-400">•</span>
-                      <span className="text-xs text-slate-500">Submitted {app.submittedDate}</span>
+                      <span className="text-xs text-slate-500">Submitted {app.renewalSubmittedAt || app.submittedDate}</span>
                     </div>
                     <h3 className="text-sm font-bold text-slate-900 mt-0.5">
                       {app.vehicle.make} {app.vehicle.model} ({app.vehicle.year}) — <span className="font-mono">{app.vehicle.plateNumber}</span>

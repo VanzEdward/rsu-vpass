@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import QRCode from "qrcode";
 import { usePass } from "../../context/PassContext";
 import {
@@ -19,7 +19,8 @@ import {
 import RsuStickerPass from "../../components/RsuStickerPass";
 
 export default function VehiclePass() {
-  const { applications } = usePass();
+  const navigate = useNavigate();
+  const { applications, systemSettings, isPassExpired, initiatePassRenewal } = usePass();
   const [showQRModal, setShowQRModal] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState("");
@@ -395,21 +396,47 @@ export default function VehiclePass() {
           </div>
 
           {/* Annual Renewal Module */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 max-w-sm mx-auto mt-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 max-w-sm mx-auto mt-4 space-y-2">
             <h3 className="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
               <RefreshCw className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Annual Pass Renewal</span>
+              <span>Annual Pass Renewal • A.Y. {systemSettings?.academicYear || '2026-2027'}</span>
             </h3>
-            <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-              Passes are valid for the current academic year. You can request
-              renewal 30 days before expiration.
-            </p>
-            <button
-              type="button"
-              className="mt-3 w-full py-2 px-3 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors cursor-pointer"
-            >
-              Request Annual Renewal
-            </button>
+            
+            {issuedApp?.pass && isPassExpired(issuedApp.pass) ? (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs space-y-2">
+                <p className="font-bold text-rose-950 flex items-center space-x-1">
+                  <span>Pass Expired on {issuedApp.pass.validUntil}</span>
+                </p>
+                <p className="text-[11px] text-rose-800 leading-relaxed">
+                  Your 1-year gate clearance for <strong>{vehicle.make} {vehicle.model} ({vehicle.plateNumber})</strong> has expired. Renew your pass to restore campus gate entry.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigate(`/client/my-vehicle?renewAppId=${issuedApp.id}`);
+                  }}
+                  className="w-full py-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center space-x-1.5 cursor-pointer shadow-xs"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Renew This Pass Now</span>
+                </button>
+              </div>
+            ) : (
+              <>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Passes are valid for exactly 1 year from issuance for <strong>Academic Year {systemSettings?.academicYear || '2026-2027'}</strong>. Valid until <strong>{pass.validUntil}</strong>.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigate(`/client/my-vehicle?renewAppId=${issuedApp.id}`);
+                  }}
+                  className="w-full py-2 px-3 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Request Early Annual Renewal
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

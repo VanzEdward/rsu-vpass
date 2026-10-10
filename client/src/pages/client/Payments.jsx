@@ -241,6 +241,24 @@ export default function Payments() {
                 </div>
               )}
 
+              {/* Renewal Guidance Banner */}
+              {selectedApp?.isRenewal && (
+                <div className="p-4 rounded-2xl bg-purple-50/90 border border-purple-200 text-purple-950 flex items-start gap-3 shadow-xs">
+                  <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 border border-purple-200/80 mt-0.5">
+                    <RefreshCw className="w-4 h-4 text-purple-600" />
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    <span className="font-bold text-purple-950 text-xs sm:text-sm block">
+                      Annual Vehicle Pass Renewal Fee
+                    </span>
+                    <p className="text-[11px] text-purple-800 leading-relaxed">
+                      You are submitting Cashier proof for <strong>{selectedApp.vehicle?.make} {selectedApp.vehicle?.model} ({selectedApp.vehicle?.plateNumber})</strong>. 
+                      Your existing Pass Number (<strong>{selectedApp.pass?.passNumber || selectedApp.assignedPassNumber}</strong>) and physical QR sticker remain active upon verification.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Select Approved Application (Custom Styled Dropdown strictly bounded to system design) */}
               <div className="relative" ref={dropdownRef}>
                 <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">

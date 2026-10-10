@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Settings, 
   ShieldCheck, 
@@ -14,27 +14,17 @@ import {
   Receipt
 } from 'lucide-react';
 
-const DEFAULT_SETTINGS = {
-  academicYear: '2026-2027',
-  passExpiryDate: '2026-12-31',
-  renewalWindowDays: '30',
-  motorcycleFee: '150',
-  fourWheelFee: '300',
-  commercialFee: '500',
-  studentScanPolicy: 'SPOT_CHECK', // 'SPOT_CHECK' | 'STRICT_SCAN'
-  employeeLoggingEnforced: true,
-  defaultVisitorStayDays: '1',
-  maxVisitorStayDays: '7',
-  scannerAudioEnabled: true,
-  campusName: 'Romblon State University • Odiongan Main Campus',
-  primaryGate: 'Gate 1'
-};
+import { usePass, DEFAULT_SETTINGS } from '../../context/PassContext';
 
 export default function AdminSettings() {
-  const [settings, setSettings] = useState(() => {
-    const saved = localStorage.getItem('vpass_admin_settings');
-    return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
-  });
+  const { systemSettings, updateSystemSettings } = usePass();
+  const [settings, setSettings] = useState(systemSettings || DEFAULT_SETTINGS);
+
+  useEffect(() => {
+    if (systemSettings) {
+      setSettings(systemSettings);
+    }
+  }, [systemSettings]);
 
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -44,7 +34,7 @@ export default function AdminSettings() {
 
   const handleSaveSettings = (e) => {
     e.preventDefault();
-    localStorage.setItem('vpass_admin_settings', JSON.stringify(settings));
+    updateSystemSettings(settings);
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
   };
@@ -52,7 +42,7 @@ export default function AdminSettings() {
   const handleResetDefaults = () => {
     if (window.confirm('Reset all PASO system settings to default university values?')) {
       setSettings(DEFAULT_SETTINGS);
-      localStorage.setItem('vpass_admin_settings', JSON.stringify(DEFAULT_SETTINGS));
+      updateSystemSettings(DEFAULT_SETTINGS);
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
     }
@@ -63,10 +53,6 @@ export default function AdminSettings() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center space-x-2 px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold mb-1 border border-emerald-200">
-            <Sliders className="w-3.5 h-3.5 text-emerald-600" />
-            <span>PASO Policy Configuration</span>
-          </div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">System Settings</h1>
           <p className="text-xs text-slate-500 mt-0.5">
             Configure official university parking sticker fees, academic year pass expirations, gate security spot-checking policies, and visitor pass parameters.
@@ -172,36 +158,43 @@ export default function AdminSettings() {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">Current Academic Year</label>
+              <label className="text-xs font-bold text-slate-700 flex items-center space-x-1">
+                <span>Current Academic Year</span>
+                <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.2 rounded font-mono">Live</span>
+              </label>
               <input
                 type="text"
+                placeholder="e.g. 2026-2027"
                 value={settings.academicYear}
                 onChange={(e) => handleFieldChange('academicYear', e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none font-mono"
               />
-              <p className="text-[11px] text-slate-400">Institutional school year label</p>
+              <p className="text-[11px] text-slate-400">Institutional year displayed across client and admin passes</p>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">Annual Pass Expiry Date</label>
-              <input
-                type="date"
-                value={settings.passExpiryDate}
-                onChange={(e) => handleFieldChange('passExpiryDate', e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
-              />
-              <p className="text-[11px] text-slate-400">Date when current stickers expire</p>
+              <label className="text-xs font-bold text-slate-700">Pass Validity Duration</label>
+              <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 flex items-center justify-between">
+                <span>Exactly 1 Year from Issue Date</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                  365 Days
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400">e.g. Issued Oct 10, 2026 ➔ Expires Oct 10, 2027</p>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">Renewal Window (Days)</label>
-              <input
-                type="number"
-                value={settings.renewalWindowDays}
-                onChange={(e) => handleFieldChange('renewalWindowDays', e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
-              />
-              <p className="text-[11px] text-slate-400">Advance days renewal request opens</p>
+              <label className="text-xs font-bold text-slate-700">Advance Renewal Notice Window</label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={settings.renewalWindowDays}
+                  onChange={(e) => handleFieldChange('renewalWindowDays', e.target.value)}
+                  className="w-full pr-12 pl-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                />
+                <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-semibold">days</span>
+              </div>
+              <p className="text-[11px] text-slate-400">Shows renewal prompt on specific vehicle before expiry</p>
             </div>
           </div>
         </div>

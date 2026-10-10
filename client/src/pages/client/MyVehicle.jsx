@@ -39,8 +39,19 @@ const VEHICLE_TYPES = [
 export default function MyVehicle() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user } = useAuth();
-  const { vehicles, applications = [], submitApplication, resubmitApplication, draftApplication, saveDraft, clearDraft } = usePass();
+  const { 
+    vehicles, 
+    applications = [], 
+    submitApplication, 
+    resubmitApplication, 
+    submitRenewalApplication,
+    draftApplication, 
+    saveDraft, 
+    clearDraft,
+    initiatePassRenewal,
+    systemSettings,
+    isPassExpired
+  } = usePass();
 
   const [showWizard, setShowWizard] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
@@ -52,6 +63,7 @@ export default function MyVehicle() {
   const [returnTo, setReturnTo] = useState(null);
   const [editingAppId, setEditingAppId] = useState(null);
   const [editingRejectionReason, setEditingRejectionReason] = useState('');
+  const [renewingAppId, setRenewingAppId] = useState(null);
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
   const typeDropdownRef = useRef(null);
 
@@ -133,9 +145,42 @@ export default function MyVehicle() {
     }
   }, [draftApplication, applications, clearDraft]);
 
-  // Check for editAppId (Correcting a rejected application) or resume draft
+  // Check for editAppId (Correcting a rejected application), renewAppId (Option A Renewal), or resume draft
   useEffect(() => {
     const editId = searchParams.get('editAppId');
+    const renewId = searchParams.get('renewAppId');
+
+    if (renewId && (applications || []).length > 0) {
+      const appToRenew = applications.find(a => a.id === renewId);
+      if (appToRenew) {
+        setFormData({
+          classification: appToRenew.classification || user?.classification || 'Student',
+          applicant_name: appToRenew.applicant_name || user?.full_name || '',
+          school_id: appToRenew.school_id || user?.school_id || '',
+          department: appToRenew.department || '',
+          contact_number: appToRenew.contact_number || '',
+          applicant_photo: null, // USER REQUIREMENT: Must take fresh live selfie
+          plateNumber: appToRenew.vehicle?.plateNumber || '',
+          make: appToRenew.vehicle?.make || '',
+          brand: appToRenew.vehicle?.make || '',
+          model: appToRenew.vehicle?.model || '',
+          year: appToRenew.vehicle?.year || '2026',
+          color: appToRenew.vehicle?.color || '',
+          type: appToRenew.vehicle?.type || 'Motorcycle',
+          driverLicense: appToRenew.documents?.driverLicense || null,
+          orCr: appToRenew.documents?.orCr || null,
+          pledgeAgreed: true,
+        });
+        setRenewingAppId(renewId);
+        setEditingAppId(null);
+        setEditingRejectionReason('');
+        setCurrentStep(1);
+        setShowWizard(true);
+        setSearchParams({}, { replace: true });
+        return;
+      }
+    }
+
     if (editId && (applications || []).length > 0) {
       const appToEdit = applications.find(a => a.id === editId);
       if (appToEdit) {
@@ -158,6 +203,7 @@ export default function MyVehicle() {
           pledgeAgreed: true,
         });
         setEditingAppId(editId);
+        setRenewingAppId(null);
         setEditingRejectionReason(appToEdit.rejection_reason || 'Correction requested by PASO');
         setCurrentStep(1);
         setShowWizard(true);
@@ -194,11 +240,38 @@ export default function MyVehicle() {
     }, 4000);
   };
 
+  const handleStartRenewal = (app) => {
+    if (!app) return;
+    setFormData({
+      classification: app.classification || user?.classification || 'Student',
+      applicant_name: app.applicant_name || user?.full_name || '',
+      school_id: app.school_id || user?.school_id || '',
+      department: app.department || '',
+      contact_number: app.contact_number || '',
+      applicant_photo: null, // USER REQUIREMENT: Must take fresh live camera selfie
+      plateNumber: app.vehicle?.plateNumber || '',
+      make: app.vehicle?.make || '',
+      brand: app.vehicle?.make || '',
+      model: app.vehicle?.model || '',
+      year: app.vehicle?.year || '2026',
+      color: app.vehicle?.color || '',
+      type: app.vehicle?.type || 'Motorcycle',
+      driverLicense: app.documents?.driverLicense || null,
+      orCr: app.documents?.orCr || null,
+      pledgeAgreed: true,
+    });
+    setRenewingAppId(app.id);
+    setEditingAppId(null);
+    setEditingRejectionReason('');
+    setCurrentStep(1);
+    setShowWizard(true);
+  };
+
   const handleFieldChange = (field, value) => {
     setFormData((prev) => {
       const updated = { ...prev, [field]: value };
-      // Auto-save draft on change ONLY if user entered meaningful data (and not editing rejected app)
-      if (!editingAppId) {
+      // Auto-save draft on change ONLY if user entered meaningful data (and not editing/renewing existing app)
+      if (!editingAppId && !renewingAppId) {
         if (hasMeaningfulData(updated, currentStep)) {
           saveDraft(updated, currentStep);
         } else {
@@ -214,10 +287,11 @@ export default function MyVehicle() {
 
   const handleCloseWizard = () => {
     const wasEditing = Boolean(editingAppId);
+    const wasRenewing = Boolean(renewingAppId);
     const hasData = hasMeaningfulData(formData, currentStep);
 
-    // Save draft progress ONLY if user entered actual data and is not editing an existing application
-    if (!editingAppId) {
+    // Save draft progress ONLY if user entered actual data and is not editing or renewing an existing application
+    if (!editingAppId && !renewingAppId) {
       if (hasData) {
         saveDraft(formData, currentStep);
       } else {
@@ -230,10 +304,13 @@ export default function MyVehicle() {
       setEditingAppId(null);
       setEditingRejectionReason('');
     }
+    if (renewingAppId) {
+      setRenewingAppId(null);
+    }
 
     if (returnTo === 'applications') {
       navigate('/client/applications');
-    } else if (!wasEditing && hasData) {
+    } else if (!wasEditing && !wasRenewing && hasData) {
       showToastNotification('Draft auto-saved! You can resume anytime from Requests or My Vehicle.');
     }
   };
@@ -280,7 +357,9 @@ export default function MyVehicle() {
     // Step 2: Photo ID Live Camera
     if (step === 2) {
       if (!formData.applicant_photo) {
-        newErrors.applicant_photo = 'Please take or upload your identification photo using the camera.';
+        newErrors.applicant_photo = renewingAppId
+          ? 'Live camera selfie is required for annual pass renewal verification.'
+          : 'Please take or upload your identification photo using the camera.';
       }
     }
 
@@ -298,7 +377,7 @@ export default function MyVehicle() {
     if (validateStep(currentStep)) {
       const nextStep = Math.min(currentStep + 1, 4);
       setCurrentStep(nextStep);
-      if (!editingAppId) {
+      if (!editingAppId && !renewingAppId) {
         saveDraft(formData, nextStep);
       }
     }
@@ -307,7 +386,7 @@ export default function MyVehicle() {
   const handlePrev = () => {
     const prevStep = Math.max(currentStep - 1, 1);
     setCurrentStep(prevStep);
-    if (!editingAppId) {
+    if (!editingAppId && !renewingAppId) {
       saveDraft(formData, prevStep);
     }
   };
@@ -327,8 +406,14 @@ export default function MyVehicle() {
       return;
     }
 
-    // Submit or Re-submit application
-    if (editingAppId && resubmitApplication) {
+    // Submit, Re-submit, or Renew application
+    if (renewingAppId && submitRenewalApplication) {
+      submitRenewalApplication(renewingAppId, {
+        ...formData,
+        make: formData.make || formData.brand,
+      });
+      setRenewingAppId(null);
+    } else if (editingAppId && resubmitApplication) {
       resubmitApplication(editingAppId, {
         ...formData,
         make: formData.make || formData.brand,
@@ -413,33 +498,87 @@ export default function MyVehicle() {
 
       {/* Vehicle Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {vehicles.map((v) => (
-          <div key={v.id} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center space-x-3 min-w-0 flex-1">
-                <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                  <Car className="w-6 h-6" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-base font-bold text-slate-900 truncate">{v.make} {v.model} ({v.year})</h3>
-                  <p className="text-xs text-slate-500 truncate">{v.type} • {v.color}</p>
-                </div>
-              </div>
-              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
-                v.status === 'Active Pass'
-                  ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                  : 'bg-slate-100 text-slate-700 border-slate-200'
-              }`}>
-                {v.status}
-              </span>
-            </div>
+        {vehicles.map((v) => {
+          const app = (applications || []).find(
+            (a) =>
+              (a.vehicle?.plateNumber || "").replace(/\s+/g, "").toUpperCase() ===
+              (v.plateNumber || "").replace(/\s+/g, "").toUpperCase()
+          );
+          const hasPass = Boolean(app?.pass);
+          const isExpired = hasPass && isPassExpired(app.pass);
+          const isRenewalPending = app?.renewalPending || v.status === "Renewal Awaiting Payment";
 
-            <div className="mt-5 pt-4 border-t border-slate-100 flex justify-between items-center text-xs gap-2">
-              <span className="text-slate-500 shrink-0">Plate Number:</span>
-              <span className="font-mono font-black text-slate-900 text-sm tracking-wider truncate">{v.plateNumber}</span>
+          return (
+            <div key={v.id} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center space-x-3 min-w-0 flex-1">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+                    isExpired ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'
+                  }`}>
+                    <Car className="w-6 h-6" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-base font-bold text-slate-900 truncate">{v.make} {v.model} ({v.year})</h3>
+                    <p className="text-xs text-slate-500 truncate">{v.type} • {v.color}</p>
+                  </div>
+                </div>
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
+                  isExpired
+                    ? 'bg-rose-100 text-rose-800 border-rose-300'
+                    : isRenewalPending
+                    ? 'bg-amber-100 text-amber-900 border-amber-300'
+                    : v.status === 'Active Pass'
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                    : 'bg-slate-100 text-slate-700 border-slate-200'
+                }`}>
+                  {isExpired ? 'Pass Expired' : isRenewalPending ? 'Renewal Pending' : v.status}
+                </span>
+              </div>
+
+              <div className="mt-5 pt-4 border-t border-slate-100 flex justify-between items-center text-xs gap-2">
+                <span className="text-slate-500 shrink-0">Plate Number:</span>
+                <span className="font-mono font-black text-slate-900 text-sm tracking-wider truncate">{v.plateNumber}</span>
+              </div>
+
+              {/* Automatic Renewal Notice (Applied ONLY to this specific expired vehicle) */}
+              {isExpired && app && (
+                <div className="mt-3.5 p-3.5 rounded-2xl bg-amber-50/90 border border-amber-300 text-amber-950 text-xs space-y-2">
+                  <div className="flex items-center space-x-1.5 font-bold text-amber-900">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>1-Year Vehicle Pass Expired ({app.pass?.validUntil})</span>
+                  </div>
+                  <p className="text-[11px] text-amber-900 leading-relaxed">
+                    The 1-year gate pass for this specific <strong>{v.make} {v.model}</strong> has expired. Campus gate scanners will flag this vehicle until renewed for Academic Year {systemSettings?.academicYear || '2026-2027'}.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleStartRenewal(app)}
+                    className="w-full py-2 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center space-x-1.5 cursor-pointer shadow-xs transition-colors"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Renew Pass for this {v.type || 'Vehicle'}</span>
+                  </button>
+                </div>
+              )}
+
+              {isRenewalPending && !isExpired && app && (
+                <div className="mt-3.5 p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-950 text-xs flex items-center justify-between">
+                  <div>
+                    <span className="font-bold block text-blue-900">Renewal In Progress</span>
+                    <span className="text-[11px] text-blue-800">Proceed to payment to re-activate your 1-year pass.</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/client/payments?appId=${app.id}`)}
+                    className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-bold text-[11px] hover:bg-blue-700 cursor-pointer"
+                  >
+                    Pay Renewal
+                  </button>
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* 5-Step Milestone Registration Modal */}
@@ -450,20 +589,29 @@ export default function MyVehicle() {
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 sm:pb-4">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                    Step-by-Step Registration
-                  </span>
-                  <span className="inline-flex items-center space-x-1 text-[10px] text-emerald-700 font-semibold bg-emerald-50/80 px-2 py-0.5 rounded-md">
-                    <Save className="w-3 h-3 text-emerald-600" />
-                    <span>Auto-saving</span>
-                  </span>
+                  {renewingAppId ? (
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-purple-800 bg-purple-100 px-2 py-0.5 rounded-md border border-purple-300 flex items-center space-x-1">
+                      <RefreshCw className="w-3 h-3 text-purple-600 animate-spin" />
+                      <span>Pass Renewal • Preserves Pass #{applications.find(a => a.id === renewingAppId)?.pass?.passNumber || applications.find(a => a.id === renewingAppId)?.assignedPassNumber || 'Existing'}</span>
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                      Step-by-Step Registration
+                    </span>
+                  )}
+                  {!renewingAppId && (
+                    <span className="inline-flex items-center space-x-1 text-[10px] text-emerald-700 font-semibold bg-emerald-50/80 px-2 py-0.5 rounded-md">
+                      <Save className="w-3 h-3 text-emerald-600" />
+                      <span>Auto-saving</span>
+                    </span>
+                  )}
                   {editingAppId && (
                     <span className="inline-flex items-center space-x-1 text-[10px] text-amber-800 font-bold bg-amber-100 px-2.5 py-0.5 rounded-md border border-amber-300">
                       <AlertTriangle className="w-3 h-3 text-amber-600" />
                       <span>Correction Mode ({editingAppId})</span>
                     </span>
                   )}
-                  {draftApplication && currentStep > 1 && !editingAppId && (
+                  {draftApplication && currentStep > 1 && !editingAppId && !renewingAppId && (
                     <span className="inline-flex items-center space-x-1 text-[10px] text-teal-700 font-semibold bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200/60">
                       <Check className="w-3 h-3 text-teal-600" />
                       <span>Draft Restored (Step {currentStep})</span>
@@ -471,8 +619,23 @@ export default function MyVehicle() {
                   )}
                 </div>
                 <h3 className="text-lg font-black text-slate-900 mt-1">
-                  {editingAppId ? 'Correct & Re-submit Vehicle Registration' : 'RSU Vehicle Pass Application'}
+                  {renewingAppId
+                    ? `Annual Pass Renewal: ${formData.make || 'Vehicle'} ${formData.model || ''} (${formData.plateNumber})`
+                    : editingAppId
+                    ? 'Correct & Re-submit Vehicle Registration'
+                    : 'RSU Vehicle Pass Application'}
                 </h3>
+                {renewingAppId && (
+                  <div className="mt-2 p-3 rounded-xl bg-purple-50 border border-purple-200 text-purple-950 text-xs">
+                    <p className="font-bold flex items-center space-x-1.5 text-purple-900">
+                      <ShieldCheck className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                      <span>Sticker & S-Number Preserved</span>
+                    </p>
+                    <p className="text-[11px] text-purple-800 mt-0.5">
+                      Your existing QR sticker on this vehicle and assigned pass number will remain unchanged in the database. A fresh live photo is required below.
+                    </p>
+                  </div>
+                )}
                 {editingAppId && editingRejectionReason && (
                   <div className="mt-2 p-3 rounded-xl bg-red-50 border border-red-200 text-red-900 text-xs">
                     <p className="font-bold flex items-center space-x-1.5 text-red-950">
@@ -487,7 +650,7 @@ export default function MyVehicle() {
               </div>
               <button
                 onClick={handleCloseWizard}
-                title={editingAppId ? "Close Correction Form" : hasMeaningfulData(formData, currentStep) ? "Save Draft & Close" : "Close"}
+                title={editingAppId ? "Close Correction Form" : renewingAppId ? "Close Renewal Form" : hasMeaningfulData(formData, currentStep) ? "Save Draft & Close" : "Close"}
                 className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full cursor-pointer transition-colors text-base"
               >
                 ✕
@@ -722,11 +885,27 @@ export default function MyVehicle() {
               {currentStep === 2 && (
                 <div className="space-y-4">
                   <div>
-                    <h4 className="text-sm font-bold text-slate-900">Picture Identification</h4>
+                    <h4 className="text-sm font-bold text-slate-900">
+                      {renewingAppId ? 'Picture Identification (Fresh Live Selfie Required)' : 'Picture Identification'}
+                    </h4>
                     <p className="text-xs text-slate-500">
-                      Take a clear live photo using your camera for the official Wearable Vehicle Pass and guard viewfinder verification.
+                      {renewingAppId
+                        ? `Take a fresh live photo using your camera to verify your identity for Academic Year ${systemSettings?.academicYear || '2026-2027'} pass renewal.`
+                        : 'Take a clear live photo using your camera for the official Wearable Vehicle Pass and guard viewfinder verification.'}
                     </p>
                   </div>
+
+                  {renewingAppId && (
+                    <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-2xl text-purple-950 text-xs flex items-start space-x-2.5">
+                      <Camera className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold text-purple-900 block">Fresh Live Selfie Required</span>
+                        <p className="text-[11px] text-purple-800 mt-0.5">
+                          Student pass renewal requires an updated live camera photo of the student to ensure accurate security verification at campus gates.
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="p-6 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center text-center">
                     {formData.applicant_photo ? (
@@ -1007,6 +1186,19 @@ export default function MyVehicle() {
                     </div>
                   </div>
 
+                  {/* Renewal Pass Preservation Notice */}
+                  {renewingAppId && (
+                    <div className="p-3.5 rounded-2xl bg-purple-50 border border-purple-200 text-purple-950 space-y-1.5">
+                      <div className="flex items-center space-x-1.5 font-bold text-purple-900">
+                        <CheckCircle2 className="w-4 h-4 text-purple-600 shrink-0" />
+                        <span>Preserved Sticker & S-Number Confirmation</span>
+                      </div>
+                      <p className="text-[11px] text-purple-800 leading-relaxed">
+                        Your assigned Pass Number (<strong>{applications.find(a => a.id === renewingAppId)?.pass?.passNumber || applications.find(a => a.id === renewingAppId)?.assignedPassNumber || 'Existing'}</strong>) and physical QR sticker on your {formData.make} {formData.model} will remain 100% valid. Once approved by PASO and receipt verified, the database extends gate clearance by 1 full year without requiring a new sticker.
+                      </p>
+                    </div>
+                  )}
+
                   {/* Official University Pledge from Physical Form */}
                   <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-slate-800 space-y-2">
                     <div className="flex items-center space-x-2 text-emerald-900 font-bold">
@@ -1062,7 +1254,7 @@ export default function MyVehicle() {
                   className="px-4 sm:px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center space-x-1.5 cursor-pointer shadow-md transition-all active:scale-95 shrink-0"
                 >
                   <Sparkles className="w-4 h-4 text-emerald-200" />
-                  <span>{editingAppId ? 'Re-submit Application' : 'Submit to PASO'}</span>
+                  <span>{renewingAppId ? 'Submit Pass Renewal' : editingAppId ? 'Re-submit Application' : 'Submit to PASO'}</span>
                 </button>
               )}
             </div>

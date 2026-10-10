@@ -404,10 +404,6 @@ export default function AdminGuards() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center space-x-2 px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold mb-1 border border-emerald-200">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Gate Security Personnel</span>
-          </div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Security Guard Management</h1>
           <p className="text-xs text-slate-500 mt-0.5 max-w-2xl">
             Provision, edit, and manage security guard credentials and passwords. Guards operate on shifting schedules across all university gates.

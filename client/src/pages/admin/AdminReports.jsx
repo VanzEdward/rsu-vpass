@@ -64,10 +64,6 @@ export default function AdminReports() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center space-x-2 px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold mb-1 border border-emerald-200">
-            <BarChart3 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Security Logs & Audit Trail</span>
-          </div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Reports & Gate Access Logs</h1>
           <p className="text-xs text-slate-500 mt-0.5">
             Real-time campus access records from mobile guard scanners, employee entry/exit tracking, and campus visitor presence monitoring.
