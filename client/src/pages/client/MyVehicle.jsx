@@ -10,6 +10,7 @@ import {
   UploadCloud, 
   Camera, 
   Check, 
+  CheckCircle2,
   User, 
   FileText, 
   ArrowRight, 
@@ -37,6 +38,7 @@ const VEHICLE_TYPES = [
 ];
 
 export default function MyVehicle() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { 
