@@ -1,4 +1,11 @@
 import pool from "../config/db.js";
+import {
+  sendRegistrationApprovedEmail,
+  sendRegistrationRejectedEmail,
+  sendReceiptRejectedEmail,
+  sendPassIssuedEmail,
+  sendGuardAccountCreatedEmail,
+} from "../services/emailService.js";
 
 // Get dashboard counts & statistics for PASO admin
 export const getAdminStats = async (req, res) => {
@@ -80,6 +87,42 @@ export const reviewApplication = async (req, res) => {
       [status, status === "REJECTED" ? rejection_reason : null, applicationId],
     );
 
+    // Trigger Brevo Email Notification (Non-blocking)
+    try {
+      const [appData] = await pool.query(
+        `SELECT a.id, u.email, u.full_name, v.plate_number, v.make, v.model, v.vehicle_type
+         FROM applications a
+         JOIN users u ON a.user_id = u.id
+         JOIN vehicles v ON a.vehicle_id = v.id
+         WHERE a.id = ?`,
+        [applicationId]
+      );
+
+      if (appData && appData.length > 0) {
+        const applicant = appData[0];
+        const vehicleDesc = `${applicant.make || ''} ${applicant.model || ''}`.trim() || applicant.vehicle_type || 'Vehicle';
+
+        if (status === 'APPROVED') {
+          sendRegistrationApprovedEmail({
+            toEmail: applicant.email,
+            recipientName: applicant.full_name,
+            vehicle: vehicleDesc,
+            plateNumber: applicant.plate_number,
+          }).catch((err) => console.error('[Brevo Hook Error]:', err));
+        } else if (status === 'REJECTED') {
+          sendRegistrationRejectedEmail({
+            toEmail: applicant.email,
+            recipientName: applicant.full_name,
+            vehicle: vehicleDesc,
+            plateNumber: applicant.plate_number,
+            reason: rejection_reason,
+          }).catch((err) => console.error('[Brevo Hook Error]:', err));
+        }
+      }
+    } catch (emailErr) {
+      console.error('[Brevo Hook Query Error]:', emailErr);
+    }
+
     res.json({ message: `Application marked as ${status}` });
   } catch (error) {
     res
@@ -125,6 +168,31 @@ export const recordPayment = async (req, res) => {
       `,
         [passNumber, vehicle_id, user_id, qrData, validUntil],
       );
+
+      // Trigger Brevo Email for Pass Issuance
+      try {
+        const [userData] = await pool.query(
+          `SELECT u.email, u.full_name, v.plate_number, v.make, v.model, v.vehicle_type
+           FROM users u
+           JOIN vehicles v ON v.id = ?
+           WHERE u.id = ?`,
+          [vehicle_id, user_id]
+        );
+        if (userData && userData.length > 0) {
+          const userObj = userData[0];
+          const vehicleDesc = `${userObj.make || ''} ${userObj.model || ''}`.trim() || userObj.vehicle_type || 'Vehicle';
+          sendPassIssuedEmail({
+            toEmail: userObj.email,
+            recipientName: userObj.full_name,
+            vehicle: vehicleDesc,
+            plateNumber: userObj.plate_number,
+            passNumber,
+            validUntil,
+          }).catch((err) => console.error('[Brevo Hook Error]:', err));
+        }
+      } catch (e) {
+        console.error('[Brevo Hook Query Error]:', e);
+      }
     }
 
     res.json({
@@ -234,6 +302,14 @@ export const createGuard = async (req, res) => {
       role: "GUARD",
       created_at: new Date(),
     };
+
+    // Trigger Brevo Email for Guard Provisioning
+    sendGuardAccountCreatedEmail({
+      toEmail: email.trim(),
+      guardName: fullName,
+      schoolId: school_id.trim(),
+      rawPassword: password,
+    }).catch((err) => console.error('[Brevo Guard Email Error]:', err));
 
     res.status(201).json({
       message: `Security Guard account for ${fullName} successfully created!`,
@@ -392,5 +468,96 @@ export const updateGuard = async (req, res) => {
         message: "Failed to update guard account",
         error: error.message,
       });
+  }
+};
+
+// Real-time email notification dispatcher for RSU VPASS triggers
+export const dispatchEmailNotification = async (req, res) => {
+  try {
+    const {
+      type,
+      toEmail,
+      recipientName,
+      vehicle,
+      plateNumber,
+      reason,
+      passNumber,
+      validUntil,
+      orNumber,
+      fee,
+      academicYear,
+      schoolId,
+      rawPassword,
+      gatePost,
+    } = req.body;
+
+    if (!toEmail) {
+      return res.status(400).json({ message: "Recipient email (toEmail) is required." });
+    }
+
+    let result = { success: true };
+
+    switch (type) {
+      case "REGISTRATION_APPROVED":
+        result = await sendRegistrationApprovedEmail({
+          toEmail,
+          recipientName,
+          vehicle,
+          plateNumber,
+          fee: fee || "150.00",
+        });
+        break;
+
+      case "REGISTRATION_REJECTED":
+        result = await sendRegistrationRejectedEmail({
+          toEmail,
+          recipientName,
+          vehicle,
+          plateNumber,
+          reason,
+        });
+        break;
+
+      case "RECEIPT_REJECTED":
+        result = await sendReceiptRejectedEmail({
+          toEmail,
+          recipientName,
+          vehicle,
+          plateNumber,
+          orNumber,
+          reason,
+        });
+        break;
+
+      case "PASS_ISSUED":
+        result = await sendPassIssuedEmail({
+          toEmail,
+          recipientName,
+          vehicle,
+          plateNumber,
+          passNumber,
+          validUntil,
+          academicYear,
+        });
+        break;
+
+      case "GUARD_CREATED":
+        result = await sendGuardAccountCreatedEmail({
+          toEmail,
+          guardName: recipientName,
+          schoolId,
+          rawPassword,
+          gatePost,
+        });
+        break;
+
+      default:
+        return res.status(400).json({ message: `Unknown email trigger type: ${type}` });
+    }
+
+    res.json({ message: "Email notification processed successfully", result });
+  } catch (error) {
+    console.error("[Dispatch Email Error]:", error);
+    res.status(500).json({ message: "Failed to dispatch email", error: error.message });
   }
 };

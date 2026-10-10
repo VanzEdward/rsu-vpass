@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { apiRequest } from "../api/client";
 
 const PassContext = createContext(null);
 
@@ -552,6 +553,16 @@ export const PassProvider = ({ children }) => {
     return newNotif;
   };
 
+  // Helper to trigger Brevo email notifications via backend API (non-blocking)
+  const triggerEmailNotification = (payload) => {
+    apiRequest("/paso/notifications/send-email", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }).catch((err) => {
+      console.log("[Brevo Email Notification Dispatch]:", err?.message || err);
+    });
+  };
+
   const markNotificationAsRead = (id) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
@@ -824,8 +835,16 @@ export const PassProvider = ({ children }) => {
       }),
     );
 
-    // Auto-notify the client of registration decision
+    // Auto-notify the client of registration decision (In-App + Brevo Email)
     if (targetApp) {
+      const applicantEmail =
+        targetApp.email ||
+        `${(targetApp.school_id || "student").toLowerCase().replace(/[^a-z0-9]/g, "")}@rsu.edu.ph`;
+      const vehicleDesc =
+        `${targetApp.vehicle?.make || ""} ${targetApp.vehicle?.model || ""}`.trim() ||
+        targetApp.vehicle?.type ||
+        "Vehicle";
+
       if (decision === "APPROVED") {
         addNotification({
           type: "REGISTRATION_APPROVED",
@@ -834,6 +853,14 @@ export const PassProvider = ({ children }) => {
           link: `/client/payments?appId=${appId}`,
           appId,
         });
+
+        triggerEmailNotification({
+          type: "REGISTRATION_APPROVED",
+          toEmail: applicantEmail,
+          recipientName: targetApp.applicant_name,
+          vehicle: vehicleDesc,
+          plateNumber: targetApp.vehicle?.plateNumber,
+        });
       } else if (decision === "REJECTED") {
         addNotification({
           type: "REGISTRATION_REJECTED",
@@ -841,6 +868,15 @@ export const PassProvider = ({ children }) => {
           message: `PASO returned your application for ${targetApp.vehicle?.make || "Vehicle"} (${targetApp.vehicle?.plateNumber}). Note: "${remarks}". Click to correct mistakes and re-submit.`,
           link: `/client/applications`,
           appId,
+        });
+
+        triggerEmailNotification({
+          type: "REGISTRATION_REJECTED",
+          toEmail: applicantEmail,
+          recipientName: targetApp.applicant_name,
+          vehicle: vehicleDesc,
+          plateNumber: targetApp.vehicle?.plateNumber,
+          reason: remarks,
         });
       }
     }
@@ -974,13 +1010,32 @@ export const PassProvider = ({ children }) => {
       }),
     );
 
-    // Auto-notify client of active QR Pass release
+    // Auto-notify client of active QR Pass release (In-App + Brevo Email)
     addNotification({
       type: "PASS_ISSUED",
       title: "Official Gate QR Pass Issued!",
       message: `Your Cashier receipt has been verified! Gate Pass ${generatedPassNum} for ${targetApp.vehicle?.make || "Vehicle"} (${targetApp.vehicle?.plateNumber}) is now active for Academic Year ${acadYear}.`,
       link: "/client/vehicle-pass",
       appId,
+    });
+
+    const applicantEmail =
+      targetApp.email ||
+      `${(targetApp.school_id || "student").toLowerCase().replace(/[^a-z0-9]/g, "")}@rsu.edu.ph`;
+    const vehicleDesc =
+      `${targetApp.vehicle?.make || ""} ${targetApp.vehicle?.model || ""}`.trim() ||
+      targetApp.vehicle?.type ||
+      "Vehicle";
+
+    triggerEmailNotification({
+      type: "PASS_ISSUED",
+      toEmail: applicantEmail,
+      recipientName: targetApp.applicant_name,
+      vehicle: vehicleDesc,
+      plateNumber: targetApp.vehicle?.plateNumber,
+      passNumber: generatedPassNum,
+      validUntil: customDetails.validUntil || oneYear.validUntil,
+      academicYear: acadYear,
     });
   };
 
@@ -1007,7 +1062,7 @@ export const PassProvider = ({ children }) => {
       }),
     );
 
-    // Auto-notify client that receipt was declined with reason
+    // Auto-notify client that receipt was declined with reason (In-App + Brevo Email)
     if (targetApp) {
       addNotification({
         type: "RECEIPT_REJECTED",
@@ -1015,6 +1070,24 @@ export const PassProvider = ({ children }) => {
         message: `Cashier receipt for ${targetApp.vehicle?.make || "Vehicle"} (${targetApp.vehicle?.plateNumber}) was declined by PASO. Note: "${remarks}". Please re-upload your valid receipt.`,
         link: `/client/payments?appId=${appId}`,
         appId,
+      });
+
+      const applicantEmail =
+        targetApp.email ||
+        `${(targetApp.school_id || "student").toLowerCase().replace(/[^a-z0-9]/g, "")}@rsu.edu.ph`;
+      const vehicleDesc =
+        `${targetApp.vehicle?.make || ""} ${targetApp.vehicle?.model || ""}`.trim() ||
+        targetApp.vehicle?.type ||
+        "Vehicle";
+
+      triggerEmailNotification({
+        type: "RECEIPT_REJECTED",
+        toEmail: applicantEmail,
+        recipientName: targetApp.applicant_name,
+        vehicle: vehicleDesc,
+        plateNumber: targetApp.vehicle?.plateNumber,
+        orNumber: targetApp.receipt?.orNumber || "N/A",
+        reason: remarks,
       });
     }
   };

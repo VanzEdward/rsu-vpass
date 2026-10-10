@@ -230,6 +230,29 @@ Open your browser at **`http://localhost:5173`**.
 
 ---
 
+## 📧 Brevo (Sendinblue) Email Notifications
+
+RSU VPASS features an integrated transactional email dispatch engine via **Brevo** (`@getbrevo/brevo`), keeping students, employees, and security personnel informed at every milestone with responsive, university-branded emerald email notifications:
+
+| Trigger Event | Milestone / Role | Recipient | Content & Purpose |
+| :--- | :--- | :--- | :--- |
+| **Registration Approved** | Milestone 2 | Applicant | Informs applicant that vehicle documents are verified. Directs them to pay at the university Cashier window and upload receipt. |
+| **Registration Returned / Declined** | Milestone 2 | Applicant | **Includes PASO evaluation remark** explaining issues (e.g. blurry OR/CR or expired license) with instructions to edit and resubmit. |
+| **Cashier Receipt Declined** | Milestone 3 | Applicant | **Includes PASO rejection remark and OR #** (e.g. unreadable photo, wrong amount) with direct instructions to re-upload clear proof. |
+| **Gate Pass Active & Issued** | Milestone 4 | Applicant | Releases official sequential pass series (`S-###` or `E-###`), vehicle details, and 1-year expiration policy. |
+| **Guard Account Provisioned** | Guard Setup | Security Guard | Dispatches badge ID (`GUARD-GATE-01`), temporary login credentials, and assigned gate post instructions. |
+
+### Brevo Configuration (`server/.env`)
+```env
+# Brevo API Key from https://app.brevo.com/settings/keys/api
+BREVO_API_KEY=xkeysib-your_real_brevo_api_key_here
+EMAIL_FROM=paso@rsu.edu.ph
+EMAIL_FROM_NAME=RSU VPASS (PASO)
+```
+> **Note**: If `BREVO_API_KEY` is not provided (e.g., local test mode), the email service runs in **Safe Simulation Mode**, logging email dispatches to the server console without breaking workflows.
+
+---
+
 ## 🌐 Production Deployment (e.g. Render.com)
 
 1. Push your repository to **GitHub**.
