@@ -383,7 +383,7 @@ export default function VehiclePass() {
           <div className="p-4 bg-slate-50 rounded-3xl border border-slate-200 flex flex-col items-center">
             <RsuStickerPass
               classification={classification || "Student"}
-              passNumber={pass.passNumber || "S-396"}
+              passNumber={pass.passNumber || "S-001"}
               plateNumber={vehicle.plateNumber || "RSU 2026"}
               qrPayload={pass.qrData || `RSU-VPASS:${pass.passNumber}:${vehicle.plateNumber}:${school_id}`}
               showDownloadButton={true}

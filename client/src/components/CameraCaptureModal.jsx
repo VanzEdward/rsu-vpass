@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, RefreshCw, X, Check, Upload, AlertCircle } from 'lucide-react';
+import { Camera, RefreshCw, X, Check, AlertCircle } from 'lucide-react';
 
 export default function CameraCaptureModal({
   isOpen,
@@ -10,13 +10,14 @@ export default function CameraCaptureModal({
 }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const fileInputRef = useRef(null);
 
   const [stream, setStream] = useState(null);
   const [capturedImage, setCapturedImage] = useState(null);
   const [cameraError, setCameraError] = useState('');
   const [facingMode, setFacingMode] = useState('user'); // 'user' (front) or 'environment' (rear)
   const [isLoadingCamera, setIsLoadingCamera] = useState(true);
+
+  const isReceipt = title.toLowerCase().includes('receipt');
 
   // Start webcam stream
   const startCamera = async (mode = facingMode) => {
@@ -48,15 +49,9 @@ export default function CameraCaptureModal({
       }
     } catch (err) {
       console.warn('Webcam stream error:', err);
-      if (selfieOnly) {
-        setCameraError(
-          'Camera access is required to take a live verification selfie. Please allow camera permissions in your browser and click Retry.'
-        );
-      } else {
-        setCameraError(
-          'Unable to access camera directly. Please check browser permissions or use the Native Device Camera option below.'
-        );
-      }
+      setCameraError(
+        'Camera access is required to capture live verification photos. Please allow camera permissions in your browser and click Retry.'
+      );
     } finally {
       setIsLoadingCamera(false);
     }
@@ -110,18 +105,6 @@ export default function CameraCaptureModal({
     startCamera(facingMode);
   };
 
-  // Native phone camera input fallback
-  const handleNativeFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setCapturedImage(event.target.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   // Confirm photo
   const handleConfirm = () => {
     if (capturedImage) {
@@ -170,7 +153,7 @@ export default function CameraCaptureModal({
             /* Captured Preview */
             <img
               src={capturedImage}
-              alt="Captured Identification"
+              alt="Captured Verification Snapshot"
               className="w-full h-full object-cover"
             />
           ) : (
@@ -180,25 +163,14 @@ export default function CameraCaptureModal({
                 <div className="p-6 text-center text-white space-y-3">
                   <AlertCircle className="w-10 h-10 text-amber-400 mx-auto" />
                   <p className="text-xs text-slate-300 max-w-xs">{cameraError}</p>
-                  {selfieOnly ? (
-                    <button
-                      type="button"
-                      onClick={() => startCamera('user')}
-                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold inline-flex items-center space-x-2 cursor-pointer shadow-sm"
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                      <span>Retry Camera</span>
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold inline-flex items-center space-x-2 cursor-pointer"
-                    >
-                      <Camera className="w-4 h-4" />
-                      <span>Open Native Device Camera</span>
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => startCamera(facingMode)}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold inline-flex items-center space-x-2 cursor-pointer shadow-sm"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    <span>Retry Camera</span>
+                  </button>
                 </div>
               ) : (
                 <>
@@ -210,13 +182,23 @@ export default function CameraCaptureModal({
                     className="w-full h-full object-cover"
                     onLoadedMetadata={() => setIsLoadingCamera(false)}
                   />
-                  {/* Identification Oval Guide Overlay */}
-                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                    <div className="w-44 h-56 border-2 border-dashed border-emerald-400/80 rounded-full shadow-xs" />
-                  </div>
-                  <span className="absolute bottom-3 text-[11px] text-white/90 bg-slate-900/60 px-3 py-1 rounded-full backdrop-blur-xs font-medium">
-                    Center face inside the oval guide
-                  </span>
+
+                  {/* Frame Guide Overlay (Rectangular for Receipt, Oval for Face ID) */}
+                  {isReceipt ? (
+                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-4">
+                      <div className="w-64 h-44 sm:w-80 sm:h-52 border-2 border-dashed border-emerald-400/90 rounded-2xl shadow-xs" />
+                      <span className="absolute bottom-3 text-[11px] text-white/90 bg-slate-900/70 px-3.5 py-1 rounded-full backdrop-blur-xs font-medium">
+                        Align physical receipt inside the frame
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                      <div className="w-44 h-56 border-2 border-dashed border-emerald-400/80 rounded-full shadow-xs" />
+                      <span className="absolute bottom-3 text-[11px] text-white/90 bg-slate-900/70 px-3.5 py-1 rounded-full backdrop-blur-xs font-medium">
+                        Center face inside the oval guide
+                      </span>
+                    </div>
+                  )}
                 </>
               )}
             </>
@@ -224,17 +206,6 @@ export default function CameraCaptureModal({
 
           {/* Hidden Canvas for Snapshot processing */}
           <canvas ref={canvasRef} className="hidden" />
-          {/* Native Camera input fallback only when not selfieOnly */}
-          {!selfieOnly && (
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              capture="user"
-              onChange={handleNativeFileChange}
-              className="hidden"
-            />
-          )}
         </div>
 
         {/* Controls */}
@@ -248,7 +219,7 @@ export default function CameraCaptureModal({
                 className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold flex items-center justify-center space-x-1.5 cursor-pointer transition-colors"
               >
                 <RefreshCw className="w-4 h-4" />
-                <span>Retake Selfie</span>
+                <span>Retake Photo</span>
               </button>
               <button
                 type="button"
@@ -256,35 +227,23 @@ export default function CameraCaptureModal({
                 className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center justify-center space-x-1.5 cursor-pointer shadow-sm transition-colors"
               >
                 <Check className="w-4 h-4" />
-                <span>Save This Selfie</span>
+                <span>Save This Photo</span>
               </button>
             </div>
           ) : (
             /* Action Buttons for Live Camera */
             <div className="flex w-full items-center justify-between">
-              {!selfieOnly ? (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="text-xs text-slate-600 hover:text-emerald-700 flex items-center space-x-1.5 cursor-pointer py-2 px-3 rounded-lg hover:bg-slate-100"
-                  title="Use phone camera app or upload file"
-                >
-                  <Upload className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Device Camera / Upload</span>
-                </button>
-              ) : (
-                <div className="flex items-center space-x-1.5 text-[11px] text-emerald-700 font-medium bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200/60">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span>Live Selfie Mode (Uploads Disabled)</span>
-                </div>
-              )}
+              <div className="flex items-center space-x-1.5 text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200/60">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Live Camera View</span>
+              </div>
 
               <div className="flex items-center space-x-2">
                 <button
                   type="button"
                   onClick={toggleCamera}
                   title="Switch Camera (Front/Back)"
-                  className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
+                  className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
                 >
                   <RefreshCw className="w-4 h-4" />
                 </button>
@@ -293,7 +252,7 @@ export default function CameraCaptureModal({
                   type="button"
                   onClick={takeSnapshot}
                   disabled={isLoadingCamera || !!cameraError}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold flex items-center space-x-2 cursor-pointer shadow-sm"
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold flex items-center space-x-2 cursor-pointer shadow-sm transition-colors"
                 >
                   <Camera className="w-4 h-4 text-emerald-100" />
                   <span>Take Photo</span>

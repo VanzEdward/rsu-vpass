@@ -16,7 +16,7 @@ import employeePassImg from "../assets/employee_pass.png";
  */
 export default function RsuStickerPass({
   classification = "STUDENT",
-  passNumber = "S-396",
+  passNumber = "S-001",
   plateNumber = "RSU 2026",
   qrPayload = "",
   className = "",
@@ -26,14 +26,28 @@ export default function RsuStickerPass({
   const templateImg = isStudent ? studentPassImg : employeePassImg;
   const roleTitle = isStudent ? "STUDENT" : "EMPLOYEE";
 
-  // Normalize pass number so it always displays cleanly as S-### or E-###
+  // Normalize pass number so it always displays cleanly as 3-digit zero-padded S-### or E-### (e.g. S-001, E-001)
   const formatDisplayPass = (rawPass, student) => {
-    if (!rawPass) return student ? "S-396" : "E-081";
-    const clean = String(rawPass).trim();
-    if (/^[SE]-\d+$/i.test(clean)) return clean.toUpperCase();
+    const prefix = student ? "S" : "E";
+    if (!rawPass) return `${prefix}-001`;
+    const clean = String(rawPass).trim().toUpperCase();
+
+    // S-001, E-001, S-1, E-1, S1, E1
+    const seMatch = clean.match(/^([SE])-?(\d+)$/);
+    if (seMatch) {
+      const p = seMatch[1];
+      const num = parseInt(seMatch[2], 10);
+      return `${p}-${String(num).padStart(3, "0")}`;
+    }
+
+    // Trailing digits (e.g., VP-2026-0001, 1, 001)
     const match = clean.match(/(\d+)$/);
-    const num = match ? parseInt(match[1], 10) : (student ? 396 : 81);
-    return `${student ? "S" : "E"}-${num}`;
+    if (match) {
+      const num = parseInt(match[1], 10);
+      return `${prefix}-${String(num).padStart(3, "0")}`;
+    }
+
+    return `${prefix}-001`;
   };
 
   const displayPassNumber = formatDisplayPass(passNumber, isStudent);

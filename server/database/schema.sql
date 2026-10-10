@@ -127,7 +127,7 @@ CREATE TABLE IF NOT EXISTS verification_logs (
 -- ==========================================================
 
 -- Client Demo Account
-INSERT INTO users (id, school_id, email, password, full_name, role, contact_number)
+INSERT INTO users (id, school_id, email, password, full_name, role, contact_number, classification, year_course, department_unit, drivers_license_no)
 VALUES (
     1,
     '2026-00001',
@@ -135,8 +135,18 @@ VALUES (
     '$2b$10$50GJUSBeYJZdFqZ3oX7/M.u1TAKZUB2VIxIu9HEtn2T4jr6zaWROm',
     'Juan Dela Cruz',
     'CLIENT',
-    '+63 912 345 6789'
-) ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), password = VALUES(password);
+    '+63 912 345 6789',
+    'STUDENT',
+    'CCMADI • BS Information Technology',
+    'College of Communication, Media and Digital Arts',
+    'N02-24-987654'
+) ON DUPLICATE KEY UPDATE 
+    full_name = VALUES(full_name), 
+    password = VALUES(password),
+    classification = VALUES(classification),
+    year_course = VALUES(year_course),
+    department_unit = VALUES(department_unit),
+    drivers_license_no = VALUES(drivers_license_no);
 
 -- PASO Admin Account
 INSERT INTO users (id, school_id, email, password, full_name, role, contact_number)

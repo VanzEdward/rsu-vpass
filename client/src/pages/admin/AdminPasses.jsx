@@ -237,7 +237,7 @@ export default function AdminPasses() {
             <div className="flex flex-col items-center py-1">
               <RsuStickerPass
                 classification={selectedPassModal.classification || "Student"}
-                passNumber={selectedPassModal.pass?.passNumber || "S-396"}
+                passNumber={selectedPassModal.pass?.passNumber || "S-001"}
                 plateNumber={selectedPassModal.vehicle?.plateNumber || "RSU 2026"}
                 qrPayload={selectedPassModal.pass?.qrData || `RSU-VPASS:${selectedPassModal.pass?.passNumber}:${selectedPassModal.vehicle?.plateNumber}:${selectedPassModal.school_id}`}
                 showDownloadButton={true}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { usePass } from '../../context/PassContext';
+import { usePass, getSequentialPassNumber } from '../../context/PassContext';
 import { 
   FileCheck, 
   Clock, 
@@ -23,6 +23,7 @@ import {
   X,
   ExternalLink
 } from 'lucide-react';
+import RsuStickerPass from '../../components/RsuStickerPass';
 
 export default function AdminApplications() {
   const { applications, reviewApplication, verifyReceiptAndIssuePass, rejectReceipt } = usePass();
@@ -46,7 +47,8 @@ export default function AdminApplications() {
   const [receiptRejectReason, setReceiptRejectReason] = useState('');
   const [receiptRejectError, setReceiptRejectError] = useState('');
 
-  // Full-size Receipt Image Preview
+  // Full-size Document & Receipt Inspector Modal State
+  const [previewDocument, setPreviewDocument] = useState(null); // { title: string, subtitle?: string, src: string }
   const [zoomReceiptPhoto, setZoomReceiptPhoto] = useState(null);
 
   // In-App Approval Confirmation Modal State (replaces native alert)
@@ -128,10 +130,12 @@ export default function AdminApplications() {
     });
   };
 
-  // Open the QR Generation & Confirmation Modal
+  // Open the QR Generation & Confirmation Modal (Consistent Sequential Database Numbering: S-001, S-002, E-001, E-002)
   const handleOpenQrModal = (app) => {
-    const year = new Date().getFullYear();
-    const passNum = `VP-${year}-${String(Math.floor(1000 + Math.random() * 9000))}`;
+    const passNum =
+      app.pass?.passNumber ||
+      app.assignedPassNumber ||
+      getSequentialPassNumber(app, applications);
     setGeneratedPassNum(passNum);
     setCopiedPayload(false);
     setQrModalApp(app);
@@ -417,13 +421,33 @@ export default function AdminApplications() {
 
             {/* Applicant & Live ID Photo */}
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-5">
-              <div className="w-28 h-36 rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-sm shrink-0">
+              <div 
+                onClick={() => {
+                  if (selectedApp.applicant_photo) {
+                    setPreviewDocument({
+                      title: `${selectedApp.classification} ID Photo`,
+                      subtitle: `${selectedApp.applicant_name} • ID: ${selectedApp.school_id}`,
+                      src: selectedApp.applicant_photo
+                    });
+                  }
+                }}
+                className={`w-28 h-36 rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-sm shrink-0 relative bg-slate-100 ${
+                  selectedApp.applicant_photo ? 'cursor-pointer group hover:ring-4 hover:ring-emerald-400/40 transition-all' : ''
+                }`}
+                title={selectedApp.applicant_photo ? 'Click to inspect full photo' : ''}
+              >
                 {selectedApp.applicant_photo ? (
-                  <img
-                    src={selectedApp.applicant_photo}
-                    alt="Live ID"
-                    className="w-full h-full object-cover"
-                  />
+                  <>
+                    <img
+                      src={selectedApp.applicant_photo}
+                      alt="Live ID"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    />
+                    <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white p-1 text-center">
+                      <Eye className="w-5 h-5 mb-1" />
+                      <span className="text-[10px] font-bold">Inspect</span>
+                    </div>
+                  </>
                 ) : (
                   <div className="w-full h-full bg-slate-200 flex items-center justify-center text-slate-400">
                     <User className="w-8 h-8" />
@@ -469,32 +493,90 @@ export default function AdminApplications() {
             <div className="text-xs space-y-2">
               <h4 className="font-bold text-slate-900">Uploaded Official Documents</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 text-center">
-                  <p className="font-semibold text-slate-800 mb-2">Driver's License</p>
-                  {selectedApp.documents?.driverLicense && selectedApp.documents.driverLicense.startsWith('data:image') ? (
-                    <img
-                      src={selectedApp.documents.driverLicense}
-                      alt="License"
-                      className="w-full h-32 object-cover rounded-lg border border-slate-200"
-                    />
+                <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 text-center flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="font-bold text-slate-800 text-xs">Driver's License</p>
+                    {selectedApp.documents?.driverLicense && (
+                      <button
+                        type="button"
+                        onClick={() => setPreviewDocument({
+                          title: "Driver's License",
+                          subtitle: `${selectedApp.applicant_name} • ID: ${selectedApp.school_id}`,
+                          src: selectedApp.documents.driverLicense
+                        })}
+                        className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center space-x-1 cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Inspect</span>
+                      </button>
+                    )}
+                  </div>
+                  {selectedApp.documents?.driverLicense ? (
+                    <div
+                      onClick={() => setPreviewDocument({
+                        title: "Driver's License",
+                        subtitle: `${selectedApp.applicant_name} • ID: ${selectedApp.school_id}`,
+                        src: selectedApp.documents.driverLicense
+                      })}
+                      className="rounded-xl overflow-hidden border border-slate-200 cursor-pointer group relative bg-white shadow-xs"
+                    >
+                      <img
+                        src={selectedApp.documents.driverLicense}
+                        alt="License"
+                        className="w-full h-32 object-cover group-hover:scale-105 transition-transform"
+                      />
+                      <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold space-x-1.5 backdrop-blur-[1px]">
+                        <Eye className="w-4 h-4" />
+                        <span>Click to Inspect Full Photo</span>
+                      </div>
+                    </div>
                   ) : (
-                    <div className="h-28 rounded-lg bg-emerald-50 text-emerald-700 flex flex-col items-center justify-center font-semibold text-[11px]">
+                    <div className="h-32 rounded-xl bg-emerald-50 text-emerald-700 flex flex-col items-center justify-center font-semibold text-[11px] border border-dashed border-emerald-300">
                       <FileText className="w-6 h-6 mb-1" />
                       <span>Valid Driver's License Attached</span>
                     </div>
                   )}
                 </div>
 
-                <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 text-center">
-                  <p className="font-semibold text-slate-800 mb-2">Official OR / CR</p>
-                  {selectedApp.documents?.orCr && selectedApp.documents.orCr.startsWith('data:image') ? (
-                    <img
-                      src={selectedApp.documents.orCr}
-                      alt="OR/CR"
-                      className="w-full h-32 object-cover rounded-lg border border-slate-200"
-                    />
+                <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 text-center flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="font-bold text-slate-800 text-xs">Official OR / CR</p>
+                    {selectedApp.documents?.orCr && (
+                      <button
+                        type="button"
+                        onClick={() => setPreviewDocument({
+                          title: "Official Vehicle OR / CR",
+                          subtitle: `${selectedApp.vehicle?.make} ${selectedApp.vehicle?.model} (${selectedApp.vehicle?.plateNumber})`,
+                          src: selectedApp.documents.orCr
+                        })}
+                        className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center space-x-1 cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Inspect</span>
+                      </button>
+                    )}
+                  </div>
+                  {selectedApp.documents?.orCr ? (
+                    <div
+                      onClick={() => setPreviewDocument({
+                        title: "Official Vehicle OR / CR",
+                        subtitle: `${selectedApp.vehicle?.make} ${selectedApp.vehicle?.model} (${selectedApp.vehicle?.plateNumber})`,
+                        src: selectedApp.documents.orCr
+                      })}
+                      className="rounded-xl overflow-hidden border border-slate-200 cursor-pointer group relative bg-white shadow-xs"
+                    >
+                      <img
+                        src={selectedApp.documents.orCr}
+                        alt="OR/CR"
+                        className="w-full h-32 object-cover group-hover:scale-105 transition-transform"
+                      />
+                      <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold space-x-1.5 backdrop-blur-[1px]">
+                        <Eye className="w-4 h-4" />
+                        <span>Click to Inspect Full Photo</span>
+                      </div>
+                    </div>
                   ) : (
-                    <div className="h-28 rounded-lg bg-emerald-50 text-emerald-700 flex flex-col items-center justify-center font-semibold text-[11px]">
+                    <div className="h-32 rounded-xl bg-emerald-50 text-emerald-700 flex flex-col items-center justify-center font-semibold text-[11px] border border-dashed border-emerald-300">
                       <FileText className="w-6 h-6 mb-1" />
                       <span>Official OR/CR Attached</span>
                     </div>
@@ -544,22 +626,34 @@ export default function AdminApplications() {
                         <p className="text-[11px] font-bold text-slate-700">Attached Cashier Receipt Photo:</p>
                         <button
                           type="button"
-                          onClick={() => setZoomReceiptPhoto(selectedApp.receipt.receiptPhoto)}
+                          onClick={() => setPreviewDocument({
+                            title: `Official Cashier Receipt — OR #${selectedApp.receipt?.orNumber || 'N/A'}`,
+                            subtitle: `${selectedApp.applicant_name} • Paid: ${selectedApp.receipt?.paidAt || 'Recently'}`,
+                            src: selectedApp.receipt.receiptPhoto
+                          })}
                           className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center space-x-1 cursor-pointer"
                         >
-                          <ExternalLink className="w-3 h-3" />
-                          <span>View Full Photo</span>
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Inspect Full Receipt</span>
                         </button>
                       </div>
                       <div 
-                        onClick={() => setZoomReceiptPhoto(selectedApp.receipt.receiptPhoto)}
-                        className="max-w-md mx-auto rounded-xl overflow-hidden border-2 border-amber-300 shadow-sm bg-white cursor-pointer group"
+                        onClick={() => setPreviewDocument({
+                          title: `Official Cashier Receipt — OR #${selectedApp.receipt?.orNumber || 'N/A'}`,
+                          subtitle: `${selectedApp.applicant_name} • Paid: ${selectedApp.receipt?.paidAt || 'Recently'}`,
+                          src: selectedApp.receipt.receiptPhoto
+                        })}
+                        className="max-w-md mx-auto rounded-xl overflow-hidden border-2 border-amber-300 shadow-sm bg-white cursor-pointer group relative"
                       >
                         <img
                           src={selectedApp.receipt.receiptPhoto}
                           alt="Receipt Photo"
                           className="w-full max-h-52 object-contain group-hover:scale-102 transition-transform"
                         />
+                        <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold space-x-1.5 backdrop-blur-[1px]">
+                          <Eye className="w-4 h-4" />
+                          <span>Click to Inspect Full Receipt</span>
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -671,77 +765,48 @@ export default function AdminApplications() {
               </span>
             </div>
 
-            {/* Generated Pass Preview Card */}
-            <div className="bg-slate-900 text-white rounded-2xl p-5 shadow-lg border border-slate-800 space-y-4 text-center">
-              {/* Badge top */}
-              <div className="flex items-center justify-between text-[10px] border-b border-slate-800 pb-2">
-                <span className="font-bold tracking-widest text-emerald-400 uppercase">
-                  RSU PHYSICAL ASSETS & SECURITY OFFICE
+            {/* Authentic RSU Vehicle Pass Sticker (Student Pink or Employee Red Canva Template with Live QR) */}
+            <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col items-center">
+              {/* Template Category Header */}
+              <div className="w-full flex items-center justify-between mb-3 text-xs">
+                <span className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[11px] font-bold border ${
+                  (qrModalApp.classification || '').toLowerCase().includes('employee')
+                    ? 'bg-red-100 text-red-900 border-red-200'
+                    : 'bg-pink-100 text-pink-900 border-pink-200'
+                }`}>
+                  <span>
+                    {(qrModalApp.classification || '').toLowerCase().includes('employee')
+                      ? '💼 Official Employee Vehicle Pass (employee_pass.png)'
+                      : '🎓 Official Student Vehicle Pass (student_pass.png)'}
+                  </span>
                 </span>
-                <span className="font-mono bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-bold border border-emerald-500/30">
-                  ACTIVE 2026
+                <span className="text-[11px] font-mono text-slate-500 font-bold">
+                  Gates 1 – 4 Clearance
                 </span>
               </div>
 
-              {/* Vehicle & Plate Callout */}
-              <div>
-                <p className="text-xs text-slate-400">Registered Vehicle</p>
-                <p className="text-base font-bold text-white">{qrModalApp.vehicle?.make} {qrModalApp.vehicle?.model} ({qrModalApp.vehicle?.year})</p>
-                <p className="text-xl font-black font-mono tracking-widest text-emerald-400 mt-0.5">
-                  {qrModalApp.vehicle?.plateNumber}
-                </p>
-              </div>
+              {/* RSU Sticker Pass Rendering with Actual Template & Live Stamped QR */}
+              <RsuStickerPass
+                classification={qrModalApp.classification || 'STUDENT'}
+                passNumber={generatedPassNum}
+                plateNumber={qrModalApp.vehicle?.plateNumber || 'RSU 2026'}
+                qrPayload={`RSU-VPASS:${generatedPassNum}:${qrModalApp.vehicle?.plateNumber || ''}:${qrModalApp.school_id || ''}`}
+                showDownloadButton={false}
+              />
 
-              {/* THE QR CODE DISPLAY */}
-              <div className="flex flex-col items-center justify-center py-2">
-                <div className="p-3 bg-white rounded-2xl shadow-md border-2 border-emerald-400">
-                  {/* Clean, high-contrast SVG representation of the QR code */}
-                  <svg className="w-44 h-44" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect width="120" height="120" fill="white" />
-                    {/* Corner 1 */}
-                    <rect x="10" y="10" width="30" height="30" rx="4" stroke="#0f172a" strokeWidth="6" fill="white" />
-                    <rect x="20" y="20" width="10" height="10" fill="#047857" />
-                    {/* Corner 2 */}
-                    <rect x="80" y="10" width="30" height="30" rx="4" stroke="#0f172a" strokeWidth="6" fill="white" />
-                    <rect x="90" y="20" width="10" height="10" fill="#047857" />
-                    {/* Corner 3 */}
-                    <rect x="10" y="80" width="30" height="30" rx="4" stroke="#0f172a" strokeWidth="6" fill="white" />
-                    <rect x="20" y="90" width="10" height="10" fill="#047857" />
-                    {/* Pattern Dots */}
-                    <rect x="48" y="14" width="6" height="6" fill="#0f172a" />
-                    <rect x="62" y="14" width="6" height="6" fill="#0f172a" />
-                    <rect x="48" y="28" width="6" height="6" fill="#0f172a" />
-                    <rect x="62" y="28" width="6" height="6" fill="#0f172a" />
-                    <rect x="14" y="48" width="6" height="6" fill="#0f172a" />
-                    <rect x="28" y="48" width="6" height="6" fill="#0f172a" />
-                    <rect x="14" y="62" width="6" height="6" fill="#0f172a" />
-                    <rect x="28" y="62" width="6" height="6" fill="#0f172a" />
-                    <rect x="48" y="48" width="24" height="24" rx="2" fill="#047857" />
-                    <rect x="54" y="54" width="12" height="12" fill="white" />
-                    <rect x="80" y="48" width="8" height="8" fill="#0f172a" />
-                    <rect x="96" y="48" width="8" height="8" fill="#0f172a" />
-                    <rect x="80" y="64" width="8" height="8" fill="#0f172a" />
-                    <rect x="96" y="64" width="8" height="8" fill="#0f172a" />
-                    <rect x="48" y="80" width="8" height="8" fill="#0f172a" />
-                    <rect x="64" y="80" width="8" height="8" fill="#0f172a" />
-                    <rect x="48" y="96" width="8" height="8" fill="#0f172a" />
-                    <rect x="64" y="96" width="8" height="8" fill="#0f172a" />
-                    <rect x="80" y="80" width="30" height="30" rx="3" fill="#0f172a" />
-                    <rect x="86" y="86" width="18" height="18" fill="white" />
-                    <rect x="92" y="92" width="6" height="6" fill="#047857" />
-                  </svg>
+              {/* Vehicle Specifications Summary under Sticker */}
+              <div className="mt-4 w-full max-w-[340px] p-3 rounded-2xl bg-white border border-slate-200 text-xs space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Vehicle:</span>
+                  <span className="font-bold text-slate-900">{qrModalApp.vehicle?.make} {qrModalApp.vehicle?.model} ({qrModalApp.vehicle?.year})</span>
                 </div>
-              </div>
-
-              {/* Pass Number and Security specs */}
-              <div className="pt-2 border-t border-slate-800 text-xs flex justify-between items-center text-slate-300">
-                <div className="text-left">
-                  <span className="text-[10px] text-slate-400 block">Official Pass No:</span>
-                  <span className="font-mono font-bold text-white text-sm">{generatedPassNum}</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Plate Number:</span>
+                  <span className="font-mono font-black text-emerald-700">{qrModalApp.vehicle?.plateNumber}</span>
                 </div>
-                <div className="text-right">
-                  <span className="text-[10px] text-slate-400 block">Authorized Gates:</span>
-                  <span className="font-bold text-emerald-400 text-xs">Gate 1 - 4</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Assigned Pass No:</span>
+                  <span className="font-mono font-bold text-slate-800">{generatedPassNum}</span>
                 </div>
               </div>
             </div>
@@ -868,31 +933,72 @@ export default function AdminApplications() {
         </div>
       )}
 
-      {/* Full-size Receipt Photo Zoom Modal */}
-      {zoomReceiptPhoto && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4 relative">
-            <button
-              onClick={() => setZoomReceiptPhoto(null)}
-              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-full cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <h3 className="text-base font-bold text-slate-900">Official Cashier Receipt Photo</h3>
-            <div className="rounded-2xl overflow-hidden border border-slate-200 bg-black/5 max-h-[75vh] flex items-center justify-center">
-              <img
-                src={zoomReceiptPhoto}
-                alt="Enlarged Cashier Receipt"
-                className="max-h-[70vh] w-auto object-contain"
-              />
-            </div>
-            <div className="flex justify-end">
+      {/* Dynamic Document & Receipt Full-Size Inspector Modal */}
+      {(previewDocument || zoomReceiptPhoto) && (
+        <div 
+          onClick={() => {
+            setPreviewDocument(null);
+            setZoomReceiptPhoto(null);
+          }}
+          className="fixed inset-0 z-[80] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-150 cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-4xl max-h-[92vh] w-full p-5 sm:p-6 shadow-2xl relative flex flex-col cursor-default border border-slate-100 animate-in zoom-in-95 duration-150 overflow-hidden"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                  <Eye className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-slate-900 leading-tight">
+                    {previewDocument?.title || 'Official Cashier Receipt'}
+                  </h3>
+                  {previewDocument?.subtitle && (
+                    <p className="text-xs text-slate-500 font-medium">
+                      {previewDocument.subtitle}
+                    </p>
+                  )}
+                </div>
+              </div>
               <button
                 type="button"
-                onClick={() => setZoomReceiptPhoto(null)}
-                className="px-5 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 cursor-pointer"
+                onClick={() => {
+                  setPreviewDocument(null);
+                  setZoomReceiptPhoto(null);
+                }}
+                className="p-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
+                title="Close Inspector"
               >
-                Close Fullscreen
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Dynamic Sized Image Viewer */}
+            <div className="my-3 rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center p-2 flex-1 min-h-[220px] max-h-[70vh]">
+              <img
+                src={previewDocument?.src || zoomReceiptPhoto}
+                alt={previewDocument?.title || 'Document Inspection Preview'}
+                className="max-h-[66vh] max-w-full w-auto h-auto object-contain rounded-lg shadow-xl select-none"
+              />
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 shrink-0">
+              <span className="text-[11px] text-slate-400 font-medium">
+                High-resolution snapshot verification • Click outside or Esc to close
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setPreviewDocument(null);
+                  setZoomReceiptPhoto(null);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs cursor-pointer transition-colors"
+              >
+                Close Inspector
               </button>
             </div>
           </div>

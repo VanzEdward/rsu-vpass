@@ -35,8 +35,8 @@ const INITIAL_APPLICATIONS = [
       paidAt: "January 11, 2026",
     },
     pass: {
-      passNumber: "VP-2026-0001",
-      qrData: "RSU-VPASS:VP-2026-0001:XYZ5678:EMP-2026-0812",
+      passNumber: "E-001",
+      qrData: "RSU-VPASS:E-001:XYZ 5678:EMP-2026-0812",
       validUntil: "December 31, 2026",
       status: "ACTIVE",
     },
@@ -74,8 +74,8 @@ const INITIAL_APPLICATIONS = [
       paidAt: "January 13, 2026",
     },
     pass: {
-      passNumber: "VP-2026-0089",
-      qrData: "RSU-VPASS:VP-2026-0089:RSU2026:2023-00192",
+      passNumber: "S-001",
+      qrData: "RSU-VPASS:S-001:RSU 2026:2023-00192",
       validUntil: "December 31, 2026",
       status: "ACTIVE",
     },
@@ -95,7 +95,7 @@ const INITIAL_NOTIFICATIONS = [
     type: "PASS_ISSUED",
     title: "Vehicle Pass Activated",
     message:
-      "Your Pass VP-2026-0001 for Honda Click 125 (XYZ 5678) is active for Academic Year 2026.",
+      "Your Pass E-001 for Honda Click 125 (XYZ 5678) is active for Academic Year 2026.",
     time: "2 hours ago",
     date: new Date().toISOString(),
     read: false,
@@ -179,7 +179,7 @@ const INITIAL_VISITORS = [
 const INITIAL_LOGS = [
   {
     id: 1,
-    passNumber: "VP-2026-0001",
+    passNumber: "E-001",
     plateNumber: "XYZ 5678",
     owner: "Prof. Juan Dela Cruz",
     classification: "EMPLOYEE",
@@ -212,7 +212,7 @@ const INITIAL_LOGS = [
   },
   {
     id: 4,
-    passNumber: "VP-2026-0089",
+    passNumber: "S-001",
     plateNumber: "RSU 2026",
     owner: "Chrizhel Anne Cuenco",
     classification: "STUDENT",
@@ -223,10 +223,157 @@ const INITIAL_LOGS = [
   },
 ];
 
+/**
+ * Determines the consistent, database-backed sequential pass number (e.g. S-001, S-002, E-001, E-002).
+ * Sequence order is strictly determined by:
+ * 1. Already issued pass number (app.pass?.passNumber)
+ * 2. Already assigned pass number upon compliance (app.assignedPassNumber)
+ * 3. Compliance order (who complied first by submitting cashier receipt)
+ * 4. Application registration / database order
+ */
+export const getSequentialPassNumber = (targetApp, allApplications = []) => {
+  if (!targetApp) return "S-001";
+
+  const isStudent = (targetApp.classification || "").toLowerCase().includes("student");
+  const prefix = isStudent ? "S" : "E";
+
+  // 1. If this application already has an issued pass number, preserve it consistently
+  if (targetApp.pass?.passNumber) {
+    const raw = String(targetApp.pass.passNumber).trim().toUpperCase();
+    const matchSE = raw.match(/^([SE])-?(\d+)$/);
+    if (matchSE) {
+      return `${matchSE[1]}-${String(parseInt(matchSE[2], 10)).padStart(3, "0")}`;
+    }
+    const matchNum = raw.match(/(\d+)$/);
+    if (matchNum && parseInt(matchNum[1], 10) < 1000) {
+      return `${prefix}-${String(parseInt(matchNum[1], 10)).padStart(3, "0")}`;
+    }
+  }
+
+  // 2. If this application already has an assigned sequential pass number, preserve it
+  if (targetApp.assignedPassNumber) {
+    const raw = String(targetApp.assignedPassNumber).trim().toUpperCase();
+    const matchSE = raw.match(/^([SE])-?(\d+)$/);
+    if (matchSE) {
+      return `${matchSE[1]}-${String(parseInt(matchSE[2], 10)).padStart(3, "0")}`;
+    }
+  }
+
+  // 3. Filter applications belonging to the same classification (Student vs Employee)
+  const sameCategoryApps = (allApplications || []).filter((a) => {
+    const aIsStudent = (a.classification || "").toLowerCase().includes("student");
+    return aIsStudent === isStudent;
+  });
+
+  // Collect all already issued / locked pass sequence numbers (< 1000 to ignore legacy Math.random numbers)
+  const issuedSeqNumbers = new Set();
+  sameCategoryApps.forEach((a) => {
+    if (a.id === targetApp.id) return;
+    const existing = a.pass?.passNumber || a.assignedPassNumber;
+    if (existing) {
+      const m = String(existing).match(/(\d+)$/);
+      if (m) {
+        const val = parseInt(m[1], 10);
+        if (val > 0 && val < 1000) {
+          issuedSeqNumbers.add(val);
+        }
+      }
+    }
+  });
+
+  // Helper to extract compliance timestamp
+  const getComplianceTime = (app) => {
+    if (app.receipt?.compliedAt) {
+      const t = new Date(app.receipt.compliedAt).getTime();
+      if (!isNaN(t)) return t;
+    }
+    if (app.receipt?.submittedAt) {
+      const t = new Date(app.receipt.submittedAt).getTime();
+      if (!isNaN(t)) return t;
+    }
+    if (app.submittedDate) {
+      const t = new Date(app.submittedDate).getTime();
+      if (!isNaN(t)) return t;
+    }
+    return 9999999999999;
+  };
+
+  // Find next available sequential number starting from 1
+  let nextSeq = 1;
+  while (issuedSeqNumbers.has(nextSeq)) {
+    nextSeq++;
+  }
+
+  // Among pending complying applications without an assigned pass number,
+  // order them by compliance time to see which slot this application takes
+  const pendingComplyingApps = sameCategoryApps
+    .filter((a) => {
+      if (a.pass?.passNumber) return false;
+      if (a.assignedPassNumber) return false;
+      return !!(a.receipt?.receiptPhoto || a.receipt?.orNumber || a.status === "RECEIPT_SUBMITTED");
+    })
+    .sort((a, b) => {
+      const timeA = getComplianceTime(a);
+      const timeB = getComplianceTime(b);
+      if (timeA !== timeB) return timeA - timeB;
+      return String(a.id).localeCompare(String(b.id));
+    });
+
+  const appIndex = pendingComplyingApps.findIndex((a) => a.id === targetApp.id);
+  if (appIndex > 0) {
+    let count = 0;
+    while (count < appIndex) {
+      nextSeq++;
+      if (!issuedSeqNumbers.has(nextSeq)) {
+        count++;
+      }
+    }
+  }
+
+  return `${prefix}-${String(nextSeq).padStart(3, "0")}`;
+};
+
 export const PassProvider = ({ children }) => {
   const [applications, setApplications] = useState(() => {
     const saved = localStorage.getItem("vpass_applications");
-    return saved ? JSON.parse(saved) : INITIAL_APPLICATIONS;
+    const rawList = saved ? JSON.parse(saved) : INITIAL_APPLICATIONS;
+    // Normalize legacy pass numbers
+    return rawList.map((app) => {
+      if (app.pass?.passNumber) {
+        const isStudent = (app.classification || "").toLowerCase().includes("student");
+        const prefix = isStudent ? "S" : "E";
+        const clean = String(app.pass.passNumber).trim().toUpperCase();
+        if (clean.startsWith("VP-") || (/^\d+$/.test(clean) && parseInt(clean, 10) >= 1000)) {
+          let seqNum = 1;
+          if (app.id === "APP-2026-0089") seqNum = 1;
+          else if (app.id === "APP-2026-0001") seqNum = 1;
+          else {
+            const m = clean.match(/(\d+)$/);
+            const val = m ? parseInt(m[1], 10) : 1;
+            seqNum = val < 1000 ? val : 1;
+          }
+          const normPass = `${prefix}-${String(seqNum).padStart(3, "0")}`;
+          return {
+            ...app,
+            pass: {
+              ...app.pass,
+              passNumber: normPass,
+              qrData: `RSU-VPASS:${normPass}:${app.vehicle?.plateNumber || ""}:${app.school_id || ""}`,
+            },
+          };
+        }
+      }
+      // Clean up legacy random assignedPassNumber
+      if (
+        app.assignedPassNumber &&
+        (!/^[SE]-\d{3}$/i.test(app.assignedPassNumber) ||
+          parseInt(app.assignedPassNumber.slice(2), 10) >= 1000)
+      ) {
+        const { assignedPassNumber, ...rest } = app;
+        return rest;
+      }
+      return app;
+    });
   });
 
   const [vehicles, setVehicles] = useState(() => {
@@ -470,15 +617,22 @@ export const PassProvider = ({ children }) => {
 
   // Cashier Payment & Receipt Upload (Milestone 3: Client uploads receipt -> Awaiting PASO Verification)
   const submitReceiptPayment = (appId, orNumber, receiptPhoto) => {
-    const submittedAt = new Date().toLocaleDateString("en-US", {
+    const now = new Date();
+    const submittedAt = now.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
     });
+    const compliedAt = now.toISOString();
     let targetedVehiclePlate = null;
 
-    setApplications((prev) =>
-      prev.map((app) => {
+    setApplications((prev) => {
+      const target = prev.find((a) => a.id === appId);
+      const assignedPassNum = target
+        ? getSequentialPassNumber(target, prev)
+        : null;
+
+      return prev.map((app) => {
         if (app.id === appId) {
           targetedVehiclePlate = app.vehicle?.plateNumber;
           return {
@@ -486,17 +640,19 @@ export const PassProvider = ({ children }) => {
             status: "RECEIPT_SUBMITTED",
             rejection_reason: null,
             receiptRejectionRemark: null,
+            assignedPassNumber: app.assignedPassNumber || assignedPassNum,
             receipt: {
               orNumber,
               receiptPhoto,
               submittedAt,
+              compliedAt,
               status: "PENDING_VERIFICATION",
             },
           };
         }
         return app;
-      }),
-    );
+      });
+    });
 
     // Update vehicle status to Receipt Under Verification
     setVehicles((prev) =>
@@ -515,14 +671,18 @@ export const PassProvider = ({ children }) => {
   // PASO Admin Verifies Cashier Receipt & Generates Official Gate QR Pass (Milestone 4)
   const verifyReceiptAndIssuePass = (appId, customDetails = {}) => {
     const year = new Date().getFullYear();
-    const generatedPassNum =
-      customDetails.passNumber ||
-      `VP-${year}-${String(Math.floor(1000 + Math.random() * 9000))}`;
     let targetedVehiclePlate = null;
     let affectedApp = null;
+    let generatedPassNum = null;
 
-    setApplications((prev) =>
-      prev.map((app) => {
+    setApplications((prev) => {
+      const targetApp = prev.find((a) => a.id === appId);
+      generatedPassNum =
+        customDetails.passNumber ||
+        targetApp?.assignedPassNumber ||
+        getSequentialPassNumber(targetApp, prev);
+
+      return prev.map((app) => {
         if (app.id === appId) {
           affectedApp = app;
           targetedVehiclePlate = app.vehicle?.plateNumber;
@@ -530,7 +690,7 @@ export const PassProvider = ({ children }) => {
             passNumber: generatedPassNum,
             qrData:
               customDetails.qrData ||
-              `RSU-VPASS:${generatedPassNum}:${app.vehicle.plateNumber}:${app.school_id}`,
+              `RSU-VPASS:${generatedPassNum}:${app.vehicle?.plateNumber || ""}:${app.school_id || ""}`,
             validUntil: customDetails.validUntil || `December 31, ${year}`,
             status: "ACTIVE",
             issuedAt: new Date().toLocaleDateString("en-US", {
@@ -544,6 +704,7 @@ export const PassProvider = ({ children }) => {
           return {
             ...app,
             status: "PASS_ISSUED",
+            assignedPassNumber: generatedPassNum,
             receipt: {
               ...(app.receipt || {}),
               verifiedAt: new Date().toLocaleDateString("en-US", {
@@ -557,8 +718,8 @@ export const PassProvider = ({ children }) => {
           };
         }
         return app;
-      }),
-    );
+      });
+    });
 
     // Update vehicle status to Active Pass
     setVehicles((prev) =>
@@ -871,6 +1032,7 @@ export const PassProvider = ({ children }) => {
         issueVisitorPass,
         logVisitorExit,
         extendVisitorPass,
+        getSequentialPassNumber,
       }}
     >
       {children}
