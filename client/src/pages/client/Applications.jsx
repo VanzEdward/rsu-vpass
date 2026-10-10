@@ -397,7 +397,7 @@ export default function Applications() {
                     </p>
                   </div>
                   <Link
-                    to={`/client/my-vehicle?editAppId=${app.id}`}
+                    to={`/client/my-vehicle?editAppId=${app.id}&from=applications`}
                     className="inline-flex items-center justify-center space-x-1.5 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shrink-0 shadow-sm transition-all cursor-pointer"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />

@@ -125,23 +125,23 @@ export default function RsuStickerPass({
       ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
       ctx.shadowBlur = 12;
       ctx.shadowOffsetY = 6;
-      ctx.fillText(displayPassNumber, 85, 1085);
+      ctx.fillText(displayPassNumber, 85, 1085, 640);
       ctx.shadowColor = "transparent";
 
       // Pass Category Label
       ctx.font = "700 32px Arial, sans-serif";
       ctx.fillStyle = isStudent ? "#fbcfe8" : "#fecaca";
-      ctx.fillText(`${roleTitle} AUTHORIZED PASS`, 90, 1235);
+      ctx.fillText(`${roleTitle} AUTHORIZED`, 90, 1235, 630);
 
       // Vehicle Plate Number
       ctx.font = '900 58px "Courier New", monospace';
       ctx.fillStyle = "#ffffff";
-      ctx.fillText(`PLATE: ${displayPlate}`, 90, 1295);
+      ctx.fillText(`PLATE: ${displayPlate}`, 90, 1295, 630);
 
       // Security validation footer
       ctx.font = "700 24px Arial, sans-serif";
       ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
-      ctx.fillText("PASO GATE SECURITY VALIDATED", 90, 1375);
+      ctx.fillText("PASO VALIDATED", 90, 1375, 630);
       ctx.restore();
 
       // 5. Trigger download of the completed sticker image
@@ -160,7 +160,7 @@ export default function RsuStickerPass({
   };
 
   return (
-    <div className={`flex flex-col items-center ${className}`}>
+    <div className={`w-full flex flex-col items-center ${className}`}>
       {/* ======================================================== */}
       {/* AUTHENTIC RSU VEHICLE PASS STICKER (Canva Template Base) */}
       {/* ======================================================== */}
@@ -242,14 +242,16 @@ export default function RsuStickerPass({
         <button
           type="button"
           onClick={handleDownloadSticker}
-          className={`mt-3.5 w-full max-w-[340px] py-2.5 px-4 rounded-xl text-white text-xs font-black shadow-lg transition-all flex items-center justify-center space-x-2 cursor-pointer active:scale-98 ${
+          className={`mt-3.5 w-full max-w-[340px] py-2.5 px-2.5 sm:px-4 rounded-xl text-white text-[11px] sm:text-xs font-black tracking-tight shadow-lg transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-98 select-none ${
             isStudent
               ? "bg-pink-600 hover:bg-pink-500 shadow-pink-900/30"
               : "bg-red-600 hover:bg-red-500 shadow-red-900/30"
           }`}
         >
-          <Download className="w-4 h-4 text-white" />
-          <span>Download Official {roleTitle} Pass (PNG)</span>
+          <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 text-white" />
+          <span className="whitespace-nowrap">
+            Download Official {roleTitle} Pass (PNG)
+          </span>
         </button>
       )}
     </div>

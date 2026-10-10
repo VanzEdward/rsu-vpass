@@ -23,6 +23,8 @@ export default function VehiclePass() {
   const { applications, systemSettings, isPassExpired, initiatePassRenewal } = usePass();
   const [showQRModal, setShowQRModal] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [downloadMessage, setDownloadMessage] = useState("");
+  const [isGeneratingPass, setIsGeneratingPass] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState("");
 
   // Collect all applications that have an active or issued vehicle pass
@@ -69,6 +71,369 @@ export default function VehiclePass() {
       .catch((err) => console.error("Failed to generate pass QR code:", err));
   }, [issuedApp]);
 
+  // Download the complete Official Wearable ID Pass as a crisp high-resolution PNG
+  const handleDownloadWearablePass = async () => {
+    if (!issuedApp || !issuedApp.pass || isGeneratingPass) return;
+
+    try {
+      setIsGeneratingPass(true);
+
+      const canvas = document.createElement("canvas");
+      canvas.width = 800;
+      canvas.height = 1200;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      // Helper function for drawing rounded rectangles
+      const drawRoundRect = (x, y, w, h, r) => {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.arcTo(x + w, y, x + w, y + r, r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+        ctx.lineTo(x + r, y + h);
+        ctx.arcTo(x, y + h, x, y + h - r, r);
+        ctx.lineTo(x, y + r);
+        ctx.arcTo(x, y, x + r, y, r);
+        ctx.closePath();
+      };
+
+      // 1. Clip outer badge container with rounded corners
+      ctx.save();
+      drawRoundRect(0, 0, 800, 1200, 32);
+      ctx.clip();
+
+      // Card Background
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, 800, 1200);
+
+      // 2. Top Header Banner (Emerald Gradient)
+      const grad = ctx.createLinearGradient(0, 0, 800, 140);
+      grad.addColorStop(0, "#059669");
+      grad.addColorStop(1, "#047857");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 800, 140);
+
+      // Top Header Text
+      ctx.fillStyle = "#ffffff";
+      ctx.font = '900 32px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText("RSU VPASS", 44, 52);
+
+      ctx.fillStyle = "#a7f3d0";
+      ctx.font = '700 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillText("ROMBLON STATE UNIVERSITY", 44, 82);
+
+      ctx.fillStyle = "#ecfdf5";
+      ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillText("PHYSICAL ASSETS & SECURITY OFFICE • OFFICIAL PASS", 44, 104);
+
+      // "ACTIVE PASS" Pill Badge (Top Right)
+      ctx.save();
+      const badgeW = 126;
+      const badgeH = 34;
+      const badgeX = 800 - 44 - badgeW;
+      const badgeY = 52 - badgeH / 2;
+      drawRoundRect(badgeX, badgeY, badgeW, badgeH, 17);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.22)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = '800 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("ACTIVE PASS", badgeX + badgeW / 2, badgeY + badgeH / 2);
+      ctx.restore();
+
+      // 3. Identification Section (Photo & Registered To)
+      const photoX = 44;
+      const photoY = 165;
+      const photoW = 150;
+      const photoH = 185;
+      const photoRadius = 18;
+
+      // Draw photo container background
+      drawRoundRect(photoX, photoY, photoW, photoH, photoRadius);
+      ctx.fillStyle = "#f8fafc";
+      ctx.fill();
+
+      // Attempt loading applicant photo
+      let photoDrawn = false;
+      if (issuedApp.applicant_photo) {
+        try {
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          const loadPromise = new Promise((resolve, reject) => {
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+          });
+          img.src = issuedApp.applicant_photo;
+          const loadedImg = await Promise.race([
+            loadPromise,
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 2500)),
+          ]);
+
+          ctx.save();
+          drawRoundRect(photoX, photoY, photoW, photoH, photoRadius);
+          ctx.clip();
+
+          const imgW = loadedImg.naturalWidth || loadedImg.width;
+          const imgH = loadedImg.naturalHeight || loadedImg.height;
+          if (imgW && imgH) {
+            const imgAspect = imgW / imgH;
+            const boxAspect = photoW / photoH;
+            let sx = 0, sy = 0, sw = imgW, sh = imgH;
+            if (imgAspect > boxAspect) {
+              sw = imgH * boxAspect;
+              sx = (imgW - sw) / 2;
+            } else {
+              sh = imgW / boxAspect;
+              sy = (imgH - sh) / 2;
+            }
+            ctx.drawImage(loadedImg, sx, sy, sw, sh, photoX, photoY, photoW, photoH);
+            photoDrawn = true;
+          }
+          ctx.restore();
+        } catch {
+          photoDrawn = false;
+        }
+      }
+
+      // Draw photo placeholder if no photo or loading failed
+      if (!photoDrawn) {
+        ctx.save();
+        drawRoundRect(photoX, photoY, photoW, photoH, photoRadius);
+        ctx.clip();
+        ctx.fillStyle = "#e2e8f0";
+        // Head
+        ctx.beginPath();
+        ctx.arc(photoX + photoW / 2, photoY + 65, 30, 0, Math.PI * 2);
+        ctx.fillStyle = "#cbd5e1";
+        ctx.fill();
+        // Body / Shoulders
+        ctx.beginPath();
+        ctx.arc(photoX + photoW / 2, photoY + 160, 52, 0, Math.PI * 2);
+        ctx.fillStyle = "#cbd5e1";
+        ctx.fill();
+
+        ctx.fillStyle = "#94a3b8";
+        ctx.font = '700 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("ID PHOTO", photoX + photoW / 2, photoY + photoH - 20);
+        ctx.restore();
+      }
+
+      // Stroke photo border (Emerald-400)
+      drawRoundRect(photoX, photoY, photoW, photoH, photoRadius);
+      ctx.strokeStyle = "#34d399";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // Right Identification Text
+      const textX = photoX + photoW + 24;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+
+      // "REGISTERED TO"
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = '800 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillText("REGISTERED TO", textX, 172);
+
+      // Applicant Name
+      ctx.fillStyle = "#0f172a";
+      ctx.font = '900 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      const maxTextW = 800 - textX - 44;
+      const displayName = issuedApp.applicant_name || "Applicant Name";
+      ctx.fillText(displayName, textX, 196, maxTextW);
+
+      // School ID
+      ctx.fillStyle = "#475569";
+      ctx.font = '700 16px "Courier New", Courier, monospace';
+      ctx.fillText(`ID:  ${issuedApp.school_id || "N/A"}`, textX, 240);
+
+      // Classification & Vehicle Type
+      ctx.fillStyle = "#047857";
+      ctx.font = '700 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      const roleAndType = `${issuedApp.classification || "Student"} • ${issuedApp.vehicle?.type || "Vehicle"}`;
+      ctx.fillText(roleAndType, textX, 272, maxTextW);
+
+      // 4. Vehicle Specifications Card Box
+      const specX = 44;
+      const specY = 372;
+      const specW = 800 - 88;
+      const specH = 205;
+      const specRadius = 18;
+
+      drawRoundRect(specX, specY, specW, specH, specRadius);
+      ctx.fillStyle = "#f8fafc";
+      ctx.fill();
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Row 1: Vehicle Make & Model
+      ctx.font = '600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillStyle = "#64748b";
+      ctx.textBaseline = "middle";
+      ctx.textAlign = "left";
+      ctx.fillText("Vehicle:", specX + 20, specY + 34);
+
+      ctx.font = '700 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillStyle = "#1e293b";
+      ctx.textAlign = "right";
+      const vehicleDesc = `${issuedApp.vehicle?.make || ""} ${issuedApp.vehicle?.model || ""}`.trim() || "Registered Vehicle";
+      ctx.fillText(vehicleDesc, specX + specW - 20, specY + 34, 440);
+
+      // Row 2: Plate Number
+      ctx.font = '600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillStyle = "#64748b";
+      ctx.textAlign = "left";
+      ctx.fillText("Plate Number:", specX + 20, specY + 76);
+
+      ctx.font = '900 18px "Courier New", Courier, monospace';
+      ctx.fillStyle = "#0f172a";
+      ctx.textAlign = "right";
+      ctx.fillText(issuedApp.vehicle?.plateNumber || "N/A", specX + specW - 20, specY + 76);
+
+      // Row 3: Pass Number
+      ctx.font = '600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillStyle = "#64748b";
+      ctx.textAlign = "left";
+      ctx.fillText("Pass Number:", specX + 20, specY + 118);
+
+      ctx.font = '900 18px "Courier New", Courier, monospace';
+      ctx.fillStyle = "#047857";
+      ctx.textAlign = "right";
+      ctx.fillText(issuedApp.pass?.passNumber || "S-001", specX + specW - 20, specY + 118);
+
+      // Divider line
+      ctx.beginPath();
+      ctx.moveTo(specX + 20, specY + 146);
+      ctx.lineTo(specX + specW - 20, specY + 146);
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Row 4: Valid Until
+      ctx.font = '600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillStyle = "#64748b";
+      ctx.textAlign = "left";
+      ctx.fillText("Valid Until:", specX + 20, specY + 175);
+
+      ctx.font = '800 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillStyle = "#0f172a";
+      ctx.textAlign = "right";
+      ctx.fillText(issuedApp.pass?.validUntil || "1 Year from Issuance", specX + specW - 20, specY + 175);
+
+      // 5. Dynamic Gate QR Code Box
+      const qrBoxX = 44;
+      const qrBoxY = 600;
+      const qrBoxW = 800 - 88;
+      const qrBoxH = 500;
+      const qrBoxRadius = 22;
+
+      drawRoundRect(qrBoxX, qrBoxY, qrBoxW, qrBoxH, qrBoxRadius);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Generate QR Code matching the green style
+      const payload =
+        issuedApp.pass?.qrData ||
+        `RSU-VPASS:${issuedApp.pass?.passNumber}:${issuedApp.vehicle?.plateNumber}:${issuedApp.school_id}`;
+
+      const qrDataUrl = await QRCode.toDataURL(payload, {
+        width: 360,
+        margin: 1,
+        color: {
+          dark: "#047857", // Emerald green matching UI
+          light: "#ffffff",
+        },
+        errorCorrectionLevel: "H",
+      });
+
+      const qrImg = new Image();
+      await new Promise((resolve, reject) => {
+        qrImg.onload = resolve;
+        qrImg.onerror = reject;
+        qrImg.src = qrDataUrl;
+      });
+
+      const qrSize = 350;
+      const qrDrawX = qrBoxX + (qrBoxW - qrSize) / 2;
+      const qrDrawY = qrBoxY + 28;
+      ctx.drawImage(qrImg, qrDrawX, qrDrawY, qrSize, qrSize);
+
+      // Security labels under QR Code
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      ctx.fillStyle = "#047857";
+      ctx.font = '800 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillText("PASO GATE SECURITY VALIDATED", 400, qrBoxY + qrSize + 48);
+
+      ctx.fillStyle = "#64748b";
+      ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillText("Present to Security Scanner upon Gate Entry & Exit", 400, qrBoxY + qrSize + 74);
+
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = '500 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillText("Official Wearable Gate Pass • Main Campus Odiongan", 400, qrBoxY + qrSize + 96);
+
+      // 6. Security Footer / Authenticity Seal
+      ctx.fillStyle = "#e2e8f0";
+      ctx.fillRect(44, 1125, 800 - 88, 1);
+
+      ctx.fillStyle = "#64748b";
+      ctx.font = '700 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("PHYSICAL ASSETS AND SECURITY OFFICE • ROMBLON STATE UNIVERSITY", 400, 1150);
+
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = '500 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillText(`Pass ID: ${issuedApp.pass.passNumber} • Verified Clearance Credential`, 400, 1170);
+
+      // 7. Outer Border around entire card
+      ctx.restore(); // restore clipping
+      drawRoundRect(1, 1, 798, 1198, 32);
+      ctx.strokeStyle = "#cbd5e1";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // 8. Download the generated PNG
+      const cleanPlate = (issuedApp.vehicle?.plateNumber || "vehicle")
+        .replace(/[^a-zA-Z0-9]/g, "-")
+        .toUpperCase();
+      const filename = `RSU-WEARABLE-PASS-${cleanPlate}-${issuedApp.pass.passNumber}.png`;
+
+      const link = document.createElement("a");
+      link.download = filename;
+      link.href = canvas.toDataURL("image/png");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setDownloadMessage(
+        `Official Wearable ID Pass for ${issuedApp.vehicle?.plateNumber} downloaded successfully! Ready to print or save on your mobile device.`
+      );
+      setDownloadSuccess(true);
+      setTimeout(() => setDownloadSuccess(false), 4000);
+    } catch (err) {
+      console.error("Failed to generate wearable pass PNG:", err);
+    } finally {
+      setIsGeneratingPass(false);
+    }
+  };
+
   // Download ONLY the pure QR Code as a high-resolution PNG for vehicle sticker printing
   const handleDownloadQR = () => {
     if (!issuedApp || !issuedApp.pass) return;
@@ -107,6 +472,9 @@ export default function VehiclePass() {
         link.click();
         document.body.removeChild(link);
 
+        setDownloadMessage(
+          `Sticker QR Code for ${issuedApp.vehicle?.plateNumber} downloaded successfully! Ready to print as a vehicle sticker.`
+        );
         setDownloadSuccess(true);
         setTimeout(() => setDownloadSuccess(false), 3500);
       },
@@ -176,12 +544,11 @@ export default function VehiclePass() {
             Official Vehicle Pass
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Download your vehicle sticker QR code to print and attach to your
-            vehicle.
+            Download your official wearable ID pass or vehicle sticker to display on campus.
           </p>
         </div>
 
-        {/* Action Buttons: Show QR Only and Download QR Code */}
+        {/* Action Buttons */}
         <div className="flex items-center space-x-2.5">
           <button
             type="button"
@@ -191,26 +558,16 @@ export default function VehiclePass() {
             <Maximize2 className="w-4 h-4 text-emerald-600" />
             <span>Show QR Only</span>
           </button>
-          <button
-            type="button"
-            onClick={handleDownloadQR}
-            className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm cursor-pointer transition-all active:scale-95"
-            title="Download sticker QR code image for this vehicle"
-          >
-            <Download className="w-4 h-4 text-emerald-100" />
-            <span>Download QR Code</span>
-          </button>
         </div>
       </div>
 
-      {/* Success Toast when QR is downloaded */}
+      {/* Success Toast when Pass or QR is downloaded */}
       {downloadSuccess && (
         <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between animate-in fade-in duration-200">
           <div className="flex items-center space-x-2 font-semibold">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>
-              Sticker QR Code for {vehicle.plateNumber} downloaded successfully!
-              Ready to print as a vehicle sticker.
+              {downloadMessage || `Official Pass for ${vehicle.plateNumber} downloaded successfully!`}
             </span>
           </div>
           <button
@@ -367,6 +724,21 @@ export default function VehiclePass() {
               </div>
             </div>
           </div>
+
+          {/* Download Wearable Pass Button */}
+          <div className="text-center pt-1 max-w-sm mx-auto">
+            <button
+              type="button"
+              onClick={handleDownloadWearablePass}
+              disabled={isGeneratingPass}
+              className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm inline-flex items-center justify-center space-x-2 transition-all active:scale-98 cursor-pointer disabled:opacity-60"
+            >
+              <Download className="w-4 h-4 text-emerald-100" />
+              <span>
+                {isGeneratingPass ? "Generating Pass..." : "Download Official Wearable Pass (PNG)"}
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* 2. Official Vehicle Pass Sticker */}
@@ -413,7 +785,7 @@ export default function VehiclePass() {
                 <button
                   type="button"
                   onClick={() => {
-                    navigate(`/client/my-vehicle?renewAppId=${issuedApp.id}`);
+                    navigate(`/client/my-vehicle?renewAppId=${issuedApp.id}&from=vehicle-pass`);
                   }}
                   className="w-full py-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center space-x-1.5 cursor-pointer shadow-xs"
                 >
@@ -429,7 +801,7 @@ export default function VehiclePass() {
                 <button
                   type="button"
                   onClick={() => {
-                    navigate(`/client/my-vehicle?renewAppId=${issuedApp.id}`);
+                    navigate(`/client/my-vehicle?renewAppId=${issuedApp.id}&from=vehicle-pass`);
                   }}
                   className="w-full py-2 px-3 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors cursor-pointer"
                 >

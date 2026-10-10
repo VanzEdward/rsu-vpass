@@ -151,6 +151,11 @@ export default function MyVehicle() {
   useEffect(() => {
     const editId = searchParams.get('editAppId');
     const renewId = searchParams.get('renewAppId');
+    const from = searchParams.get('from');
+
+    if (from) {
+      setReturnTo(from);
+    }
 
     if (renewId && (applications || []).length > 0) {
       const appToRenew = applications.find(a => a.id === renewId);
@@ -312,6 +317,8 @@ export default function MyVehicle() {
 
     if (returnTo === 'applications') {
       navigate('/client/applications');
+    } else if (returnTo === 'vehicle-pass' || returnTo === 'passes') {
+      navigate('/client/vehicle-pass');
     } else if (!wasEditing && !wasRenewing && hasData) {
       showToastNotification('Draft auto-saved! You can resume anytime from Requests or My Vehicle.');
     }
@@ -503,19 +510,23 @@ export default function MyVehicle() {
         {vehicles.map((v) => {
           const app = (applications || []).find(
             (a) =>
+              (v.appId && a.id === v.appId) ||
               (a.vehicle?.plateNumber || "").replace(/\s+/g, "").toUpperCase() ===
               (v.plateNumber || "").replace(/\s+/g, "").toUpperCase()
           );
-          const hasPass = Boolean(app?.pass);
+          const hasPass = Boolean(app?.status === "PASS_ISSUED" && app?.pass);
           const isExpired = hasPass && isPassExpired(app.pass);
           const isRenewalPending = app?.renewalPending || v.status === "Renewal Awaiting Payment";
+          const isPaymentPending = app?.status === "APPROVED" || v.status === "Payment Pending";
+          const isUnderVerification = app?.status === "RECEIPT_SUBMITTED" || v.status === "Receipt Under Verification";
+          const isCorrectionRequired = app?.status === "REJECTED" || v.status === "Correction Required";
 
           return (
             <div key={v.id} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center space-x-3 min-w-0 flex-1">
                   <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
-                    isExpired ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'
+                    isExpired ? 'bg-rose-50 text-rose-600' : hasPass ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-600'
                   }`}>
                     <Car className="w-6 h-6" />
                   </div>
@@ -529,11 +540,29 @@ export default function MyVehicle() {
                     ? 'bg-rose-100 text-rose-800 border-rose-300'
                     : isRenewalPending
                     ? 'bg-amber-100 text-amber-900 border-amber-300'
-                    : v.status === 'Active Pass'
+                    : hasPass
                     ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                    : isUnderVerification
+                    ? 'bg-blue-100 text-blue-800 border-blue-200'
+                    : isPaymentPending
+                    ? 'bg-amber-100 text-amber-800 border-amber-200'
+                    : isCorrectionRequired
+                    ? 'bg-rose-100 text-rose-800 border-rose-300'
                     : 'bg-slate-100 text-slate-700 border-slate-200'
                 }`}>
-                  {isExpired ? 'Pass Expired' : isRenewalPending ? 'Renewal Pending' : v.status}
+                  {isExpired 
+                    ? 'Pass Expired' 
+                    : isRenewalPending 
+                    ? 'Renewal Pending' 
+                    : hasPass 
+                    ? 'Active Pass' 
+                    : isUnderVerification 
+                    ? 'Verifying Receipt' 
+                    : isPaymentPending 
+                    ? 'Payment Pending' 
+                    : isCorrectionRequired
+                    ? 'Correction Required'
+                    : v.status || 'Pending Review'}
                 </span>
               </div>
 

@@ -1,24 +1,56 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Settings, 
-  ShieldCheck, 
-  Car, 
   Calendar, 
-  Sliders, 
   Save, 
   Check, 
   RotateCcw,
+  User,
+  Mail,
+  Phone,
   Building,
-  Volume2,
-  AlertTriangle,
-  Receipt
+  Key,
+  ShieldCheck,
+  AlertCircle,
+  CheckCircle2,
+  Lock,
+  IdCard,
+  AlertTriangle
 } from 'lucide-react';
 
 import { usePass, DEFAULT_SETTINGS } from '../../context/PassContext';
+import { useAuth } from '../../context/AuthContext';
+import { apiRequest } from '../../api/client';
+
+const DEFAULT_ADMIN_INFO = {
+  full_name: 'PASO Administrator',
+  school_id: 'PASO-ADMIN-01',
+  email: 'paso@rsu.edu.ph',
+  contact_number: '+63 917 111 2222',
+  department_unit: 'Physical Assets and Security Office (PASO)',
+};
 
 export default function AdminSettings() {
   const { systemSettings, updateSystemSettings } = usePass();
+  const { user, updateUser } = useAuth();
+
+  // Settings State: Kept focused exclusively on Academic Year & Pass Expiration Policy
   const [settings, setSettings] = useState(systemSettings || DEFAULT_SETTINGS);
+
+  // Admin Information State
+  const [adminForm, setAdminForm] = useState({
+    full_name: user?.full_name || DEFAULT_ADMIN_INFO.full_name,
+    school_id: user?.school_id || DEFAULT_ADMIN_INFO.school_id,
+    email: user?.email || DEFAULT_ADMIN_INFO.email,
+    contact_number: user?.contact_number || DEFAULT_ADMIN_INFO.contact_number,
+    department_unit: user?.department_unit || DEFAULT_ADMIN_INFO.department_unit,
+    newPassword: '',
+    confirmPassword: '',
+  });
+
+  const [savedSuccessMsg, setSavedSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
 
   useEffect(() => {
     if (systemSettings) {
@@ -26,125 +58,157 @@ export default function AdminSettings() {
     }
   }, [systemSettings]);
 
-  const [savedSuccess, setSavedSuccess] = useState(false);
+  useEffect(() => {
+    if (user) {
+      setAdminForm((prev) => ({
+        ...prev,
+        full_name: user.full_name || DEFAULT_ADMIN_INFO.full_name,
+        school_id: user.school_id || DEFAULT_ADMIN_INFO.school_id,
+        email: user.email || DEFAULT_ADMIN_INFO.email,
+        contact_number: user.contact_number || DEFAULT_ADMIN_INFO.contact_number,
+        department_unit: user.department_unit || DEFAULT_ADMIN_INFO.department_unit,
+      }));
+    }
+  }, [user]);
 
-  const handleFieldChange = (key, value) => {
+  const handleSettingsFieldChange = (key, value) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSaveSettings = (e) => {
-    e.preventDefault();
-    updateSystemSettings(settings);
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
+  const handleAdminFieldChange = (key, value) => {
+    setAdminForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleResetDefaults = () => {
-    if (window.confirm('Reset all PASO system settings to default university values?')) {
-      setSettings(DEFAULT_SETTINGS);
-      updateSystemSettings(DEFAULT_SETTINGS);
-      setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 3000);
+  // Save Settings & Admin Information
+  const handleSaveAll = async (e) => {
+    if (e) e.preventDefault();
+    setErrorMsg('');
+    setSavedSuccessMsg('');
+
+    // Password validation if entered
+    if (adminForm.newPassword) {
+      if (adminForm.newPassword.length < 6) {
+        setErrorMsg('New password must be at least 6 characters.');
+        return;
+      }
+      if (adminForm.newPassword !== adminForm.confirmPassword) {
+        setErrorMsg('New password and confirmation do not match.');
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // 1. Update Academic Year & Expiration Settings in PassContext
+      updateSystemSettings(settings);
+
+      // 2. Update Admin Profile & Credentials
+      const profilePayload = {
+        full_name: adminForm.full_name.trim(),
+        school_id: adminForm.school_id.trim(),
+        email: adminForm.email.trim(),
+        contact_number: adminForm.contact_number.trim(),
+        department_unit: adminForm.department_unit.trim(),
+        ...(adminForm.newPassword ? { password: adminForm.newPassword } : {}),
+      };
+
+      try {
+        const res = await apiRequest('/auth/profile', {
+          method: 'PUT',
+          body: JSON.stringify(profilePayload),
+        });
+        if (res && res.user) {
+          updateUser(res.user);
+        } else {
+          updateUser(profilePayload);
+        }
+      } catch (err) {
+        // Fallback update to AuthContext / local state if backend is offline
+        updateUser(profilePayload);
+      }
+
+      setAdminForm((prev) => ({
+        ...prev,
+        newPassword: '',
+        confirmPassword: '',
+      }));
+
+      setSavedSuccessMsg('Academic Year settings and Administrator information successfully updated!');
+      setTimeout(() => setSavedSuccessMsg(''), 4000);
+    } catch (err) {
+      setErrorMsg(err.message || 'Failed to save settings.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Reset Admin Information back to official default values
+  const handleConfirmResetAdmin = async () => {
+    setShowResetModal(false);
+    setErrorMsg('');
+    setIsSubmitting(true);
+
+    try {
+      try {
+        const res = await apiRequest('/auth/reset-admin', {
+          method: 'POST',
+        });
+        if (res && res.user) {
+          updateUser(res.user);
+        } else {
+          updateUser(DEFAULT_ADMIN_INFO);
+        }
+      } catch (err) {
+        // Fallback update
+        updateUser(DEFAULT_ADMIN_INFO);
+      }
+
+      setAdminForm({
+        ...DEFAULT_ADMIN_INFO,
+        newPassword: '',
+        confirmPassword: '',
+      });
+
+      setSavedSuccessMsg('Administrator information and credentials successfully reset to default university values!');
+      setTimeout(() => setSavedSuccessMsg(''), 4500);
+    } catch (err) {
+      setErrorMsg(err.message || 'Failed to reset admin information.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <div className="space-y-6 w-full pb-16">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">System Settings</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Configure official university parking sticker fees, academic year pass expirations, gate security spot-checking policies, and visitor pass parameters.
-          </p>
-        </div>
-
-        <div className="flex items-center space-x-3">
-          <button
-            type="button"
-            onClick={handleResetDefaults}
-            className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold cursor-pointer shadow-xs"
-          >
-            <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
-            <span>Reset Defaults</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleSaveSettings}
-            className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer shadow-sm"
-          >
-            <Save className="w-4 h-4 text-emerald-100" />
-            <span>Save Settings</span>
-          </button>
-        </div>
+      <div>
+        <h1 className="text-2xl font-black text-slate-900 tracking-tight">System Settings</h1>
+        <p className="text-xs text-slate-500 mt-0.5">
+          Configure university academic year pass expiration policies and manage official PASO administrator credentials.
+        </p>
       </div>
 
-      {savedSuccess && (
+      {/* Success Banner */}
+      {savedSuccessMsg && (
         <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center space-x-2 text-xs font-bold text-emerald-800 animate-in fade-in duration-200">
-          <Check className="w-4 h-4 text-emerald-600" />
-          <span>PASO System Settings successfully saved and applied across all client and guard modules!</span>
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>{savedSuccessMsg}</span>
         </div>
       )}
 
-      <form onSubmit={handleSaveSettings} className="space-y-6">
-        {/* Section 1: Official Sticker & Parking Fee Schedule */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
-          <div className="flex items-center space-x-3 pb-3 border-b border-slate-100">
-            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
-              <Receipt className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-slate-900">Official Sticker & Parking Fee Schedule</h2>
-              <p className="text-xs text-slate-500">Preset university cashier parking sticker fees applied at Milestone 3</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">Motorcycle Sticker Fee (₱)</label>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">₱</span>
-                <input
-                  type="number"
-                  value={settings.motorcycleFee}
-                  onChange={(e) => handleFieldChange('motorcycleFee', e.target.value)}
-                  className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
-                />
-              </div>
-              <p className="text-[11px] text-slate-400">Standard two-wheeled motor vehicles</p>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">4-Wheels Pass Fee (₱)</label>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">₱</span>
-                <input
-                  type="number"
-                  value={settings.fourWheelFee}
-                  onChange={(e) => handleFieldChange('fourWheelFee', e.target.value)}
-                  className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
-                />
-              </div>
-              <p className="text-[11px] text-slate-400">Sedans, SUVs, Pickups, and Vans</p>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">Commercial / Heavy Vehicle Fee (₱)</label>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">₱</span>
-                <input
-                  type="number"
-                  value={settings.commercialFee}
-                  onChange={(e) => handleFieldChange('commercialFee', e.target.value)}
-                  className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
-                />
-              </div>
-              <p className="text-[11px] text-slate-400">Delivery trucks, contractors, buses</p>
-            </div>
-          </div>
+      {/* Error Banner */}
+      {errorMsg && (
+        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 flex items-center space-x-2 text-xs font-bold text-rose-800 animate-in fade-in duration-200">
+          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+          <span>{errorMsg}</span>
         </div>
+      )}
 
-        {/* Section 2: Academic Year & Expiration Rules */}
+      <form onSubmit={handleSaveAll} className="space-y-6">
+        {/* ======================================================== */}
+        {/* SECTION 1: ACADEMIC YEAR & PASS EXPIRATION POLICY         */}
+        {/* ======================================================== */}
         <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
           <div className="flex items-center space-x-3 pb-3 border-b border-slate-100">
             <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
@@ -152,7 +216,7 @@ export default function AdminSettings() {
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900">Academic Year & Pass Expiration Policy</h2>
-              <p className="text-xs text-slate-500">Defines validity bounds for printable gate pass stickers</p>
+              <p className="text-xs text-slate-500">Defines validity bounds for printable gate pass stickers and annual pass renewals</p>
             </div>
           </div>
 
@@ -165,8 +229,8 @@ export default function AdminSettings() {
               <input
                 type="text"
                 placeholder="e.g. 2026-2027"
-                value={settings.academicYear}
-                onChange={(e) => handleFieldChange('academicYear', e.target.value)}
+                value={settings.academicYear || '2026-2027'}
+                onChange={(e) => handleSettingsFieldChange('academicYear', e.target.value)}
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none font-mono"
               />
               <p className="text-[11px] text-slate-400">Institutional year displayed across client and admin passes</p>
@@ -180,7 +244,7 @@ export default function AdminSettings() {
                   365 Days
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400">e.g. Issued Oct 10, 2026 ➔ Expires Oct 10, 2027</p>
+              <p className="text-[11px] text-slate-400">e.g. Issued today ➔ Valid for exactly 365 days</p>
             </div>
 
             <div className="space-y-1.5">
@@ -188,8 +252,8 @@ export default function AdminSettings() {
               <div className="relative">
                 <input
                   type="number"
-                  value={settings.renewalWindowDays}
-                  onChange={(e) => handleFieldChange('renewalWindowDays', e.target.value)}
+                  value={settings.renewalWindowDays || '30'}
+                  onChange={(e) => handleSettingsFieldChange('renewalWindowDays', e.target.value)}
                   className="w-full pr-12 pl-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
                 />
                 <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-semibold">days</span>
@@ -199,179 +263,165 @@ export default function AdminSettings() {
           </div>
         </div>
 
-        {/* Section 3: Gate Security & Scanning Protocols */}
+        {/* ======================================================== */}
+        {/* SECTION 2: PASO ADMINISTRATOR INFORMATION & RESET        */}
+        {/* ======================================================== */}
         <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-5">
-          <div className="flex items-center space-x-3 pb-3 border-b border-slate-100">
-            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-slate-900">Gate Security & Traffic Protocols</h2>
-              <p className="text-xs text-slate-500">Operational policies configured for on-duty security guard viewfinders</p>
-            </div>
-          </div>
-
-          {/* Student Gate Check Mode */}
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
-            <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center space-x-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
               <div>
-                <h4 className="text-xs font-bold text-slate-900">Student Gate Check Inspection Mode</h4>
-                <p className="text-[11px] text-slate-500">Controls how guards process high-volume student traffic at peak morning hours</p>
-              </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                Active Protocol
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <label 
-                className={`p-3 rounded-xl border flex items-start space-x-3 cursor-pointer transition-all ${
-                  settings.studentScanPolicy === 'SPOT_CHECK'
-                    ? 'border-emerald-600 bg-white shadow-xs ring-1 ring-emerald-600'
-                    : 'border-slate-200 bg-white/50 text-slate-500'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="studentScanPolicy"
-                  value="SPOT_CHECK"
-                  checked={settings.studentScanPolicy === 'SPOT_CHECK'}
-                  onChange={() => handleFieldChange('studentScanPolicy', 'SPOT_CHECK')}
-                  className="mt-0.5"
-                />
-                <div>
-                  <span className="text-xs font-bold block text-slate-900">
-                    Visual Pass Inspection & Spot-Checking (Recommended)
-                  </span>
-                  <span className="text-[11px] text-slate-500 leading-relaxed block mt-0.5">
-                    Vehicles bearing valid stickers pass through smoothly to prevent national highway traffic bottlenecks. Guards only scan for spot-checks or suspicious vehicles.
-                  </span>
-                </div>
-              </label>
-
-              <label 
-                className={`p-3 rounded-xl border flex items-start space-x-3 cursor-pointer transition-all ${
-                  settings.studentScanPolicy === 'STRICT_SCAN'
-                    ? 'border-emerald-600 bg-white shadow-xs ring-1 ring-emerald-600'
-                    : 'border-slate-200 bg-white/50 text-slate-500'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="studentScanPolicy"
-                  value="STRICT_SCAN"
-                  checked={settings.studentScanPolicy === 'STRICT_SCAN'}
-                  onChange={() => handleFieldChange('studentScanPolicy', 'STRICT_SCAN')}
-                  className="mt-0.5"
-                />
-                <div>
-                  <span className="text-xs font-bold block text-slate-900">
-                    Strict 100% QR Scan on Every Vehicle
-                  </span>
-                  <span className="text-[11px] text-slate-500 leading-relaxed block mt-0.5">
-                    Guards must physically stop and scan every single student vehicle before opening gate barriers.
-                  </span>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          {/* Toggle Switches */}
-          <div className="divide-y divide-slate-100">
-            <div className="py-3 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-slate-800">Enforce Employee Entry & Exit Gate Logging</p>
-                <p className="text-[11px] text-slate-500">Provide guards with dedicated LOG ENTRY and LOG EXIT actions when scanning university personnel.</p>
-              </div>
-              <input
-                type="checkbox"
-                checked={settings.employeeLoggingEnforced}
-                onChange={(e) => handleFieldChange('employeeLoggingEnforced', e.target.checked)}
-                className="w-4 h-4 text-emerald-600 rounded cursor-pointer"
-              />
-            </div>
-
-            <div className="py-3 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-slate-800">Guard Mobile Scanner Beep & Vibration Feedback</p>
-                <p className="text-[11px] text-slate-500">Triggers Web Audio API confirmation tone and haptic pulse upon scanning valid vehicle QR codes.</p>
-              </div>
-              <input
-                type="checkbox"
-                checked={settings.scannerAudioEnabled}
-                onChange={(e) => handleFieldChange('scannerAudioEnabled', e.target.checked)}
-                className="w-4 h-4 text-emerald-600 rounded cursor-pointer"
-              />
-            </div>
-          </div>
-
-          {/* Visitor Pass Rules */}
-          <div className="pt-2 border-t border-slate-100">
-            <h4 className="text-xs font-bold text-slate-800 mb-2">Temporary Visitor Pass Policy</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700">Default Casual Visitor Stay</label>
-                <select
-                  value={settings.defaultVisitorStayDays}
-                  onChange={(e) => handleFieldChange('defaultVisitorStayDays', e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-emerald-500 outline-none"
-                >
-                  <option value="1">1 Day (Expires 11:59 PM today)</option>
-                  <option value="2">2 Days Stay</option>
-                  <option value="3">3 Days Stay</option>
-                </select>
-                <p className="text-[11px] text-slate-400">Applied automatically when issuing new guest passes</p>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700">Max Multi-Day Event Stay (Delegates)</label>
-                <select
-                  value={settings.maxVisitorStayDays}
-                  onChange={(e) => handleFieldChange('maxVisitorStayDays', e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-emerald-500 outline-none"
-                >
-                  <option value="5">5 Days (Workshops & Seminars)</option>
-                  <option value="7">7 Days / 1 Week (Conferences & Sports Meets)</option>
-                  <option value="14">14 Days (Accreditation Teams)</option>
-                </select>
-                <p className="text-[11px] text-slate-400">Maximum validity period selectable by guards at the gate</p>
+                <h2 className="text-base font-bold text-slate-900">Administrator Information & Credentials</h2>
+                <p className="text-xs text-slate-500">Official PASO administrative identity, contact details, and account credentials</p>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Section 4: Campus & Gate Assignment */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
-          <div className="flex items-center space-x-3 pb-3 border-b border-slate-100">
-            <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center">
-              <Building className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-slate-900">Campus & Gate Deployment</h2>
-              <p className="text-xs text-slate-500">Active university campus unit and security post assignments</p>
-            </div>
+            <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold tracking-wide border border-emerald-200 hidden sm:inline-block">
+              PASO_ADMIN • Superuser
+            </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Full Name */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">Assigned University Campus</label>
+              <label className="text-xs font-bold text-slate-700 flex items-center space-x-1.5">
+                <User className="w-3.5 h-3.5 text-slate-400" />
+                <span>Administrator Full Name</span>
+              </label>
               <input
                 type="text"
-                value={settings.campusName}
-                onChange={(e) => handleFieldChange('campusName', e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                placeholder="e.g. PASO Administrator"
+                value={adminForm.full_name}
+                onChange={(e) => handleAdminFieldChange('full_name', e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-emerald-500 outline-none"
+                required
               />
+              <p className="text-[11px] text-slate-400">Name displayed in verified passes and receipt audits</p>
             </div>
 
+            {/* Admin School ID / Badge */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">Primary Gate Duty Post</label>
+              <label className="text-xs font-bold text-slate-700 flex items-center space-x-1.5">
+                <IdCard className="w-3.5 h-3.5 text-slate-400" />
+                <span>Admin Identifier / Login ID</span>
+              </label>
               <input
                 type="text"
-                value={settings.primaryGate}
-                onChange={(e) => handleFieldChange('primaryGate', e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                placeholder="e.g. PASO-ADMIN-01"
+                value={adminForm.school_id}
+                onChange={(e) => handleAdminFieldChange('school_id', e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                required
+              />
+              <p className="text-[11px] text-slate-400">Primary login identifier for the administrator portal</p>
+            </div>
+
+            {/* Email */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 flex items-center space-x-1.5">
+                <Mail className="w-3.5 h-3.5 text-slate-400" />
+                <span>Official Email Address</span>
+              </label>
+              <input
+                type="email"
+                placeholder="e.g. paso@rsu.edu.ph"
+                value={adminForm.email}
+                onChange={(e) => handleAdminFieldChange('email', e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-emerald-500 outline-none"
+                required
+              />
+              <p className="text-[11px] text-slate-400">Institutional correspondence address</p>
+            </div>
+
+            {/* Contact Number */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 flex items-center space-x-1.5">
+                <Phone className="w-3.5 h-3.5 text-slate-400" />
+                <span>Contact Phone Number</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. +63 917 111 2222"
+                value={adminForm.contact_number}
+                onChange={(e) => handleAdminFieldChange('contact_number', e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-emerald-500 outline-none"
+              />
+              <p className="text-[11px] text-slate-400">Direct hotline or office mobile contact</p>
+            </div>
+
+            {/* Department / Unit */}
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-xs font-bold text-slate-700 flex items-center space-x-1.5">
+                <Building className="w-3.5 h-3.5 text-slate-400" />
+                <span>Department / University Unit</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Physical Assets and Security Office (PASO)"
+                value={adminForm.department_unit}
+                onChange={(e) => handleAdminFieldChange('department_unit', e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-emerald-500 outline-none"
               />
             </div>
+          </div>
+
+          {/* Change Password Sub-section */}
+          <div className="pt-3 border-t border-slate-100">
+            <h4 className="text-xs font-bold text-slate-800 mb-2 flex items-center space-x-1.5">
+              <Key className="w-3.5 h-3.5 text-slate-500" />
+              <span>Change Admin Account Password</span>
+              <span className="text-[10px] text-slate-400 font-normal">(Leave blank to keep current password)</span>
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-600">New Password</label>
+                <div className="relative">
+                  <input
+                    type="password"
+                    placeholder="Enter new secure password"
+                    value={adminForm.newPassword}
+                    onChange={(e) => handleAdminFieldChange('newPassword', e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-600">Confirm New Password</label>
+                <div className="relative">
+                  <input
+                    type="password"
+                    placeholder="Confirm new password"
+                    value={adminForm.confirmPassword}
+                    onChange={(e) => handleAdminFieldChange('confirmPassword', e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Reset Admin Information Danger Zone Card */}
+          <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
+            <div className="space-y-0.5">
+              <div className="flex items-center space-x-1.5 text-amber-900 font-bold text-xs">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Reset Administrator Information</span>
+              </div>
+              <p className="text-[11px] text-amber-800 leading-relaxed">
+                Reset your administrator name, login ID (<strong>PASO-ADMIN-01</strong>), contact information, and default password back to factory university defaults.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowResetModal(true)}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white border border-amber-300 hover:bg-amber-100/60 text-amber-900 text-xs font-bold cursor-pointer transition-colors shrink-0 shadow-xs"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-amber-700" />
+              <span>Reset Admin Info</span>
+            </button>
           </div>
         </div>
 
@@ -379,13 +429,74 @@ export default function AdminSettings() {
         <div className="flex items-center justify-end space-x-3 pt-2">
           <button
             type="submit"
-            className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer shadow-sm flex items-center space-x-2"
+            disabled={isSubmitting}
+            className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer shadow-sm flex items-center space-x-2 transition-all active:scale-95 disabled:opacity-60"
           >
             <Save className="w-4 h-4 text-emerald-100" />
-            <span>Save PASO Configuration</span>
+            <span>{isSubmitting ? 'Saving Configuration...' : 'Save System Settings & Admin Profile'}</span>
           </button>
         </div>
       </form>
+
+      {/* Confirmation Modal for Reset Admin Information */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 mx-auto flex items-center justify-center">
+              <RotateCcw className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1">
+              <h3 className="text-base font-bold text-slate-900">
+                Reset Administrator Information?
+              </h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                This will reset the administrator profile back to:
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-1 font-mono">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Name:</span>
+                <span className="font-bold text-slate-900">PASO Administrator</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Login ID:</span>
+                <span className="font-bold text-emerald-700">PASO-ADMIN-01</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Email:</span>
+                <span className="font-bold text-slate-900">paso@rsu.edu.ph</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Phone:</span>
+                <span className="font-bold text-slate-900">+63 917 111 2222</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Password:</span>
+                <span className="font-bold text-slate-900">admin (Default)</span>
+              </div>
+            </div>
+
+            <div className="flex space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowResetModal(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmResetAdmin}
+                className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold cursor-pointer shadow-sm transition-all"
+              >
+                Confirm Reset
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

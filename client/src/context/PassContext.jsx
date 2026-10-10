@@ -566,6 +566,167 @@ export const PassProvider = ({ children }) => {
     localStorage.setItem("vpass_gate_logs", JSON.stringify(gateLogs));
   }, [gateLogs]);
 
+  // Multi-tab storage synchronization so actions taken in Admin or Client tabs sync in real time
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      try {
+        if (e.key === "vpass_notifications" && e.newValue) {
+          setNotifications(JSON.parse(e.newValue));
+        }
+        if (e.key === "vpass_applications" && e.newValue) {
+          setApplications(JSON.parse(e.newValue));
+        }
+        if (e.key === "vpass_vehicles" && e.newValue) {
+          setVehicles(JSON.parse(e.newValue));
+        }
+      } catch (err) {
+        console.error("Storage sync parse error:", err);
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
+
+  // Self-healing synchronization: keep `vehicles` aligned with `applications`
+  useEffect(() => {
+    if (!applications || applications.length === 0) return;
+
+    setVehicles((prev) => {
+      let changed = false;
+      let nextVehicles = [...prev];
+
+      applications.forEach((app) => {
+        if (!app.vehicle?.plateNumber) return;
+        const appPlateClean = app.vehicle.plateNumber.replace(/\s+/g, "").toUpperCase();
+
+        const expectedStatus =
+          app.status === "PASS_ISSUED" && app.pass
+            ? "Active Pass"
+            : app.status === "RECEIPT_SUBMITTED"
+            ? "Receipt Under Verification"
+            : app.status === "APPROVED"
+            ? "Payment Pending"
+            : app.status === "REJECTED"
+            ? "Correction Required"
+            : "Pending Review";
+
+        // Check if there is an exact match by appId or plateNumber
+        const existingIdx = nextVehicles.findIndex(
+          (v) =>
+            (v.appId && v.appId === app.id) ||
+            (v.plateNumber && v.plateNumber.replace(/\s+/g, "").toUpperCase() === appPlateClean)
+        );
+
+        if (existingIdx !== -1) {
+          const current = nextVehicles[existingIdx];
+          if (
+            current.plateNumber !== app.vehicle.plateNumber ||
+            current.status !== expectedStatus ||
+            current.make !== app.vehicle.make ||
+            current.model !== app.vehicle.model ||
+            current.year !== app.vehicle.year ||
+            current.color !== app.vehicle.color ||
+            current.type !== app.vehicle.type ||
+            current.appId !== app.id
+          ) {
+            changed = true;
+            nextVehicles[existingIdx] = {
+              ...current,
+              appId: app.id,
+              make: app.vehicle.make || current.make,
+              model: app.vehicle.model || current.model,
+              year: app.vehicle.year || current.year,
+              color: app.vehicle.color || current.color,
+              type: app.vehicle.type || current.type,
+              plateNumber: app.vehicle.plateNumber,
+              status: expectedStatus,
+            };
+          }
+        } else {
+          // If no exact match: check if there's an orphaned vehicle (e.g. from a pre-edit plate change like '123 QWE' -> '123 ZTE')
+          const orphanIdx = nextVehicles.findIndex(
+            (v) =>
+              !applications.some(
+                (a) =>
+                  (a.vehicle?.plateNumber || "").replace(/\s+/g, "").toUpperCase() ===
+                  (v.plateNumber || "").replace(/\s+/g, "").toUpperCase()
+              ) &&
+              (v.make?.toLowerCase() === app.vehicle.make?.toLowerCase() ||
+               (v.id && Date.now() - v.id < 86400000 * 7))
+          );
+
+          if (orphanIdx !== -1) {
+            changed = true;
+            nextVehicles[orphanIdx] = {
+              ...nextVehicles[orphanIdx],
+              appId: app.id,
+              make: app.vehicle.make,
+              model: app.vehicle.model,
+              year: app.vehicle.year,
+              color: app.vehicle.color,
+              type: app.vehicle.type,
+              plateNumber: app.vehicle.plateNumber,
+              status: expectedStatus,
+            };
+          } else {
+            changed = true;
+            nextVehicles.push({
+              id: Date.now() + Math.random(),
+              appId: app.id,
+              make: app.vehicle.make,
+              model: app.vehicle.model,
+              year: app.vehicle.year,
+              color: app.vehicle.color,
+              plateNumber: app.vehicle.plateNumber,
+              type: app.vehicle.type,
+              status: expectedStatus,
+            });
+          }
+        }
+      });
+
+      return changed ? nextVehicles : prev;
+    });
+  }, [applications]);
+
+  // Self-healing synchronization: guarantee notifications for any issued passes
+  useEffect(() => {
+    if (!applications || applications.length === 0) return;
+
+    setNotifications((prev) => {
+      let changed = false;
+      const nextNotifs = [...prev];
+
+      applications.forEach((app) => {
+        if (app.status === "PASS_ISSUED" && app.pass) {
+          const passNum = app.pass.passNumber || app.assignedPassNumber;
+          const alreadyNotified = nextNotifs.some(
+            (n) =>
+              (n.appId && n.appId === app.id && n.type === "PASS_ISSUED") ||
+              (n.message && passNum && n.message.includes(passNum))
+          );
+
+          if (!alreadyNotified) {
+            changed = true;
+            nextNotifs.unshift({
+              id: `notif-issued-${app.id}`,
+              type: "PASS_ISSUED",
+              title: "Official Gate QR Pass Issued!",
+              message: `Your Cashier receipt has been verified! Gate Pass ${passNum || "Activated"} for ${app.vehicle?.make || "Vehicle"} (${app.vehicle?.plateNumber}) is now active for Academic Year ${systemSettings?.academicYear || "2026-2027"}.`,
+              link: "/client/vehicle-pass",
+              appId: app.id,
+              time: "Just now",
+              date: new Date().toISOString(),
+              read: false,
+            });
+          }
+        }
+      });
+
+      return changed ? nextNotifs : prev;
+    });
+  }, [applications, systemSettings?.academicYear]);
+
   // Save/Update Draft
   const saveDraft = (data, step = 1) => {
     const updatedDraft = {
@@ -631,6 +792,7 @@ export const PassProvider = ({ children }) => {
     setVehicles((prev) => [
       {
         id: Date.now(),
+        appId: newApp.id,
         make: formData.make,
         model: formData.model,
         year: formData.year,
@@ -647,11 +809,11 @@ export const PassProvider = ({ children }) => {
 
   // PASO Admin Review (Milestone 2)
   const reviewApplication = (appId, decision, remarks = "") => {
-    let affectedApp = null;
+    const targetApp = (applications || []).find((a) => a.id === appId);
+
     setApplications((prev) =>
       prev.map((app) => {
         if (app.id === appId) {
-          affectedApp = app;
           return {
             ...app,
             status: decision,
@@ -663,12 +825,12 @@ export const PassProvider = ({ children }) => {
     );
 
     // Auto-notify the client of registration decision
-    if (affectedApp) {
+    if (targetApp) {
       if (decision === "APPROVED") {
         addNotification({
           type: "REGISTRATION_APPROVED",
           title: "Vehicle Registration Approved!",
-          message: `Your registration for ${affectedApp.vehicle?.make || "Vehicle"} ${affectedApp.vehicle?.model || ""} (${affectedApp.vehicle?.plateNumber}) was approved by PASO. You may now pay at the Cashier window and upload your receipt.`,
+          message: `Your registration for ${targetApp.vehicle?.make || "Vehicle"} ${targetApp.vehicle?.model || ""} (${targetApp.vehicle?.plateNumber}) was approved by PASO. You may now pay at the Cashier window and upload your receipt.`,
           link: `/client/payments?appId=${appId}`,
           appId,
         });
@@ -676,7 +838,7 @@ export const PassProvider = ({ children }) => {
         addNotification({
           type: "REGISTRATION_REJECTED",
           title: "Registration Form Needs Correction",
-          message: `PASO returned your application for ${affectedApp.vehicle?.make || "Vehicle"} (${affectedApp.vehicle?.plateNumber}). Note: "${remarks}". Click to correct mistakes and re-submit.`,
+          message: `PASO returned your application for ${targetApp.vehicle?.make || "Vehicle"} (${targetApp.vehicle?.plateNumber}). Note: "${remarks}". Click to correct mistakes and re-submit.`,
           link: `/client/applications`,
           appId,
         });
@@ -739,34 +901,32 @@ export const PassProvider = ({ children }) => {
 
   // PASO Admin Verifies Cashier Receipt & Generates Official Gate QR Pass (Milestone 4 - Exactly 1 Year Validity)
   const verifyReceiptAndIssuePass = (appId, customDetails = {}) => {
-    let targetedVehiclePlate = null;
-    let affectedApp = null;
-    let generatedPassNum = null;
+    const targetApp = (applications || []).find((a) => a.id === appId);
+    if (!targetApp) return;
 
-    setApplications((prev) => {
-      const targetApp = prev.find((a) => a.id === appId);
-      generatedPassNum =
-        customDetails.passNumber ||
-        targetApp?.pass?.passNumber ||
-        targetApp?.assignedPassNumber ||
-        getSequentialPassNumber(targetApp, prev);
+    const generatedPassNum =
+      customDetails.passNumber ||
+      targetApp.pass?.passNumber ||
+      targetApp.assignedPassNumber ||
+      getSequentialPassNumber(targetApp, applications);
 
-      const now = new Date();
-      const oneYear = calculateOneYearExpiry(now);
+    const now = new Date();
+    const oneYear = calculateOneYearExpiry(now);
+    const acadYear = systemSettings?.academicYear || "2026-2027";
+    const vehiclePlate = targetApp.vehicle?.plateNumber;
 
-      return prev.map((app) => {
+    setApplications((prev) =>
+      prev.map((app) => {
         if (app.id === appId) {
-          affectedApp = app;
-          targetedVehiclePlate = app.vehicle?.plateNumber;
           const passInfo = {
             passNumber: generatedPassNum,
             qrData:
               customDetails.qrData ||
-              targetApp?.pass?.qrData ||
+              targetApp.pass?.qrData ||
               `RSU-VPASS:${generatedPassNum}:${app.vehicle?.plateNumber || ""}:${app.school_id || ""}`,
             validUntil: customDetails.validUntil || oneYear.validUntil,
             expiresAt: customDetails.expiresAt || oneYear.expiresAt,
-            academicYear: systemSettings.academicYear || "2026-2027",
+            academicYear: acadYear,
             status: "ACTIVE",
             issuedAt: now.toLocaleDateString("en-US", {
               month: "long",
@@ -795,15 +955,18 @@ export const PassProvider = ({ children }) => {
           };
         }
         return app;
-      });
-    });
+      }),
+    );
 
     // Update vehicle status to Active Pass
     setVehicles((prev) =>
       prev.map((v) => {
-        if (targetedVehiclePlate && v.plateNumber === targetedVehiclePlate) {
+        const cleanV = (v.plateNumber || "").replace(/\s+/g, "").toUpperCase();
+        const cleanTarget = (vehiclePlate || "").replace(/\s+/g, "").toUpperCase();
+        if (cleanV === cleanTarget || (v.appId && v.appId === appId)) {
           return {
             ...v,
+            appId,
             status: "Active Pass",
           };
         }
@@ -812,24 +975,22 @@ export const PassProvider = ({ children }) => {
     );
 
     // Auto-notify client of active QR Pass release
-    if (affectedApp) {
-      addNotification({
-        type: "PASS_ISSUED",
-        title: "Official Gate QR Pass Issued!",
-        message: `Your Cashier receipt has been verified! Gate Pass ${generatedPassNum} for ${affectedApp.vehicle?.make || "Vehicle"} (${affectedApp.vehicle?.plateNumber}) is now active for Academic Year ${year}.`,
-        link: "/client/vehicle-pass",
-        appId,
-      });
-    }
+    addNotification({
+      type: "PASS_ISSUED",
+      title: "Official Gate QR Pass Issued!",
+      message: `Your Cashier receipt has been verified! Gate Pass ${generatedPassNum} for ${targetApp.vehicle?.make || "Vehicle"} (${targetApp.vehicle?.plateNumber}) is now active for Academic Year ${acadYear}.`,
+      link: "/client/vehicle-pass",
+      appId,
+    });
   };
 
   // Reject Receipt (e.g. unreadable photo or mismatched payment amount)
   const rejectReceipt = (appId, remarks) => {
-    let affectedApp = null;
+    const targetApp = (applications || []).find((a) => a.id === appId);
+
     setApplications((prev) =>
       prev.map((app) => {
         if (app.id === appId) {
-          affectedApp = app;
           return {
             ...app,
             status: "APPROVED", // Return to approved payment step so client can re-upload
@@ -847,11 +1008,11 @@ export const PassProvider = ({ children }) => {
     );
 
     // Auto-notify client that receipt was declined with reason
-    if (affectedApp) {
+    if (targetApp) {
       addNotification({
         type: "RECEIPT_REJECTED",
         title: "Cashier Receipt Declined",
-        message: `Cashier receipt for ${affectedApp.vehicle?.make || "Vehicle"} (${affectedApp.vehicle?.plateNumber}) was declined by PASO. Note: "${remarks}". Please re-upload your valid receipt.`,
+        message: `Cashier receipt for ${targetApp.vehicle?.make || "Vehicle"} (${targetApp.vehicle?.plateNumber}) was declined by PASO. Note: "${remarks}". Please re-upload your valid receipt.`,
         link: `/client/payments?appId=${appId}`,
         appId,
       });
@@ -860,6 +1021,9 @@ export const PassProvider = ({ children }) => {
 
   // Re-submit an application that was previously returned/rejected by PASO
   const resubmitApplication = (appId, updatedData) => {
+    const targetApp = (applications || []).find((a) => a.id === appId);
+    const oldPlateNumber = targetApp?.vehicle?.plateNumber;
+
     setApplications((prev) =>
       prev.map((app) => {
         if (app.id === appId) {
@@ -872,12 +1036,12 @@ export const PassProvider = ({ children }) => {
             contact_number: updatedData.contact_number || app.contact_number,
             applicant_photo: updatedData.applicant_photo || app.applicant_photo,
             vehicle: {
-              make: updatedData.make || app.vehicle.make,
-              model: updatedData.model || app.vehicle.model,
-              year: updatedData.year || app.vehicle.year,
-              color: updatedData.color || app.vehicle.color,
-              plateNumber: updatedData.plateNumber || app.vehicle.plateNumber,
-              type: updatedData.type || app.vehicle.type,
+              make: updatedData.make || app.vehicle?.make,
+              model: updatedData.model || app.vehicle?.model,
+              year: updatedData.year || app.vehicle?.year,
+              color: updatedData.color || app.vehicle?.color,
+              plateNumber: updatedData.plateNumber || app.vehicle?.plateNumber,
+              type: updatedData.type || app.vehicle?.type,
             },
             documents: {
               driverLicense:
@@ -897,20 +1061,49 @@ export const PassProvider = ({ children }) => {
       }),
     );
 
-    // Update vehicle status back to Pending Review
-    setVehicles((prev) =>
-      prev.map((v) => {
-        if (v.plateNumber === updatedData.plateNumber) {
+    // Update vehicle status back to Pending Review and sync specs/plate
+    setVehicles((prev) => {
+      const cleanOld = (oldPlateNumber || "").replace(/\s+/g, "").toUpperCase();
+      const cleanNew = (updatedData.plateNumber || "").replace(/\s+/g, "").toUpperCase();
+
+      let matched = false;
+      const updatedList = prev.map((v) => {
+        const cleanV = (v.plateNumber || "").replace(/\s+/g, "").toUpperCase();
+        if ((v.appId && v.appId === appId) || cleanV === cleanOld || cleanV === cleanNew) {
+          matched = true;
           return {
             ...v,
+            appId,
             make: updatedData.make || v.make,
             model: updatedData.model || v.model,
+            year: updatedData.year || v.year,
+            color: updatedData.color || v.color,
+            type: updatedData.type || v.type,
+            plateNumber: updatedData.plateNumber || v.plateNumber,
             status: "Pending Review",
           };
         }
         return v;
-      }),
-    );
+      });
+
+      if (!matched) {
+        return [
+          {
+            id: Date.now(),
+            appId,
+            make: updatedData.make,
+            model: updatedData.model,
+            year: updatedData.year,
+            color: updatedData.color,
+            plateNumber: updatedData.plateNumber,
+            type: updatedData.type,
+            status: "Pending Review",
+          },
+          ...updatedList,
+        ];
+      }
+      return updatedList;
+    });
 
     addNotification({
       type: "APPLICATION_RESUBMITTED",

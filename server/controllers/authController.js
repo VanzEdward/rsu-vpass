@@ -196,3 +196,96 @@ export const checkId = async (req, res) => {
     res.json({ exists: false });
   }
 };
+
+export const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { full_name, email, school_id, contact_number, department_unit, password } = req.body;
+
+    // Check duplicate email or school_id
+    if (email || school_id) {
+      const [existing] = await pool.query(
+        'SELECT id, school_id, email FROM users WHERE (LOWER(school_id) = LOWER(?) OR LOWER(email) = LOWER(?)) AND id != ?',
+        [school_id ? school_id.trim() : '', email ? email.trim() : '', userId]
+      );
+      if (existing.length > 0) {
+        return res.status(409).json({ message: 'Identification Card No. or Email is already taken by another account.' });
+      }
+    }
+
+    let updateQuery = `
+      UPDATE users SET
+        full_name = COALESCE(?, full_name),
+        school_id = COALESCE(?, school_id),
+        email = COALESCE(?, email),
+        contact_number = COALESCE(?, contact_number),
+        department_unit = COALESCE(?, department_unit)
+    `;
+    const params = [
+      full_name || null,
+      school_id || null,
+      email || null,
+      contact_number || null,
+      department_unit || null,
+    ];
+
+    if (password && password.trim() !== '') {
+      const hashedPassword = await bcrypt.hash(password.trim(), 10);
+      updateQuery += ', password = ?';
+      params.push(hashedPassword);
+    }
+
+    updateQuery += ' WHERE id = ?';
+    params.push(userId);
+
+    await pool.query(updateQuery, params);
+
+    const [rows] = await pool.query(
+      'SELECT id, school_id, email, full_name, role, contact_number, department_unit FROM users WHERE id = ?',
+      [userId]
+    );
+
+    res.json({
+      message: 'Profile updated successfully!',
+      user: rows[0],
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to update profile', error: error.message });
+  }
+};
+
+export const resetAdminProfile = async (req, res) => {
+  try {
+    if (req.user.role !== 'PASO_ADMIN') {
+      return res.status(403).json({ message: 'Only PASO Admin can perform this action' });
+    }
+
+    // Default seeded password for PASO-ADMIN-01
+    const defaultPassword = 'admin';
+    const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
+    await pool.query(
+      `UPDATE users SET
+        full_name = 'PASO Administrator',
+        school_id = 'PASO-ADMIN-01',
+        email = 'paso@rsu.edu.ph',
+        contact_number = '+63 917 111 2222',
+        department_unit = 'Physical Assets and Security Office (PASO)',
+        password = ?
+      WHERE id = ?`,
+      [hashedPassword, req.user.id]
+    );
+
+    const [rows] = await pool.query(
+      'SELECT id, school_id, email, full_name, role, contact_number, department_unit FROM users WHERE id = ?',
+      [req.user.id]
+    );
+
+    res.json({
+      message: 'Admin information and credentials have been reset to factory defaults!',
+      user: rows[0],
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to reset admin profile', error: error.message });
+  }
+};
