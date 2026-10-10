@@ -389,22 +389,11 @@ export default function Payments() {
                         <button
                           type="button"
                           onClick={() => setIsCameraOpen(true)}
-                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center space-x-1.5 cursor-pointer shadow-xs"
+                          className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center space-x-2 cursor-pointer shadow-xs transition-colors"
                         >
                           <Camera className="w-4 h-4" />
                           <span>Open Camera & Snap Receipt</span>
                         </button>
-
-                        <label className="px-4 py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold flex items-center space-x-1.5 cursor-pointer">
-                          <UploadCloud className="w-4 h-4 text-emerald-600" />
-                          <span>Upload File</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleFileUpload}
-                            className="hidden"
-                          />
-                        </label>
                       </div>
                     </div>
                   )}

@@ -126,37 +126,47 @@ CREATE TABLE IF NOT EXISTS verification_logs (
 -- Demo Seed Data (From PRD Section 7)
 -- ==========================================================
 
--- Client Demo Account (Password: client123)
-INSERT INTO users (id, school_id, email, password, full_name, role, contact_number)
+-- Client Demo Account
+INSERT INTO users (id, school_id, email, password, full_name, role, contact_number, classification, year_course, department_unit, drivers_license_no)
 VALUES (
     1,
     '2026-00001',
     'juan.delacruz@rsu.edu.ph',
-    '$2b$10$50GJUSBeYJZdFqZ3oX7/M.u1TAKZUB2VIxIu9HEtn2T4jr6zaWROm', -- client123
+    '$2b$10$50GJUSBeYJZdFqZ3oX7/M.u1TAKZUB2VIxIu9HEtn2T4jr6zaWROm',
     'Juan Dela Cruz',
     'CLIENT',
-    '+63 912 345 6789'
-) ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), password = VALUES(password);
+    '+63 912 345 6789',
+    'STUDENT',
+    'CCMADI • BS Information Technology',
+    'College of Communication, Media and Digital Arts',
+    'N02-24-987654'
+) ON DUPLICATE KEY UPDATE 
+    full_name = VALUES(full_name), 
+    password = VALUES(password),
+    classification = VALUES(classification),
+    year_course = VALUES(year_course),
+    department_unit = VALUES(department_unit),
+    drivers_license_no = VALUES(drivers_license_no);
 
--- PASO Admin Account (Password: admin123)
+-- PASO Admin Account
 INSERT INTO users (id, school_id, email, password, full_name, role, contact_number)
 VALUES (
     2,
     'PASO-ADMIN-01',
     'paso@rsu.edu.ph',
-    '$2b$10$f5THNbdhVPHUobjsTEtH3OtMIKeA83NqIPLvrZvXVUGv4y.HvChRW', -- admin123
+    '$2b$10$f5THNbdhVPHUobjsTEtH3OtMIKeA83NqIPLvrZvXVUGv4y.HvChRW',
     'PASO Administrator',
     'PASO_ADMIN',
     '+63 917 111 2222'
 ) ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), password = VALUES(password);
 
--- Gate Guard Account (Password: guard123)
+-- Gate Guard Account
 INSERT INTO users (id, school_id, email, password, full_name, role, contact_number)
 VALUES (
     3,
     'GUARD-GATE-01',
     'guard.main@rsu.edu.ph',
-    '$2b$10$8f4pS0teMTtLX9z7D5u.xOybkWkWoi9onTEeq.hnUUD.tRHUqP2we', -- guard123
+    '$2b$10$8f4pS0teMTtLX9z7D5u.xOybkWkWoi9onTEeq.hnUUD.tRHUqP2we',
     'Officer Santos',
     'GUARD',
     '+63 918 333 4444'

@@ -33,11 +33,15 @@ export const register = async (req, res) => {
 
     // Check if user exists
     const [existing] = await pool.query(
-      'SELECT id FROM users WHERE school_id = ? OR email = ?',
-      [school_id, email]
+      'SELECT id, school_id, email FROM users WHERE LOWER(school_id) = LOWER(?) OR LOWER(email) = LOWER(?)',
+      [school_id.trim(), email.trim()]
     );
     if (existing.length > 0) {
-      return res.status(409).json({ message: 'Identification Card No. or Email is already registered.' });
+      const isDuplicateId = existing.some(u => (u.school_id || '').toLowerCase() === school_id.trim().toLowerCase());
+      if (isDuplicateId) {
+        return res.status(409).json({ message: 'Identification Card No. is already registered in the system.' });
+      }
+      return res.status(409).json({ message: 'Email address is already registered in the system.' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -96,7 +100,7 @@ export const register = async (req, res) => {
 
     const token = jwt.sign(
       { id: newUser.id, school_id: newUser.school_id, email: newUser.email, role: newUser.role, full_name: newUser.full_name },
-      process.env.JWT_SECRET || 'rsu_vpass_super_secret_jwt_token_2026_romblon',
+      process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
@@ -135,7 +139,7 @@ export const login = async (req, res) => {
 
     const token = jwt.sign(
       { id: user.id, school_id: user.school_id, email: user.email, role: user.role, full_name: user.full_name },
-      process.env.JWT_SECRET || 'rsu_vpass_super_secret_jwt_token_2026_romblon',
+      process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
@@ -176,5 +180,19 @@ export const getProfile = async (req, res) => {
     res.json(rows[0]);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch profile', error: error.message });
+  }
+};
+
+export const checkId = async (req, res) => {
+  try {
+    const { school_id } = req.query;
+    if (!school_id) return res.json({ exists: false });
+    const [rows] = await pool.query(
+      'SELECT id FROM users WHERE LOWER(school_id) = LOWER(?)',
+      [school_id.trim()]
+    );
+    res.json({ exists: rows.length > 0 });
+  } catch (error) {
+    res.json({ exists: false });
   }
 };
