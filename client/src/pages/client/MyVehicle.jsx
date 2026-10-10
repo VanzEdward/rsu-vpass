@@ -798,26 +798,6 @@ export default function MyVehicle() {
                     </p>
                   </div>
 
-                  {/* Contextual PASO Rejection Notice during Correction */}
-                  {editingAppId && editingRejectionReason && (
-                    <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-start space-x-3">
-                      <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 mt-0.5">
-                        <AlertCircle className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-bold text-rose-950 flex items-center gap-1.5">
-                          <span>PASO Reason for Returning Application:</span>
-                        </p>
-                        <p className="text-rose-800 text-xs font-semibold mt-0.5 leading-relaxed bg-white/70 p-2 rounded-lg border border-rose-200/60">
-                          "{editingRejectionReason}"
-                        </p>
-                        <p className="text-[11px] text-rose-600 mt-1">
-                          Please verify and re-upload the requested document(s) below.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                     {/* Driver's License */}
                     <div className="p-4 rounded-2xl border-2 border-slate-200 bg-slate-50 text-center space-y-3 flex flex-col justify-between">

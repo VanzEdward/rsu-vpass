@@ -53,7 +53,7 @@ export default function Applications() {
     }
   }, [isDraftDuplicateOfSubmitted, isDraftEmpty, clearDraft]);
 
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (status, app = null) => {
     switch (status) {
       case 'PENDING':
         return (
@@ -63,6 +63,14 @@ export default function Applications() {
           </span>
         );
       case 'APPROVED':
+        if (app?.receiptRejectionRemark) {
+          return (
+            <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 font-bold text-[10px] border border-rose-300">
+              <AlertCircle className="w-3 h-3 text-rose-600" />
+              <span>RECEIPT DECLINED — RE-UPLOAD REQUIRED</span>
+            </span>
+          );
+        }
         return (
           <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px] border border-emerald-200">
             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
@@ -239,7 +247,7 @@ export default function Applications() {
                   </div>
                 </div>
 
-                <div>{getStatusBadge(app.status)}</div>
+                <div>{getStatusBadge(app.status, app)}</div>
               </div>
 
               {/* Milestone Progress Bar */}
@@ -309,22 +317,48 @@ export default function Applications() {
 
               {/* Conditional Action Banner per Milestone */}
               {isApproved && (
-                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-bold text-emerald-950">Application Approved by PASO!</p>
-                    <p className="text-[11px] text-emerald-800 mt-0.5">
-                      Proceed to the university Cashier Office to pay your pass sticker fee, then upload your official receipt picture.
-                    </p>
+                app.receiptRejectionRemark ? (
+                  <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-1.5 font-bold text-amber-950">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>Cashier Receipt Declined by PASO</span>
+                      </div>
+                      <p className="text-[11px] text-amber-900 leading-snug">
+                        <span className="font-semibold text-amber-800">Admin Remark:</span>{' '}
+                        <span className="italic font-bold">"{app.receiptRejectionRemark}"</span>
+                      </p>
+                      <p className="text-[10px] text-amber-700">
+                        Please re-upload a clear photograph of your official Cashier receipt.
+                      </p>
+                    </div>
+                    <Link
+                      to={`/client/payments?appId=${app.id}`}
+                      className="inline-flex items-center justify-center space-x-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shrink-0 shadow-sm transition-all"
+                    >
+                      <Receipt className="w-4 h-4" />
+                      <span>Re-upload Cashier Receipt</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
                   </div>
-                  <Link
-                    to={`/client/payments?appId=${app.id}`}
-                    className="inline-flex items-center justify-center space-x-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shrink-0 shadow-sm"
-                  >
-                    <Receipt className="w-4 h-4" />
-                    <span>Proceed to Milestone 3: Upload Receipt</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
+                ) : (
+                  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold text-emerald-950">Application Approved by PASO!</p>
+                      <p className="text-[11px] text-emerald-800 mt-0.5">
+                        Proceed to the university Cashier Office to pay your pass sticker fee, then upload your official receipt picture.
+                      </p>
+                    </div>
+                    <Link
+                      to={`/client/payments?appId=${app.id}`}
+                      className="inline-flex items-center justify-center space-x-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shrink-0 shadow-sm"
+                    >
+                      <Receipt className="w-4 h-4" />
+                      <span>Proceed to Milestone 3: Upload Receipt</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                )
               )}
 
               {app.status === 'RECEIPT_SUBMITTED' && (
@@ -367,29 +401,6 @@ export default function Applications() {
                   </Link>
                 </div>
               )}
-
-              {app.receiptRejectionRemark && app.status === 'APPROVED' && (
-                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900">
-                  <div className="space-y-1">
-                    <div className="flex items-center space-x-1.5 font-bold text-amber-950">
-                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span>Cashier Receipt Declined by PASO:</span>
-                    </div>
-                    <p className="text-amber-800 leading-relaxed pl-5 font-medium">
-                      "{app.receiptRejectionRemark}"
-                    </p>
-                  </div>
-                  <Link
-                    to={`/client/payments?appId=${app.id}`}
-                    className="inline-flex items-center justify-center space-x-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shrink-0 shadow-sm transition-all cursor-pointer"
-                  >
-                    <Receipt className="w-3.5 h-3.5" />
-                    <span>Re-upload Correct Receipt</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-              )}
-
               {isPassIssued && (
                 <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>

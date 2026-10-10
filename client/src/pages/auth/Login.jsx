@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiRequest } from '../../api/client';
-import { ShieldCheck, ArrowRight, UserCheck, ShieldAlert, KeyRound, UserPlus, MapPin, Lock, Check, X } from 'lucide-react';
+import { ShieldCheck, ArrowRight, UserCheck, ShieldAlert, KeyRound, UserPlus, MapPin, Lock, Check, X, CheckCircle2 } from 'lucide-react';
 import { usePass, CAMPUS_GATES } from '../../context/PassContext';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
   const { setActiveGate } = usePass();
-  const [identifier, setIdentifier] = useState('');
+  const [identifier, setIdentifier] = useState(() => location.state?.registeredId || '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [successInfo, setSuccessInfo] = useState(() => location.state?.successMessage || '');
   const [submitting, setSubmitting] = useState(false);
   const [guardPendingAuth, setGuardPendingAuth] = useState(null); // { user, token }
 
@@ -84,6 +86,16 @@ export default function Login() {
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/50 p-7">
           <h2 className="text-lg font-bold text-slate-900">Account Sign In</h2>
           <p className="text-xs text-slate-500 mt-0.5">Use your University ID or Email to access your vehicle passes.</p>
+
+          {successInfo && (
+            <div className="mt-4 p-3.5 rounded-xl bg-emerald-50 text-emerald-900 text-xs border border-emerald-200/90 flex items-start space-x-2.5 animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold block text-emerald-950">Registration Complete!</span>
+                <span className="text-[11px] text-emerald-800 leading-relaxed block mt-0.5">{successInfo}</span>
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="mt-4 p-3 rounded-lg bg-red-50 text-red-700 text-xs border border-red-200">

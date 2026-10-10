@@ -217,19 +217,21 @@ export default function Payments() {
             <form onSubmit={handleSubmit} className="space-y-5 text-xs">
               {/* Receipt Rejection Banner with PASO Note */}
               {selectedApp?.receiptRejectionRemark && (
-                <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-950 flex items-start space-x-3 shadow-xs">
-                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                  <div className="space-y-1.5 w-full">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-amber-950 text-xs">
+                <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-300 text-amber-950 flex items-start gap-3 shadow-xs">
+                  <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 border border-amber-200/80 mt-0.5">
+                    <AlertTriangle className="w-4 h-4" />
+                  </div>
+                  <div className="space-y-2 flex-1 min-w-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                      <span className="font-bold text-amber-950 text-xs sm:text-sm">
                         Cashier Receipt Declined by PASO Admin
                       </span>
-                      <span className="text-[10px] bg-amber-200 text-amber-900 px-2.5 py-0.5 rounded-full font-extrabold uppercase">
+                      <span className="inline-flex items-center text-[10px] bg-amber-200 text-amber-900 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0 whitespace-nowrap border border-amber-300/80 self-start sm:self-auto">
                         Action Needed: Re-upload Proof
                       </span>
                     </div>
-                    <div className="p-2.5 rounded-xl bg-white/80 border border-amber-200 text-amber-900">
-                      <p className="font-semibold text-[11px] text-amber-800">Reason / Note from PASO:</p>
+                    <div className="p-2.5 rounded-xl bg-white/90 border border-amber-200 text-amber-900">
+                      <p className="font-bold text-[11px] text-amber-800">Reason / Note from PASO:</p>
                       <p className="font-medium text-xs mt-0.5 italic break-words">&ldquo;{selectedApp.receiptRejectionRemark}&rdquo;</p>
                     </div>
                     <p className="text-[11px] text-amber-800 leading-relaxed">
@@ -241,13 +243,15 @@ export default function Payments() {
 
               {/* Select Approved Application (Custom Styled Dropdown strictly bounded to system design) */}
               <div className="relative" ref={dropdownRef}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block font-bold text-slate-700 text-xs">
-                    Approved Vehicle Registration <span className="text-rose-500">*</span>
+                <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                  <label className="font-bold text-slate-800 text-xs flex items-center gap-1">
+                    <span>Approved Vehicle Registration</span>
+                    <span className="text-rose-500 font-bold">*</span>
                   </label>
                   {queryAppId && (
-                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                      Targeted Vehicle Only
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-800 bg-emerald-100/90 px-2.5 py-0.5 rounded-full border border-emerald-200 shrink-0 whitespace-nowrap shadow-2xs">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                      <span>Targeted Vehicle Only</span>
                     </span>
                   )}
                 </div>
@@ -268,20 +272,20 @@ export default function Payments() {
                       : 'border-slate-300'
                   }`}
                 >
-                  <div className="flex items-center space-x-2.5 min-w-0 pr-2">
+                  <div className="flex items-center space-x-3 min-w-0 flex-1 pr-2">
                     <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-100">
                       <Car className="w-4 h-4" />
                     </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center space-x-1.5 truncate">
-                        <span className="font-mono text-xs font-bold text-emerald-800">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5">
+                        <span className="font-mono text-xs font-bold text-emerald-800 shrink-0">
                           {selectedApp?.id || 'Select Application'}
                         </span>
-                        <span className="text-slate-400 text-xs">•</span>
+                        <span className="text-slate-300 text-xs hidden sm:inline">•</span>
                         <span className="text-xs font-bold text-slate-900 truncate">
                           {selectedApp?.vehicle?.make} {selectedApp?.vehicle?.model}
                         </span>
-                        <span className="font-mono text-xs text-slate-600 shrink-0">
+                        <span className="font-mono text-[11px] font-semibold text-slate-600 shrink-0">
                           ({selectedApp?.vehicle?.plateNumber})
                         </span>
                       </div>

@@ -309,6 +309,8 @@ export default function AdminApplications() {
                           ? 'bg-emerald-100 text-emerald-800'
                           : app.status === 'RECEIPT_SUBMITTED'
                           ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                          : app.receiptRejectionRemark && app.status === 'APPROVED'
+                          ? 'bg-rose-100 text-rose-800 border border-rose-300'
                           : app.status === 'APPROVED'
                           ? 'bg-blue-100 text-blue-800'
                           : app.status === 'REJECTED'
@@ -319,6 +321,8 @@ export default function AdminApplications() {
                           ? 'PASS ISSUED' 
                           : app.status === 'RECEIPT_SUBMITTED' 
                           ? 'RECEIPT SUBMITTED' 
+                          : app.receiptRejectionRemark && app.status === 'APPROVED'
+                          ? 'RECEIPT DECLINED'
                           : app.status}
                       </span>
                     </div>
@@ -337,6 +341,32 @@ export default function AdminApplications() {
                         <Receipt className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                         <span>Cashier OR: <strong className="font-mono text-slate-900 font-bold">#{app.receipt.orNumber}</strong> • Submitted {app.receipt.submittedAt || 'Today'}</span>
                       </p>
+                    )}
+
+                    {/* Notice if Cashier Receipt / Payment Proof was Rejected */}
+                    {app.receiptRejectionRemark && (
+                      <div className="mt-2.5 p-3 rounded-2xl bg-amber-50/90 border border-amber-300 text-amber-950 flex items-start space-x-2.5 text-xs shadow-xs">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex items-center space-x-2 flex-wrap">
+                            <span className="font-bold text-amber-950">Cashier Payment Proof Rejected</span>
+                            <span className="text-[10px] font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full border border-rose-200">
+                              Awaiting Re-upload
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-amber-900 leading-snug">
+                            <span className="font-semibold text-amber-800">Rejection Note:</span>{' '}
+                            <span className="italic font-medium text-slate-900 bg-white/80 px-1.5 py-0.5 rounded border border-amber-200 inline-block">
+                              "{app.receiptRejectionRemark}"
+                            </span>
+                          </p>
+                          {app.receipt?.orNumber && (
+                            <p className="text-[10px] text-slate-500 font-mono">
+                              Declined OR Ref: #{app.receipt.orNumber}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -586,7 +616,7 @@ export default function AdminApplications() {
             </div>
 
             {/* Uploaded Cashier Official Receipt (Milestone 3 Proof) */}
-            {(selectedApp.receipt || selectedApp.status === 'RECEIPT_SUBMITTED') && (
+            {(selectedApp.receipt || selectedApp.status === 'RECEIPT_SUBMITTED' || selectedApp.receiptRejectionRemark) && (
               <div className="text-xs space-y-2">
                 <div className="flex items-center justify-between">
                   <h4 className="font-bold text-slate-900 flex items-center space-x-1.5">
@@ -596,13 +626,23 @@ export default function AdminApplications() {
                   <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
                     selectedApp.status === 'PASS_ISSUED' 
                       ? 'bg-emerald-100 text-emerald-800' 
+                      : selectedApp.receiptRejectionRemark
+                      ? 'bg-rose-100 text-rose-800 border border-rose-300'
                       : 'bg-amber-100 text-amber-800 border border-amber-300'
                   }`}>
-                    {selectedApp.status === 'PASS_ISSUED' ? 'Verified by PASO' : 'Awaiting PASO Verification'}
+                    {selectedApp.status === 'PASS_ISSUED' 
+                      ? 'Verified by PASO' 
+                      : selectedApp.receiptRejectionRemark
+                      ? 'Receipt Declined by PASO'
+                      : 'Awaiting PASO Verification'}
                   </span>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200 space-y-3">
+                <div className={`p-4 rounded-2xl ${
+                  selectedApp.receiptRejectionRemark 
+                    ? 'bg-rose-50/70 border border-rose-200' 
+                    : 'bg-amber-50/60 border border-amber-200'
+                } space-y-3`}>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     <div>
                       <span className="text-slate-400 block font-semibold text-[11px]">Official Receipt (OR) #</span>
@@ -614,11 +654,38 @@ export default function AdminApplications() {
                     </div>
                     <div>
                       <span className="text-slate-400 block font-semibold text-[11px]">Verification Status</span>
-                      <span className="font-bold text-emerald-700">
-                        {selectedApp.status === 'PASS_ISSUED' ? 'Payment Verified' : 'Needs Verification'}
+                      <span className={`font-bold ${
+                        selectedApp.status === 'PASS_ISSUED' 
+                          ? 'text-emerald-700' 
+                          : selectedApp.receiptRejectionRemark 
+                          ? 'text-rose-700' 
+                          : 'text-amber-700'
+                      }`}>
+                        {selectedApp.status === 'PASS_ISSUED' 
+                          ? 'Payment Verified' 
+                          : selectedApp.receiptRejectionRemark 
+                          ? 'Declined / Needs Re-upload' 
+                          : 'Needs Verification'}
                       </span>
                     </div>
                   </div>
+
+                  {/* Cashier Payment Rejection Notice in Modal */}
+                  {selectedApp.receiptRejectionRemark && (
+                    <div className="p-3 bg-white rounded-xl border border-rose-200 text-rose-900 flex items-start space-x-2 text-xs shadow-2xs">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-rose-900">Cashier Payment Proof Declined</p>
+                        <p className="text-[11px] text-rose-800 mt-0.5">
+                          <span className="font-semibold text-rose-900">Rejection Note:</span>{' '}
+                          <span className="italic font-medium">"{selectedApp.receiptRejectionRemark}"</span>
+                        </p>
+                        <p className="text-[10px] text-slate-500 mt-1">
+                          Applicant was notified and instructed to re-upload a clear photograph of their receipt.
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {selectedApp.receipt?.receiptPhoto ? (
                     <div className="pt-2 border-t border-amber-200">
@@ -768,20 +835,21 @@ export default function AdminApplications() {
             {/* Authentic RSU Vehicle Pass Sticker (Student Pink or Employee Red Canva Template with Live QR) */}
             <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col items-center">
               {/* Template Category Header */}
-              <div className="w-full flex items-center justify-between mb-3 text-xs">
-                <span className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[11px] font-bold border ${
+              <div className="w-full max-w-[340px] flex items-center justify-between gap-2 mb-3.5 px-0.5">
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border shrink-0 shadow-2xs whitespace-nowrap ${
                   (qrModalApp.classification || '').toLowerCase().includes('employee')
                     ? 'bg-red-100 text-red-900 border-red-200'
                     : 'bg-pink-100 text-pink-900 border-pink-200'
                 }`}>
                   <span>
                     {(qrModalApp.classification || '').toLowerCase().includes('employee')
-                      ? '💼 Official Employee Vehicle Pass (employee_pass.png)'
-                      : '🎓 Official Student Vehicle Pass (student_pass.png)'}
+                      ? '💼 Official Employee Vehicle Pass'
+                      : '🎓 Official Student Vehicle Pass'}
                   </span>
                 </span>
-                <span className="text-[11px] font-mono text-slate-500 font-bold">
-                  Gates 1 – 4 Clearance
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-white text-slate-700 border border-slate-200 shrink-0 whitespace-nowrap shadow-2xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span>Gates 1 – 4 Clearance</span>
                 </span>
               </div>
 

@@ -674,23 +674,15 @@ export default function Register() {
         body: JSON.stringify(payload),
       });
 
-      setSuccessMsg('Account registered successfully! Redirecting to your vehicle pass dashboard...');
-
-      // Store in AuthContext
-      if (res.user && res.token) {
-        login(res.user, res.token);
-      } else {
-        // Fallback local session
-        const localUser = {
-          ...payload,
-          id: res.userId || Date.now(),
-          role: 'CLIENT',
-        };
-        login(localUser, 'vpass_local_token_' + Date.now());
-      }
+      setSuccessMsg('Account registered successfully! Redirecting to login page...');
 
       setTimeout(() => {
-        navigate('/client/profile');
+        navigate('/login', {
+          state: {
+            registeredId: payload.school_id,
+            successMessage: 'Account registered successfully! Please sign in with your School ID and password.',
+          },
+        });
       }, 1500);
     } catch (err) {
       console.warn('Registration API response/error:', err);
@@ -704,15 +696,14 @@ export default function Register() {
       }
 
       // If purely a network connection error in offline/demo environment:
-      const localUser = {
-        ...payload,
-        id: Date.now(),
-        role: 'CLIENT',
-      };
-      login(localUser, 'vpass_token_' + Date.now());
-      setSuccessMsg('Account registered successfully! Redirecting to your vehicle pass dashboard...');
+      setSuccessMsg('Account registered successfully! Redirecting to login page...');
       setTimeout(() => {
-        navigate('/client/profile');
+        navigate('/login', {
+          state: {
+            registeredId: payload.school_id,
+            successMessage: 'Account registered successfully! Please sign in with your School ID and password.',
+          },
+        });
       }, 1500);
     } finally {
       setLoading(false);
