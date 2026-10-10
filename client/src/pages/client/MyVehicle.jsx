@@ -96,17 +96,39 @@ export default function MyVehicle() {
   const [formData, setFormData] = useState(initialFormState);
   const [errors, setErrors] = useState({});
 
+  // Smart check: Determines if the user has entered any vehicle details, uploaded docs, or advanced steps
+  const hasMeaningfulData = (data = formData, step = currentStep) => {
+    if (!data) return false;
+    if (step > 1) return true;
+    return Boolean(
+      (data.plateNumber && data.plateNumber.trim()) ||
+      (data.brand && data.brand.trim()) ||
+      (data.make && data.make.trim()) ||
+      (data.model && data.model.trim()) ||
+      (data.color && data.color.trim()) ||
+      data.driverLicense ||
+      data.orCr ||
+      (data.applicant_photo && data.applicant_photo !== user?.profile_image)
+    );
+  };
+
   // Check for editAppId (Correcting a rejected application) or resume draft
-  // Cleanup any lingering draft that matches an existing submitted application
+  // Cleanup any lingering draft that matches an existing submitted application OR is completely empty
   useEffect(() => {
-    if (draftApplication && applications && applications.length > 0) {
-      const draftPlate = draftApplication.data?.plateNumber?.replace(/\s+/g, '').toUpperCase();
-      const isDuplicate = applications.some((app) => {
-        const appPlate = app.vehicle?.plateNumber?.replace(/\s+/g, '').toUpperCase();
-        return Boolean(draftPlate && appPlate && draftPlate === appPlate);
-      });
-      if (isDuplicate) {
+    if (draftApplication) {
+      if (!hasMeaningfulData(draftApplication.data, draftApplication.step)) {
         clearDraft();
+        return;
+      }
+      if (applications && applications.length > 0) {
+        const draftPlate = draftApplication.data?.plateNumber?.replace(/\s+/g, '').toUpperCase();
+        const isDuplicate = applications.some((app) => {
+          const appPlate = app.vehicle?.plateNumber?.replace(/\s+/g, '').toUpperCase();
+          return Boolean(draftPlate && appPlate && draftPlate === appPlate);
+        });
+        if (isDuplicate) {
+          clearDraft();
+        }
       }
     }
   }, [draftApplication, applications, clearDraft]);
@@ -175,9 +197,13 @@ export default function MyVehicle() {
   const handleFieldChange = (field, value) => {
     setFormData((prev) => {
       const updated = { ...prev, [field]: value };
-      // Auto-save draft on change ONLY for brand new applications (not when editing an existing rejected application)
+      // Auto-save draft on change ONLY if user entered meaningful data (and not editing rejected app)
       if (!editingAppId) {
-        saveDraft(updated, currentStep);
+        if (hasMeaningfulData(updated, currentStep)) {
+          saveDraft(updated, currentStep);
+        } else {
+          clearDraft();
+        }
       }
       return updated;
     });
@@ -188,10 +214,17 @@ export default function MyVehicle() {
 
   const handleCloseWizard = () => {
     const wasEditing = Boolean(editingAppId);
-    // Auto-save progress before closing ONLY for brand new applications
+    const hasData = hasMeaningfulData(formData, currentStep);
+
+    // Save draft progress ONLY if user entered actual data and is not editing an existing application
     if (!editingAppId) {
-      saveDraft(formData, currentStep);
+      if (hasData) {
+        saveDraft(formData, currentStep);
+      } else {
+        clearDraft();
+      }
     }
+
     setShowWizard(false);
     if (editingAppId) {
       setEditingAppId(null);
@@ -200,7 +233,7 @@ export default function MyVehicle() {
 
     if (returnTo === 'applications') {
       navigate('/client/applications');
-    } else if (!wasEditing) {
+    } else if (!wasEditing && hasData) {
       showToastNotification('Draft auto-saved! You can resume anytime from Requests or My Vehicle.');
     }
   };
@@ -454,7 +487,7 @@ export default function MyVehicle() {
               </div>
               <button
                 onClick={handleCloseWizard}
-                title={editingAppId ? "Close Correction Form" : "Save Draft & Close"}
+                title={editingAppId ? "Close Correction Form" : hasMeaningfulData(formData, currentStep) ? "Save Draft & Close" : "Close"}
                 className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full cursor-pointer transition-colors text-base"
               >
                 ✕
@@ -1029,7 +1062,7 @@ export default function MyVehicle() {
                   onClick={handleCloseWizard}
                   className="px-4 py-2.5 rounded-xl text-slate-500 hover:bg-slate-100 text-xs font-semibold cursor-pointer shrink-0"
                 >
-                  Save Draft & Exit
+                  {hasMeaningfulData(formData, currentStep) ? "Save Draft & Exit" : "Cancel & Close"}
                 </button>
               )}
 

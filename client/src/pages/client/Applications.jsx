@@ -23,7 +23,21 @@ export default function Applications() {
   const { applications, draftApplication, clearDraft } = usePass();
   const [showDiscardModal, setShowDiscardModal] = useState(false);
 
-  // Detect if draft belongs to an already submitted/existing application (e.g. user was editing a rejected application)
+  // Detect if draft is empty or belongs to an already submitted/existing application
+  const isDraftEmpty = Boolean(
+    draftApplication &&
+    draftApplication.step === 1 &&
+    !(
+      draftApplication.data?.plateNumber?.trim() ||
+      draftApplication.data?.brand?.trim() ||
+      draftApplication.data?.make?.trim() ||
+      draftApplication.data?.model?.trim() ||
+      draftApplication.data?.color?.trim() ||
+      draftApplication.data?.driverLicense ||
+      draftApplication.data?.orCr
+    )
+  );
+
   const isDraftDuplicateOfSubmitted = Boolean(
     draftApplication &&
     (applications || []).some((app) => {
@@ -34,10 +48,10 @@ export default function Applications() {
   );
 
   React.useEffect(() => {
-    if (isDraftDuplicateOfSubmitted && clearDraft) {
+    if ((isDraftDuplicateOfSubmitted || isDraftEmpty) && clearDraft) {
       clearDraft();
     }
-  }, [isDraftDuplicateOfSubmitted, clearDraft]);
+  }, [isDraftDuplicateOfSubmitted, isDraftEmpty, clearDraft]);
 
   const getStatusBadge = (status) => {
     switch (status) {

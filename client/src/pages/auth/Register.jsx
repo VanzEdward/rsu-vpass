@@ -796,24 +796,33 @@ export default function Register() {
           
           {/* Section 1: Classification Selector (Student / Employee Only) */}
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2.5">
               Select Applicant Classification:
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => {
                   setClassification('STUDENT');
                   setDuplicateIdError('');
                 }}
-                className={`py-3 px-4 rounded-xl border flex items-center justify-center space-x-2 text-xs font-bold transition-all cursor-pointer ${
+                className={`py-3 px-4 rounded-xl border flex items-center space-x-3 text-xs font-bold transition-all cursor-pointer ${
                   classification === 'STUDENT'
                     ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm ring-2 ring-emerald-500/20'
-                    : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
+                    : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100 hover:border-slate-400'
                 }`}
               >
-                <GraduationCap className="w-4 h-4" />
-                <span>STUDENT</span>
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                  classification === 'STUDENT' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-700'
+                }`}>
+                  <GraduationCap className="w-5 h-5 shrink-0" />
+                </div>
+                <div className="text-left min-w-0">
+                  <span className="block font-black text-xs uppercase tracking-wide">Student</span>
+                  <span className={`block text-[11px] font-medium truncate ${classification === 'STUDENT' ? 'text-emerald-100' : 'text-slate-500'}`}>
+                    College / Undergraduate
+                  </span>
+                </div>
               </button>
 
               <button
@@ -822,14 +831,23 @@ export default function Register() {
                   setClassification('EMPLOYEE');
                   setDuplicateIdError('');
                 }}
-                className={`py-3 px-4 rounded-xl border flex items-center justify-center space-x-2 text-xs font-bold transition-all cursor-pointer ${
+                className={`py-3 px-4 rounded-xl border flex items-center space-x-3 text-xs font-bold transition-all cursor-pointer ${
                   classification === 'EMPLOYEE'
                     ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm ring-2 ring-emerald-500/20'
-                    : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
+                    : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100 hover:border-slate-400'
                 }`}
               >
-                <Briefcase className="w-4 h-4" />
-                <span>EMPLOYEE (FACULTY / STAFF)</span>
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                  classification === 'EMPLOYEE' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+                }`}>
+                  <Briefcase className="w-5 h-5 shrink-0" />
+                </div>
+                <div className="text-left min-w-0">
+                  <span className="block font-black text-xs uppercase tracking-wide">Employee</span>
+                  <span className={`block text-[11px] font-medium truncate ${classification === 'EMPLOYEE' ? 'text-emerald-100' : 'text-slate-500'}`}>
+                    Faculty / Staff
+                  </span>
+                </div>
               </button>
             </div>
           </div>
@@ -1062,18 +1080,22 @@ export default function Register() {
 
                 {/* RSU Main Campus (Odiongan) Degree & Year Dropdowns (Clean Unpopulated State) */}
                 <div className="p-3.5 sm:p-4 rounded-xl bg-white border border-emerald-200/80 shadow-sm space-y-3.5">
-                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
-                    <div className="flex items-center space-x-1.5 text-xs font-bold text-emerald-900">
-                      <BookOpen className="w-3.5 h-3.5 text-emerald-700" />
-                      <span>RSU Main Campus (Odiongan) Academic Program</span>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-100 gap-2">
+                    <div className="flex items-center space-x-2 text-xs font-bold text-emerald-950">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                        <BookOpen className="w-4 h-4 shrink-0" />
+                      </div>
+                      <span className="text-xs font-black text-slate-900 leading-snug">
+                        RSU Main Campus (Odiongan) Academic Program
+                      </span>
                     </div>
 
                     <button
                       type="button"
                       onClick={() => setShowCourseModal(true)}
-                      className="inline-flex items-center space-x-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200 transition-colors cursor-pointer"
+                      className="inline-flex items-center space-x-1.5 text-xs font-bold text-emerald-800 hover:text-emerald-900 bg-emerald-100/70 hover:bg-emerald-200/80 px-3 py-1.5 rounded-xl border border-emerald-300/80 transition-colors cursor-pointer shrink-0 self-start sm:self-auto shadow-2xs"
                     >
-                      <Search className="w-3 h-3" />
+                      <Search className="w-3.5 h-3.5 shrink-0 text-emerald-700" />
                       <span>Quick Find / Search</span>
                     </button>
                   </div>
