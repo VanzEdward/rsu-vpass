@@ -465,14 +465,24 @@ export default function Dashboard() {
                 )}
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowQRModal(true)}
-              className="text-xs font-bold text-emerald-600 hover:text-emerald-700 inline-flex items-center space-x-1"
-            >
-              <span>Present to Guard</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            {activePass ? (
+              <button
+                type="button"
+                onClick={() => setShowQRModal(true)}
+                className="text-xs font-bold text-emerald-600 hover:text-emerald-700 inline-flex items-center space-x-1 cursor-pointer"
+              >
+                <span>Present to Guard</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <Link
+                to="/client/my-vehicle"
+                className="text-xs font-bold text-emerald-600 hover:text-emerald-700 inline-flex items-center space-x-1"
+              >
+                <span>Register Vehicle</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            )}
           </div>
         </div>
 
@@ -571,58 +581,94 @@ export default function Dashboard() {
               <X className="w-4 h-4" />
             </button>
 
-            <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold mb-3">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              <span>RSU OFFICIAL GATE PASS</span>
-            </div>
-
-            <h3 className="text-lg font-black text-slate-900">
-              {activePass.vehicle}
-            </h3>
-            <p className="text-xs text-slate-500 font-mono mt-0.5 font-bold">
-              Plate: {activePass.plateNumber}
-            </p>
-
-            <div className="mt-4 p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100 inline-block shadow-inner">
-              {qrCodeDataUrl ? (
-                <img
-                  src={qrCodeDataUrl}
-                  alt="QR Code"
-                  className="w-56 h-56 object-contain mx-auto"
-                />
-              ) : (
-                <div className="w-56 h-56 flex items-center justify-center">
-                  <QrCode className="w-24 h-24 text-emerald-600" />
+            {activePass ? (
+              <>
+                <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold mb-3">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>RSU OFFICIAL GATE PASS</span>
                 </div>
-              )}
-            </div>
 
-            <div className="mt-3 space-y-1">
-              <p className="text-xs font-mono font-bold text-emerald-800">
-                {activePass.passNumber}
-              </p>
-              <p className="text-[11px] text-slate-500">
-                Hold phone screen near the scanner at Campus Gates 1, 2, 3, or 4.
-              </p>
-            </div>
+                <h3 className="text-lg font-black text-slate-900">
+                  {activePass.vehicle || 'Registered Vehicle'}
+                </h3>
+                <p className="text-xs text-slate-500 font-mono mt-0.5 font-bold">
+                  Plate: {activePass.plateNumber || 'N/A'}
+                </p>
 
-            <div className="mt-5 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setShowQRModal(false)}
-                className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-colors"
-              >
-                Close
-              </button>
-              <Link
-                to="/client/vehicle-pass"
-                onClick={() => setShowQRModal(false)}
-                className="w-full py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors flex items-center justify-center space-x-1"
-              >
-                <span>Full Pass</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
+                <div className="mt-4 p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100 inline-block shadow-inner">
+                  {qrCodeDataUrl ? (
+                    <img
+                      src={qrCodeDataUrl}
+                      alt="QR Code"
+                      className="w-56 h-56 object-contain mx-auto"
+                    />
+                  ) : (
+                    <div className="w-56 h-56 flex items-center justify-center">
+                      <QrCode className="w-24 h-24 text-emerald-600" />
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-3 space-y-1">
+                  <p className="text-xs font-mono font-bold text-emerald-800">
+                    {activePass.passNumber || 'GATE PASS'}
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    Hold phone screen near the scanner at Campus Gates 1, 2, 3, or 4.
+                  </p>
+                </div>
+
+                <div className="mt-5 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowQRModal(false)}
+                    className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    Close
+                  </button>
+                  <Link
+                    to="/client/vehicle-pass"
+                    onClick={() => setShowQRModal(false)}
+                    className="w-full py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors flex items-center justify-center space-x-1 cursor-pointer"
+                  >
+                    <span>Full Pass</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 mx-auto flex items-center justify-center mb-3">
+                  <QrCode className="w-7 h-7" />
+                </div>
+
+                <h3 className="text-lg font-black text-slate-900">
+                  No Active Gate Pass Yet
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto leading-relaxed">
+                  You do not have an approved and issued vehicle gate pass yet. Register your vehicle to obtain official PASO campus clearance and generate your gate QR pass.
+                </p>
+
+                <div className="mt-6 flex flex-col gap-2">
+                  <Link
+                    to="/client/my-vehicle"
+                    onClick={() => setShowQRModal(false)}
+                    className="w-full py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors flex items-center justify-center space-x-1 shadow-xs cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Register a Vehicle Now</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setShowQRModal(false)}
+                    className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

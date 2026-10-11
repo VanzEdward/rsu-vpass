@@ -414,7 +414,7 @@ export default function Register() {
     if (!formData.email.trim()) {
       issues.push('Email Address is required');
     } else if (!formData.email.includes('@')) {
-      issues.push('Email Address must include an "@" (e.g. vanz@gmail.com or vanz@rsu.edu.ph)');
+      issues.push('Email Address must include an "@" (e.g. user@gmail.com or user@rsu.edu.ph)');
     }
 
     if (!formData.password) {
@@ -609,7 +609,7 @@ export default function Register() {
     }
 
     if (!formData.email.includes('@')) {
-      showError('Please provide a valid Email Address containing "@" (e.g. vanz@gmail.com).');
+      showError('Please provide a valid Email Address containing "@" (e.g. user@gmail.com or user@rsu.edu.ph).');
       return;
     }
 
@@ -1335,7 +1335,7 @@ export default function Register() {
                 {formData.email && !formData.email.includes('@') ? (
                   <span className="text-[10px] text-rose-500 font-semibold mt-1 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3 shrink-0" />
-                    Missing "@" symbol (e.g. vanz@gmail.com)
+                    Missing "@" symbol (e.g. user@gmail.com)
                   </span>
                 ) : (
                   <span className="text-[10px] text-slate-400 mt-1 block">
