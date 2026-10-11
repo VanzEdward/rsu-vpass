@@ -65,6 +65,121 @@ export const VEHICLE_TYPE_CHOICES = [
   "Other Vehicle",
 ];
 
+export const PASS_DURATION_CHOICES = [
+  { value: "1", label: "1 Day (Today Until 11:59 PM)" },
+  { value: "2", label: "2 Days (Multi-Day Business)" },
+  { value: "3", label: "3 Days (Conference / Event)" },
+  { value: "7", label: "7 Days (Official Contractor)" },
+];
+
+/**
+ * Custom dropdown component for Guard Portal to replace native OS select dialogs
+ * with a responsive dark-themed floating card matching the application UI.
+ */
+function GuardCustomDropdown({
+  label,
+  required,
+  value,
+  onChange,
+  options,
+  placeholder = "Select option...",
+  disabled = false,
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const selectedOption = options.find((opt) =>
+    typeof opt === "object" ? opt.value === value : opt === value
+  );
+  const hasSelected = Boolean(selectedOption && value);
+  const displayLabel = hasSelected
+    ? typeof selectedOption === "object"
+      ? selectedOption.label
+      : selectedOption
+    : placeholder;
+
+  return (
+    <div className={`relative ${isOpen ? "z-30" : "z-10"}`} ref={dropdownRef}>
+      {label && (
+        <label className="block text-slate-300 font-bold mb-1">
+          {label} {required && <span className="text-rose-400">*</span>}
+        </label>
+      )}
+
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`w-full px-3.5 py-2.5 rounded-xl border text-xs text-left flex items-center justify-between transition-all cursor-pointer bg-slate-950 ${
+          isOpen
+            ? "border-emerald-500 ring-2 ring-emerald-500/30 text-white"
+            : "border-slate-800 text-slate-200 hover:border-slate-700"
+        } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+      >
+        <span
+          className={`truncate pr-2 ${
+            hasSelected ? "font-bold text-white" : "font-normal text-slate-500"
+          }`}
+        >
+          {displayLabel}
+        </span>
+        <ChevronDown
+          className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${
+            isOpen ? "rotate-180 text-emerald-400" : ""
+          }`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl py-1 max-h-56 overflow-y-auto divide-y divide-slate-800/50 animate-in fade-in zoom-in-95 duration-150">
+          {options.map((opt) => {
+            const optVal = typeof opt === "object" ? opt.value : opt;
+            const optLabel = typeof opt === "object" ? opt.label : opt;
+            const isSelected = optVal === value;
+
+            return (
+              <button
+                key={optVal}
+                type="button"
+                onClick={() => {
+                  onChange(optVal);
+                  setIsOpen(false);
+                }}
+                className={`w-full text-left px-3.5 py-2.5 text-xs transition-colors flex items-center justify-between cursor-pointer ${
+                  isSelected
+                    ? "bg-emerald-500/15 text-emerald-300 font-bold border-l-2 border-emerald-500"
+                    : "text-slate-300 hover:bg-slate-800/80 hover:text-white font-medium"
+                }`}
+              >
+                <span className="truncate pr-2">{optLabel}</span>
+                {isSelected && (
+                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function GuardScanner() {
   const {
     applications,
@@ -1581,57 +1696,34 @@ export default function GuardScanner() {
                     )}
                 </div>
 
-                <div>
-                  <label className="block text-slate-300 font-bold mb-1">
-                    Vehicle Type *
-                  </label>
-                  <div className="relative">
-                    <select
-                      required
-                      value={visitorForm.vehicleType}
-                      onChange={(e) =>
-                        setVisitorForm({
-                          ...visitorForm,
-                          vehicleType: e.target.value,
-                        })
-                      }
-                      className="w-full appearance-none px-3.5 py-2.5 pr-10 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer"
-                    >
-                      <option value="" disabled>PLEASE SELECT VEHICLE</option>
-                      {VEHICLE_TYPE_CHOICES.map((type) => (
-                        <option key={type} value={type} className="bg-slate-900 text-white">
-                          {type}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  </div>
-                </div>
+                <GuardCustomDropdown
+                  label="Vehicle Type"
+                  required
+                  value={visitorForm.vehicleType}
+                  onChange={(v) =>
+                    setVisitorForm({
+                      ...visitorForm,
+                      vehicleType: v,
+                    })
+                  }
+                  options={VEHICLE_TYPE_CHOICES}
+                  placeholder="PLEASE SELECT VEHICLE"
+                />
 
                 <div>
-                  <label className="block text-slate-300 font-bold mb-1">
-                    Valid ID Presented *
-                  </label>
-                  <div className="relative">
-                    <select
-                      required
-                      value={visitorForm.idPresented}
-                      onChange={(e) =>
-                        setVisitorForm({
-                          ...visitorForm,
-                          idPresented: e.target.value,
-                        })
-                      }
-                      className="w-full appearance-none px-3.5 py-2.5 pr-10 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer"
-                    >
-                      {PHILIPPINE_VALID_IDS.map((id) => (
-                        <option key={id} value={id} className="bg-slate-900 text-white">
-                          {id}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  </div>
+                  <GuardCustomDropdown
+                    label="Valid ID Presented"
+                    required
+                    value={visitorForm.idPresented}
+                    onChange={(v) =>
+                      setVisitorForm({
+                        ...visitorForm,
+                        idPresented: v,
+                      })
+                    }
+                    options={PHILIPPINE_VALID_IDS}
+                    placeholder="PLEASE SELECT VALID ID"
+                  />
 
                   {visitorForm.idPresented === "Other (Please specify)" && (
                     <div className="mt-2">
@@ -1671,29 +1763,19 @@ export default function GuardScanner() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-slate-300 font-bold mb-1">
-                    Pass Duration *
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={visitorForm.validityDuration}
-                      onChange={(e) =>
-                        setVisitorForm({
-                          ...visitorForm,
-                          validityDuration: e.target.value,
-                        })
-                      }
-                      className="w-full appearance-none px-3.5 py-2.5 pr-10 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer"
-                    >
-                      <option value="1" className="bg-slate-900 text-white">1 Day (Today Until 11:59 PM)</option>
-                      <option value="2" className="bg-slate-900 text-white">2 Days (Multi-Day Business)</option>
-                      <option value="3" className="bg-slate-900 text-white">3 Days (Conference / Event)</option>
-                      <option value="7" className="bg-slate-900 text-white">7 Days (Official Contractor)</option>
-                    </select>
-                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  </div>
-                </div>
+                <GuardCustomDropdown
+                  label="Pass Duration"
+                  required
+                  value={visitorForm.validityDuration}
+                  onChange={(v) =>
+                    setVisitorForm({
+                      ...visitorForm,
+                      validityDuration: v,
+                    })
+                  }
+                  options={PASS_DURATION_CHOICES}
+                  placeholder="Select Duration"
+                />
 
                 <div className="sm:col-span-2">
                   <label className="block text-slate-300 font-bold mb-1">
