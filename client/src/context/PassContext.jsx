@@ -3,85 +3,7 @@ import { apiRequest } from "../api/client";
 
 const PassContext = createContext(null);
 
-const INITIAL_APPLICATIONS = [
-  {
-    id: "APP-2026-0001",
-    user_id: 1,
-    applicant_name: "Prof. Juan Dela Cruz",
-    school_id: "EMP-2026-0812",
-    classification: "Employee",
-    department: "College of Engineering & Technology (Faculty)",
-    contact_number: "+63 912 345 6789",
-    applicant_photo:
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80",
-    vehicle: {
-      make: "Honda",
-      model: "Click 125",
-      year: 2023,
-      color: "Black",
-      plateNumber: "XYZ 5678",
-      type: "Motorcycle",
-    },
-    documents: {
-      driverLicense:
-        "https://images.unsplash.com/photo-1544717305-2782549b5136?w=600&auto=format&fit=crop&q=80",
-      orCr: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop&q=80",
-    },
-    status: "PASS_ISSUED",
-    rejection_reason: null,
-    submittedDate: "January 10, 2026",
-    receipt: {
-      orNumber: "2026-98123",
-      receiptPhoto: null,
-      paidAt: "January 11, 2026",
-    },
-    pass: {
-      passNumber: "E-001",
-      qrData: "RSU-VPASS:E-001:XYZ 5678:EMP-2026-0812",
-      validUntil: "December 31, 2026",
-      status: "ACTIVE",
-    },
-  },
-  {
-    id: "APP-2026-0089",
-    user_id: 2,
-    applicant_name: "Chrizhel Anne Cuenco",
-    school_id: "2023-00192",
-    classification: "Student",
-    department: "College of Engineering and Technology",
-    year_course: "4th Year • BS Information Technology",
-    contact_number: "+63 918 222 3344",
-    applicant_photo:
-      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80",
-    vehicle: {
-      make: "Yamaha",
-      model: "Mio Sporty",
-      year: 2024,
-      color: "Matte Blue",
-      plateNumber: "RSU 2026",
-      type: "Motorcycle",
-    },
-    documents: {
-      driverLicense:
-        "https://images.unsplash.com/photo-1544717305-2782549b5136?w=600&auto=format&fit=crop&q=80",
-      orCr: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop&q=80",
-    },
-    status: "PASS_ISSUED",
-    rejection_reason: null,
-    submittedDate: "January 12, 2026",
-    receipt: {
-      orNumber: "2026-98442",
-      receiptPhoto: null,
-      paidAt: "January 13, 2026",
-    },
-    pass: {
-      passNumber: "S-001",
-      qrData: "RSU-VPASS:S-001:RSU 2026:2023-00192",
-      validUntil: "December 31, 2026",
-      status: "ACTIVE",
-    },
-  },
-];
+const INITIAL_APPLICATIONS = [];
 
 export const CAMPUS_GATES = [
   { id: "Gate 1", name: "Gate 1" },
@@ -145,139 +67,9 @@ export const calculateOneYearExpiry = (startDate = new Date()) => {
   };
 };
 
-const INITIAL_NOTIFICATIONS = [
-  {
-    id: "notif-1",
-    type: "PASS_ISSUED",
-    title: "Vehicle Pass Activated",
-    message:
-      "Your Pass E-001 for Honda Click 125 (XYZ 5678) is active for Academic Year 2026.",
-    time: "2 hours ago",
-    date: new Date().toISOString(),
-    read: false,
-    link: "/client/vehicle-pass",
-    appId: "APP-2026-0001",
-  },
-  {
-    id: "notif-2",
-    type: "RECEIPT_VERIFIED",
-    title: "Cashier Payment Confirmed",
-    message:
-      "OR #2026-98123 has been recorded and verified by PASO Administration.",
-    time: "1 day ago",
-    date: new Date(Date.now() - 86400000).toISOString(),
-    read: true,
-    link: "/client/vehicle-pass",
-    appId: "APP-2026-0001",
-  },
-];
-
-const INITIAL_VISITORS = [
-  {
-    id: "TMP-2026-0042",
-    name: "Dr. Maria Santos",
-    contact: "+63 917 888 1234",
-    idPresented: "PRC License #0129841",
-    plateNumber: "NBM 9012",
-    vehicleType: "Sedan (Silver Vios)",
-    destination: "Office of the President (Admin Bldg)",
-    purpose: "Guest Lecturer / Meeting",
-    validDays: 1,
-    validUntil: "Today • 11:59 PM (1 Day)",
-    entryGate: "Gate 1",
-    entryTime: "09:30 AM Today",
-    status: "INSIDE", // 'INSIDE' | 'EXITED'
-    exitGate: null,
-    exitTime: null,
-    classification: "VISITOR",
-    qrData: "RSU-VPASS:TMP-2026-0042:NBM9012:VISITOR",
-  },
-  {
-    id: "TMP-2026-0038",
-    name: "Engr. Carlos Mendoza (Delegate)",
-    contact: "+63 919 555 4321",
-    idPresented: "Driver's License #N02-18-99999",
-    plateNumber: "ABC 5678",
-    vehicleType: "SUV (White Fortuner)",
-    destination: "College of Engineering & Technology (CET)",
-    purpose: "Regional IT Conference Delegate",
-    validDays: 3,
-    validUntil: "Sept 26, 2026 • 11:59 PM (3 Days)",
-    entryGate: "Gate 2",
-    entryTime: "Yesterday • 08:15 AM",
-    status: "INSIDE",
-    exitGate: null,
-    exitTime: null,
-    classification: "VISITOR",
-    qrData: "RSU-VPASS:TMP-2026-0038:ABC5678:VISITOR",
-  },
-  {
-    id: "TMP-2026-0029",
-    name: "LBC Express Courier (Delivery)",
-    contact: "+63 920 111 2233",
-    idPresented: "Company ID #LBC-8891",
-    plateNumber: "XYZ 9921",
-    vehicleType: "Delivery Van",
-    destination: "Supply & Property Office",
-    purpose: "Campus Equipment Delivery",
-    validDays: 1,
-    validUntil: "Today • 11:59 PM (1 Day)",
-    entryGate: "Gate 1",
-    entryTime: "08:45 AM Today",
-    status: "EXITED",
-    exitGate: "Gate 3",
-    exitTime: "10:15 AM Today",
-    classification: "VISITOR",
-    qrData: "RSU-VPASS:TMP-2026-0029:XYZ9921:VISITOR",
-  },
-];
-
-const INITIAL_LOGS = [
-  {
-    id: 1,
-    passNumber: "E-001",
-    plateNumber: "XYZ 5678",
-    owner: "Prof. Juan Dela Cruz",
-    classification: "EMPLOYEE",
-    type: "ENTRY",
-    gate: "Gate 1",
-    time: "07:45 AM Today",
-    status: "VALID",
-  },
-  {
-    id: 2,
-    passNumber: "TMP-2026-0042",
-    plateNumber: "NBM 9012",
-    owner: "Dr. Maria Santos",
-    classification: "VISITOR",
-    type: "ENTRY",
-    gate: "Gate 1",
-    time: "09:30 AM Today",
-    status: "VALID",
-  },
-  {
-    id: 3,
-    passNumber: "TMP-2026-0029",
-    plateNumber: "XYZ 9921",
-    owner: "LBC Express Courier",
-    classification: "VISITOR",
-    type: "EXIT",
-    gate: "Gate 3",
-    time: "10:15 AM Today",
-    status: "VALID",
-  },
-  {
-    id: 4,
-    passNumber: "S-001",
-    plateNumber: "RSU 2026",
-    owner: "Chrizhel Anne Cuenco",
-    classification: "STUDENT",
-    type: "ENTRY",
-    gate: "Gate 2",
-    time: "10:30 AM Today",
-    status: "VALID",
-  },
-];
+const INITIAL_NOTIFICATIONS = [];
+const INITIAL_VISITORS = [];
+const INITIAL_LOGS = [];
 
 /**
  * Determines the consistent, database-backed sequential pass number (e.g. S-001, S-002, E-001, E-002).
@@ -389,75 +181,42 @@ export const getSequentialPassNumber = (targetApp, allApplications = []) => {
   return `${prefix}-${String(nextSeq).padStart(3, "0")}`;
 };
 
+// Purge legacy dummy data from browser localStorage once
+const purgeLegacyDummyDataOnce = () => {
+  try {
+    const apps = localStorage.getItem("vpass_applications");
+    const vList = localStorage.getItem("vpass_vehicles");
+    const isLegacy =
+      (apps && (apps.includes("APP-2026-0001") || apps.includes("APP-2026-0089"))) ||
+      (vList && (vList.includes("XYZ 5678") || vList.includes("RSU 2026"))) ||
+      !localStorage.getItem("vpass_fresh_clean_v1");
+
+    if (isLegacy) {
+      localStorage.removeItem("vpass_applications");
+      localStorage.removeItem("vpass_vehicles");
+      localStorage.removeItem("vpass_notifications");
+      localStorage.removeItem("vpass_visitor_passes");
+      localStorage.removeItem("vpass_gate_logs");
+      localStorage.removeItem("vpass_registration_draft");
+      localStorage.setItem("vpass_fresh_clean_v1", "true");
+    }
+  } catch (e) {
+    // ignore
+  }
+};
+
+purgeLegacyDummyDataOnce();
+
 export const PassProvider = ({ children }) => {
   const [applications, setApplications] = useState(() => {
     const saved = localStorage.getItem("vpass_applications");
-    const rawList = saved ? JSON.parse(saved) : INITIAL_APPLICATIONS;
-    // Normalize legacy pass numbers
-    return rawList.map((app) => {
-      if (app.pass?.passNumber) {
-        const isStudent = (app.classification || "").toLowerCase().includes("student");
-        const prefix = isStudent ? "S" : "E";
-        const clean = String(app.pass.passNumber).trim().toUpperCase();
-        if (clean.startsWith("VP-") || (/^\d+$/.test(clean) && parseInt(clean, 10) >= 1000)) {
-          let seqNum = 1;
-          if (app.id === "APP-2026-0089") seqNum = 1;
-          else if (app.id === "APP-2026-0001") seqNum = 1;
-          else {
-            const m = clean.match(/(\d+)$/);
-            const val = m ? parseInt(m[1], 10) : 1;
-            seqNum = val < 1000 ? val : 1;
-          }
-          const normPass = `${prefix}-${String(seqNum).padStart(3, "0")}`;
-          return {
-            ...app,
-            pass: {
-              ...app.pass,
-              passNumber: normPass,
-              qrData: `RSU-VPASS:${normPass}:${app.vehicle?.plateNumber || ""}:${app.school_id || ""}`,
-            },
-          };
-        }
-      }
-      // Clean up legacy random assignedPassNumber
-      if (
-        app.assignedPassNumber &&
-        (!/^[SE]-\d{3}$/i.test(app.assignedPassNumber) ||
-          parseInt(app.assignedPassNumber.slice(2), 10) >= 1000)
-      ) {
-        const { assignedPassNumber, ...rest } = app;
-        return rest;
-      }
-      return app;
-    });
+    const rawList = saved ? JSON.parse(saved) : [];
+    return rawList;
   });
 
   const [vehicles, setVehicles] = useState(() => {
     const saved = localStorage.getItem("vpass_vehicles");
-    return saved
-      ? JSON.parse(saved)
-      : [
-          {
-            id: 1,
-            make: "Honda",
-            model: "Click 125",
-            year: 2023,
-            color: "Black",
-            plateNumber: "XYZ 5678",
-            type: "Motorcycle",
-            status: "Active Pass",
-          },
-          {
-            id: 2,
-            make: "Yamaha",
-            model: "Mio Sporty",
-            year: 2024,
-            color: "Matte Blue",
-            plateNumber: "RSU 2026",
-            type: "Motorcycle",
-            status: "Active Pass",
-          },
-        ];
+    return saved ? JSON.parse(saved) : [];
   });
 
   // Auto-saved In-Progress Draft Application

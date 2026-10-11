@@ -123,32 +123,10 @@ CREATE TABLE IF NOT EXISTS verification_logs (
 ) ENGINE=InnoDB;
 
 -- ==========================================================
--- Demo Seed Data (From PRD Section 7)
+-- System Seed Data (Essential Administrative Accounts)
 -- ==========================================================
 
--- Client Demo Account
-INSERT INTO users (id, school_id, email, password, full_name, role, contact_number, classification, year_course, department_unit, drivers_license_no)
-VALUES (
-    1,
-    '2026-00001',
-    'juan.delacruz@rsu.edu.ph',
-    '$2b$10$50GJUSBeYJZdFqZ3oX7/M.u1TAKZUB2VIxIu9HEtn2T4jr6zaWROm',
-    'Juan Dela Cruz',
-    'CLIENT',
-    '+63 912 345 6789',
-    'STUDENT',
-    'CCMADI • BS Information Technology',
-    'College of Communication, Media and Digital Arts',
-    'N02-24-987654'
-) ON DUPLICATE KEY UPDATE 
-    full_name = VALUES(full_name), 
-    password = VALUES(password),
-    classification = VALUES(classification),
-    year_course = VALUES(year_course),
-    department_unit = VALUES(department_unit),
-    drivers_license_no = VALUES(drivers_license_no);
-
--- PASO Admin Account
+-- PASO Admin Account (Default Credentials: PASO-ADMIN-01 / admin)
 INSERT INTO users (id, school_id, email, password, full_name, role, contact_number)
 VALUES (
     2,
@@ -160,7 +138,7 @@ VALUES (
     '+63 917 111 2222'
 ) ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), password = VALUES(password);
 
--- Gate Guard Account
+-- Gate Guard Account (Default Credentials: GUARD-GATE-01 / guard)
 INSERT INTO users (id, school_id, email, password, full_name, role, contact_number)
 VALUES (
     3,
@@ -172,27 +150,3 @@ VALUES (
     '+63 918 333 4444'
 ) ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), password = VALUES(password);
 
--- Demo Vehicle (Honda Click 125)
-INSERT INTO vehicles (id, user_id, plate_number, vehicle_type, make, model, color, year_model)
-VALUES (
-    1,
-    1,
-    'XYZ 5678',
-    'Motorcycle',
-    'Honda',
-    'Click 125',
-    'Black',
-    2023
-) ON DUPLICATE KEY UPDATE plate_number = VALUES(plate_number);
-
--- Demo Vehicle Pass
-INSERT INTO vehicle_passes (id, pass_number, vehicle_id, user_id, qr_code_data, valid_until, status)
-VALUES (
-    1,
-    'VP-2026-0001',
-    1,
-    1,
-    'RSU-VPASS:VP-2026-0001:XYZ5678:2026-00001',
-    '2026-12-31',
-    'ACTIVE'
-) ON DUPLICATE KEY UPDATE pass_number = VALUES(pass_number);

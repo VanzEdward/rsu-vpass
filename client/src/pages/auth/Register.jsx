@@ -476,15 +476,7 @@ export default function Register() {
         }
       }
 
-      // 2. Check seeded mock IDs
-      const seededIds = ['2023-00192', '2026-00001', 'EMP-2026-0812', 'EMP-2024-001'];
-      if (seededIds.some((s) => s.toLowerCase() === trimmed.toLowerCase())) {
-        const msg = `The ${classification === 'STUDENT' ? 'Student ID' : 'Employee ID'} "${trimmed}" is already registered in the university database. Duplicate ID numbers are not allowed.`;
-        setDuplicateIdError(msg);
-        return true;
-      }
-
-      // 3. Query backend verification endpoint
+      // 2. Query backend verification endpoint
       try {
         const res = await apiRequest(`/auth/check-id?school_id=${encodeURIComponent(trimmed)}`);
         if (res && res.exists) {

@@ -213,13 +213,33 @@ export default function Applications() {
       )}
 
       <div className="space-y-4">
-        {applications.map((app) => {
-          const step = getMilestoneStep(app.status);
-          const isApproved = app.status === 'APPROVED';
-          const isRejected = app.status === 'REJECTED';
-          const isPassIssued = app.status === 'PASS_ISSUED';
+        {applications.length === 0 ? (
+          <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 shadow-xs space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 mx-auto flex items-center justify-center shadow-xs">
+              <Car className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">No Applications Submitted Yet</h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                You haven't submitted any vehicle registration applications under this account.
+              </p>
+            </div>
+            <Link
+              to="/client/my-vehicle"
+              className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors"
+            >
+              <span>Register a Vehicle</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        ) : (
+          applications.map((app) => {
+            const step = getMilestoneStep(app.status);
+            const isApproved = app.status === 'APPROVED';
+            const isRejected = app.status === 'REJECTED';
+            const isPassIssued = app.status === 'PASS_ISSUED';
 
-          return (
+            return (
             <div key={app.id} className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-5">
               {/* Top Bar: App ID & Current Status */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
@@ -425,9 +445,10 @@ export default function Applications() {
                 </div>
               )}
             </div>
-          );
-        })}
-      </div>
+        );
+      })
+    )}
+  </div>
 
       {/* Unified In-App Confirm Discard Dialog */}
       <ConfirmModal

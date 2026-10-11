@@ -54,7 +54,7 @@ export default function Login() {
 
   const quickSwitch = (role) => {
     if (role === 'CLIENT') {
-      setIdentifier('2026-00001');
+      setIdentifier('');
       setPassword('');
     } else if (role === 'ADMIN') {
       setIdentifier('PASO-ADMIN-01');

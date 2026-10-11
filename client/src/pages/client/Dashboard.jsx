@@ -60,27 +60,23 @@ export default function Dashboard() {
     draftApplication.vehicle_type
   );
 
-  // Pass preview object
+  // Pass preview object (strictly null if no active pass has been issued)
   const activePass = activeApp?.pass ? {
     passNumber: activeApp.pass.passNumber,
-    vehicle: `${activeApp.vehicle?.make || ''} ${activeApp.vehicle?.model || ''}`.trim() || 'Honda Click 125',
-    plateNumber: activeApp.vehicle?.plateNumber || 'XYZ 5678',
+    vehicle: `${activeApp.vehicle?.make || ''} ${activeApp.vehicle?.model || ''}`.trim() || 'Motor Vehicle',
+    plateNumber: activeApp.vehicle?.plateNumber || 'N/A',
     vehicleType: activeApp.vehicle?.type || 'Motorcycle',
     validUntil: activeApp.pass.validUntil || 'December 31, 2026',
     status: activeApp.pass.status || 'ACTIVE',
     qrData: activeApp.pass.qrData || `RSU-VPASS:${activeApp.pass.passNumber}:${activeApp.vehicle?.plateNumber}:${activeApp.school_id || user?.school_id}`,
-  } : {
-    passNumber: (user?.classification || '').toLowerCase().includes('employee') ? 'E-001' : 'S-001',
-    vehicle: 'Honda Click 125',
-    plateNumber: 'XYZ 5678',
-    vehicleType: 'Motorcycle',
-    validUntil: 'December 31, 2026',
-    status: 'ACTIVE',
-    qrData: `RSU-VPASS:${(user?.classification || '').toLowerCase().includes('employee') ? 'E-001' : 'S-001'}:XYZ 5678:${user?.school_id || '2026-00001'}`,
-  };
+  } : null;
 
   // Generate high-resolution scannable QR Code
   useEffect(() => {
+    if (!activePass?.qrData) {
+      setQrCodeDataUrl('');
+      return;
+    }
     const payload = activePass.qrData;
     QRCode.toDataURL(payload, {
       width: 480,
@@ -93,7 +89,7 @@ export default function Dashboard() {
     })
       .then(url => setQrCodeDataUrl(url))
       .catch(err => console.error('Failed to generate dashboard QR:', err));
-  }, [activePass.qrData]);
+  }, [activePass]);
 
   // Compute live dynamic stats
   const stats = {
@@ -151,7 +147,7 @@ export default function Dashboard() {
             {/* Greeting */}
             <div>
               <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-                Welcome back, {user?.full_name || 'Juan Dela Cruz'}!
+                Welcome back, {user?.full_name || 'User'}!
               </h1>
               <p className="text-emerald-100/90 text-sm mt-1 max-w-xl leading-relaxed">
                 Manage registered university vehicles, track gate pass approvals, and present your digital RFID/QR clearance at university checkpoints.
@@ -162,7 +158,7 @@ export default function Dashboard() {
             <div className="pt-1 flex flex-wrap items-center gap-2 text-xs">
               <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-black/20 border border-white/10 font-mono text-emerald-100">
                 <IdCard className="w-3.5 h-3.5 text-emerald-300" />
-                <span>ID: <strong className="text-white font-bold">{user?.school_id || '2026-00001'}</strong></span>
+                <span>ID: <strong className="text-white font-bold">{user?.school_id || 'N/A'}</strong></span>
               </span>
 
               <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-black/20 border border-white/10 text-emerald-100">
@@ -364,74 +360,95 @@ export default function Dashboard() {
             </div>
 
             {/* Official Pass Container */}
-            <div className="mt-5 p-5 rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/60 via-white to-slate-50/60 shadow-xs relative overflow-hidden">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
-                <div className="space-y-2.5 min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>ACTIVE CLEARANCE</span>
-                    </span>
+            {activePass ? (
+              <div className="mt-5 p-5 rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/60 via-white to-slate-50/60 shadow-xs relative overflow-hidden">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
+                  <div className="space-y-2.5 min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>ACTIVE CLEARANCE</span>
+                      </span>
 
-                    <span className="text-[11px] font-medium text-slate-500">
-                      Gates 1, 2, 3 & 4
-                    </span>
-                  </div>
-
-                  <div>
-                    <h3 className="text-xl font-black text-slate-900 tracking-tight truncate" title={activePass.vehicle}>
-                      {activePass.vehicle}
-                    </h3>
-                    <p className="text-xs text-slate-500">Vehicle Type: <span className="font-semibold text-slate-700">{activePass.vehicleType}</span></p>
-                  </div>
-
-                  {/* Philippine Style Plate Box */}
-                  <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-slate-900 text-white font-mono shadow-xs border border-slate-700">
-                    <span className="text-[10px] uppercase font-bold text-emerald-400">PLATE</span>
-                    <span className="text-sm font-black tracking-widest">{activePass.plateNumber}</span>
-                  </div>
-
-                  <div className="space-y-0.5 text-xs text-slate-600 pt-1">
-                    <p>Pass Number: <strong className="font-mono text-emerald-700">{activePass.passNumber}</strong></p>
-                    <p>Valid Until: <span className="font-semibold text-slate-800">{activePass.validUntil}</span></p>
-                  </div>
-                </div>
-
-                {/* QR Preview Widget with Tap to Enlarge */}
-                <div className="text-center bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center shrink-0 self-center sm:self-auto">
-                  <button
-                    type="button"
-                    onClick={() => setShowQRModal(true)}
-                    className="relative group block rounded-xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    title="Tap to enlarge for guard scanner"
-                  >
-                    {qrCodeDataUrl ? (
-                      <img
-                        src={qrCodeDataUrl}
-                        alt="Vehicle Pass QR"
-                        className="w-24 h-24 object-contain group-hover:scale-105 transition-transform"
-                      />
-                    ) : (
-                      <div className="w-24 h-24 bg-slate-50 border border-slate-100 rounded-lg flex items-center justify-center">
-                        <QrCode className="w-16 h-16 text-emerald-700" />
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-emerald-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                      <Maximize2 className="w-5 h-5 drop-shadow-md" />
+                      <span className="text-[11px] font-medium text-slate-500">
+                        Gates 1, 2, 3 & 4
+                      </span>
                     </div>
-                  </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setShowQRModal(true)}
-                    className="mt-2 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center space-x-1"
-                  >
-                    <span>Enlarge QR Code</span>
-                    <Maximize2 className="w-3 h-3" />
-                  </button>
+                    <div>
+                      <h3 className="text-xl font-black text-slate-900 tracking-tight truncate" title={activePass.vehicle}>
+                        {activePass.vehicle}
+                      </h3>
+                      <p className="text-xs text-slate-500">Vehicle Type: <span className="font-semibold text-slate-700">{activePass.vehicleType}</span></p>
+                    </div>
+
+                    {/* Philippine Style Plate Box */}
+                    <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-slate-900 text-white font-mono shadow-xs border border-slate-700">
+                      <span className="text-[10px] uppercase font-bold text-emerald-400">PLATE</span>
+                      <span className="text-sm font-black tracking-widest">{activePass.plateNumber}</span>
+                    </div>
+
+                    <div className="space-y-0.5 text-xs text-slate-600 pt-1">
+                      <p>Pass Number: <strong className="font-mono text-emerald-700">{activePass.passNumber}</strong></p>
+                      <p>Valid Until: <span className="font-semibold text-slate-800">{activePass.validUntil}</span></p>
+                    </div>
+                  </div>
+
+                  {/* QR Preview Widget with Tap to Enlarge */}
+                  <div className="text-center bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center shrink-0 self-center sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setShowQRModal(true)}
+                      className="relative group block rounded-xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      title="Tap to enlarge for guard scanner"
+                    >
+                      {qrCodeDataUrl ? (
+                        <img
+                          src={qrCodeDataUrl}
+                          alt="Vehicle Pass QR"
+                          className="w-24 h-24 object-contain group-hover:scale-105 transition-transform"
+                        />
+                      ) : (
+                        <div className="w-24 h-24 bg-slate-50 border border-slate-100 rounded-lg flex items-center justify-center">
+                          <QrCode className="w-16 h-16 text-emerald-700" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-emerald-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                        <Maximize2 className="w-5 h-5 drop-shadow-md" />
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowQRModal(true)}
+                      className="mt-2 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center space-x-1"
+                    >
+                      <span>Enlarge QR Code</span>
+                      <Maximize2 className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="mt-5 p-8 text-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 mx-auto flex items-center justify-center">
+                  <QrCode className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">No Active Gate Pass Yet</h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                    Register your vehicle to obtain official PASO campus clearance and generate your gate QR pass.
+                  </p>
+                </div>
+                <Link
+                  to="/client/my-vehicle"
+                  className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Register a Vehicle</span>
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Recent Gate Activity Log (Student & Employee Entry/Exit) */}

@@ -111,7 +111,7 @@ export default function Navbar() {
             <div className="flex items-center space-x-2 sm:space-x-3">
               {/* User text callout (desktop) */}
               <div className="text-right hidden md:block">
-                <p className="text-sm font-semibold text-slate-800 leading-tight">{user.full_name || 'Juan Dela Cruz'}</p>
+                <p className="text-sm font-semibold text-slate-800 leading-tight">{user.full_name || 'User'}</p>
                 <div className="mt-0.5">{getRoleBadge(user.role)}</div>
               </div>
 

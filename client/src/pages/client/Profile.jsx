@@ -71,7 +71,8 @@ export default function Profile() {
 
   // Handle Copy ID
   const handleCopyId = () => {
-    const idToCopy = user?.school_id || '2026-00001';
+    const idToCopy = user?.school_id || '';
+    if (!idToCopy) return;
     navigator.clipboard?.writeText(idToCopy);
     setCopiedId(true);
     setTimeout(() => setCopiedId(false), 2000);
@@ -186,7 +187,7 @@ export default function Profile() {
             <div className="flex-1 text-center sm:text-left space-y-3">
               <div>
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                  <h2 className="text-2xl font-black text-slate-900">{user?.full_name || 'Juan Dela Cruz'}</h2>
+                  <h2 className="text-2xl font-black text-slate-900">{user?.full_name || 'User'}</h2>
                   <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
                     {user?.classification === 'EMPLOYEE'
                       ? 'RSU Employee'
@@ -198,14 +199,14 @@ export default function Profile() {
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-1">
-                  {user?.year_course || user?.department_unit || (user?.classification === 'EMPLOYEE' ? 'RSU University Personnel' : 'College of Engineering and Technology • BS Information Technology')}
+                  {user?.year_course || user?.department_unit || (user?.classification === 'EMPLOYEE' ? 'RSU Personnel' : 'RSU Student')}
                 </p>
               </div>
 
               {/* School ID Badge with Copy */}
               <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200">
                 <span className="text-xs text-slate-500 font-medium">University ID:</span>
-                <span className="font-mono text-xs font-bold text-slate-800">{user?.school_id || '2026-00001'}</span>
+                <span className="font-mono text-xs font-bold text-slate-800">{user?.school_id || 'N/A'}</span>
                 <button
                   type="button"
                   onClick={handleCopyId}
@@ -411,7 +412,7 @@ export default function Profile() {
               <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
                 <span className="text-slate-400 block font-semibold text-[11px]">Identification Card No.</span>
                 <span className="font-mono font-bold text-slate-800 mt-0.5 block">
-                  {user?.school_id || '2026-00001'}
+                  {user?.school_id || 'N/A'}
                 </span>
               </div>
 
@@ -420,7 +421,7 @@ export default function Profile() {
                   {user?.classification === 'EMPLOYEE' ? 'Department / Office Unit' : 'Academic Program & Year Level'}
                 </span>
                 <span className="font-semibold text-slate-800 mt-0.5 block">
-                  {user?.year_course || user?.department_unit || 'College of Engineering and Technology (CET) • BS Information Technology'}
+                  {user?.year_course || user?.department_unit || 'None specified'}
                 </span>
               </div>
 

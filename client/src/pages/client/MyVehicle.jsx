@@ -85,10 +85,10 @@ export default function MyVehicle() {
   const initialFormState = {
     // Registered client profile automatically loaded
     classification: user?.classification || 'Student',
-    applicant_name: user?.full_name || 'Juan Dela Cruz',
-    school_id: user?.school_id || '2026-00001',
-    department: user?.year_course || user?.department_unit || 'College of Engineering & Technology (CET)',
-    contact_number: user?.contact_number || '+63 912 345 6789',
+    applicant_name: user?.full_name || '',
+    school_id: user?.school_id || '',
+    department: user?.year_course || user?.department_unit || '',
+    contact_number: user?.contact_number || '',
     applicant_photo: user?.profile_image || null, // Base64 data URL from camera
 
     // Step 1: Vehicle Registration Information
@@ -507,109 +507,135 @@ export default function MyVehicle() {
 
       {/* Vehicle Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {vehicles.map((v) => {
-          const app = (applications || []).find(
-            (a) =>
-              (v.appId && a.id === v.appId) ||
-              (a.vehicle?.plateNumber || "").replace(/\s+/g, "").toUpperCase() ===
-              (v.plateNumber || "").replace(/\s+/g, "").toUpperCase()
-          );
-          const hasPass = Boolean(app?.status === "PASS_ISSUED" && app?.pass);
-          const isExpired = hasPass && isPassExpired(app.pass);
-          const isRenewalPending = app?.renewalPending || v.status === "Renewal Awaiting Payment";
-          const isPaymentPending = app?.status === "APPROVED" || v.status === "Payment Pending";
-          const isUnderVerification = app?.status === "RECEIPT_SUBMITTED" || v.status === "Receipt Under Verification";
-          const isCorrectionRequired = app?.status === "REJECTED" || v.status === "Correction Required";
-
-          return (
-            <div key={v.id} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center space-x-3 min-w-0 flex-1">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
-                    isExpired ? 'bg-rose-50 text-rose-600' : hasPass ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-600'
-                  }`}>
-                    <Car className="w-6 h-6" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-base font-bold text-slate-900 truncate">{v.make} {v.model} ({v.year})</h3>
-                    <p className="text-xs text-slate-500 truncate">{v.type} • {v.color}</p>
-                  </div>
-                </div>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
-                  isExpired
-                    ? 'bg-rose-100 text-rose-800 border-rose-300'
-                    : isRenewalPending
-                    ? 'bg-amber-100 text-amber-900 border-amber-300'
-                    : hasPass
-                    ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                    : isUnderVerification
-                    ? 'bg-blue-100 text-blue-800 border-blue-200'
-                    : isPaymentPending
-                    ? 'bg-amber-100 text-amber-800 border-amber-200'
-                    : isCorrectionRequired
-                    ? 'bg-rose-100 text-rose-800 border-rose-300'
-                    : 'bg-slate-100 text-slate-700 border-slate-200'
-                }`}>
-                  {isExpired 
-                    ? 'Pass Expired' 
-                    : isRenewalPending 
-                    ? 'Renewal Pending' 
-                    : hasPass 
-                    ? 'Active Pass' 
-                    : isUnderVerification 
-                    ? 'Verifying Receipt' 
-                    : isPaymentPending 
-                    ? 'Payment Pending' 
-                    : isCorrectionRequired
-                    ? 'Correction Required'
-                    : v.status || 'Pending Review'}
-                </span>
-              </div>
-
-              <div className="mt-5 pt-4 border-t border-slate-100 flex justify-between items-center text-xs gap-2">
-                <span className="text-slate-500 shrink-0">Plate Number:</span>
-                <span className="font-mono font-black text-slate-900 text-sm tracking-wider truncate">{v.plateNumber}</span>
-              </div>
-
-              {/* Automatic Renewal Notice (Applied ONLY to this specific expired vehicle) */}
-              {isExpired && app && (
-                <div className="mt-3.5 p-3.5 rounded-2xl bg-amber-50/90 border border-amber-300 text-amber-950 text-xs space-y-2">
-                  <div className="flex items-center space-x-1.5 font-bold text-amber-900">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                    <span>1-Year Vehicle Pass Expired ({app.pass?.validUntil})</span>
-                  </div>
-                  <p className="text-[11px] text-amber-900 leading-relaxed">
-                    The 1-year gate pass for this specific <strong>{v.make} {v.model}</strong> has expired. Campus gate scanners will flag this vehicle until renewed for Academic Year {systemSettings?.academicYear || '2026-2027'}.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => handleStartRenewal(app)}
-                    className="w-full py-2 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center space-x-1.5 cursor-pointer shadow-xs transition-colors"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Renew Pass for this {v.type || 'Vehicle'}</span>
-                  </button>
-                </div>
-              )}
-
-              {isRenewalPending && !isExpired && app && (
-                <div className="mt-3.5 p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-950 text-xs flex items-center justify-between">
-                  <div>
-                    <span className="font-bold block text-blue-900">Renewal In Progress</span>
-                    <span className="text-[11px] text-blue-800">Proceed to payment to re-activate your 1-year pass.</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/client/payments?appId=${app.id}`)}
-                    className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-bold text-[11px] hover:bg-blue-700 cursor-pointer"
-                  >
-                    Pay Renewal
-                  </button>
-                </div>
-              )}
+        {vehicles.length === 0 ? (
+          <div className="col-span-full p-12 text-center bg-white rounded-3xl border border-slate-200 shadow-xs space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 mx-auto flex items-center justify-center shadow-xs">
+              <Car className="w-8 h-8" />
             </div>
-          );
-        })}
+            <div>
+              <h3 className="text-base font-bold text-slate-900">No Registered Vehicles Yet</h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                You have not registered any vehicles under this account. Click below to register your vehicle for official campus gate clearance.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setFormData(initialFormState);
+                setCurrentStep(1);
+                setShowWizard(true);
+              }}
+              className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs cursor-pointer transition-colors"
+            >
+              <Plus className="w-4 h-4 text-white" />
+              <span>Register Your Vehicle Now</span>
+            </button>
+          </div>
+        ) : (
+          vehicles.map((v) => {
+            const app = (applications || []).find(
+              (a) =>
+                (v.appId && a.id === v.appId) ||
+                (a.vehicle?.plateNumber || "").replace(/\s+/g, "").toUpperCase() ===
+                (v.plateNumber || "").replace(/\s+/g, "").toUpperCase()
+            );
+            const hasPass = Boolean(app?.status === "PASS_ISSUED" && app?.pass);
+            const isExpired = hasPass && isPassExpired(app.pass);
+            const isRenewalPending = app?.renewalPending || v.status === "Renewal Awaiting Payment";
+            const isPaymentPending = app?.status === "APPROVED" || v.status === "Payment Pending";
+            const isUnderVerification = app?.status === "RECEIPT_SUBMITTED" || v.status === "Receipt Under Verification";
+            const isCorrectionRequired = app?.status === "REJECTED" || v.status === "Correction Required";
+
+            return (
+              <div key={v.id} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center space-x-3 min-w-0 flex-1">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+                      isExpired ? 'bg-rose-50 text-rose-600' : hasPass ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      <Car className="w-6 h-6" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-base font-bold text-slate-900 truncate">{v.make} {v.model} ({v.year})</h3>
+                      <p className="text-xs text-slate-500 truncate">{v.type} • {v.color}</p>
+                    </div>
+                  </div>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
+                    isExpired
+                      ? 'bg-rose-100 text-rose-800 border-rose-300'
+                      : isRenewalPending
+                      ? 'bg-amber-100 text-amber-900 border-amber-300'
+                      : hasPass
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                      : isUnderVerification
+                      ? 'bg-blue-100 text-blue-800 border-blue-200'
+                      : isPaymentPending
+                      ? 'bg-amber-100 text-amber-800 border-amber-200'
+                      : isCorrectionRequired
+                      ? 'bg-rose-100 text-rose-800 border-rose-300'
+                      : 'bg-slate-100 text-slate-700 border-slate-200'
+                  }`}>
+                    {isExpired 
+                      ? 'Pass Expired' 
+                      : isRenewalPending 
+                      ? 'Renewal Pending' 
+                      : hasPass 
+                      ? 'Active Pass' 
+                      : isUnderVerification 
+                      ? 'Verifying Receipt' 
+                      : isPaymentPending 
+                      ? 'Payment Pending' 
+                      : isCorrectionRequired
+                      ? 'Correction Required'
+                      : v.status || 'Pending Review'}
+                  </span>
+                </div>
+
+                <div className="mt-5 pt-4 border-t border-slate-100 flex justify-between items-center text-xs gap-2">
+                  <span className="text-slate-500 shrink-0">Plate Number:</span>
+                  <span className="font-mono font-black text-slate-900 text-sm tracking-wider truncate">{v.plateNumber}</span>
+                </div>
+
+                {/* Automatic Renewal Notice (Applied ONLY to this specific expired vehicle) */}
+                {isExpired && app && (
+                  <div className="mt-3.5 p-3.5 rounded-2xl bg-amber-50/90 border border-amber-300 text-amber-950 text-xs space-y-2">
+                    <div className="flex items-center space-x-1.5 font-bold text-amber-900">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>1-Year Vehicle Pass Expired ({app.pass?.validUntil})</span>
+                    </div>
+                    <p className="text-[11px] text-amber-900 leading-relaxed">
+                      The 1-year gate pass for this specific <strong>{v.make} {v.model}</strong> has expired. Campus gate scanners will flag this vehicle until renewed for Academic Year {systemSettings?.academicYear || '2026-2027'}.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleStartRenewal(app)}
+                      className="w-full py-2 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center space-x-1.5 cursor-pointer shadow-xs transition-colors"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Renew Pass for this {v.type || 'Vehicle'}</span>
+                    </button>
+                  </div>
+                )}
+
+                {isRenewalPending && !isExpired && app && (
+                  <div className="mt-3.5 p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-950 text-xs flex items-center justify-between">
+                    <div>
+                      <span className="font-bold block text-blue-900">Renewal In Progress</span>
+                      <span className="text-[11px] text-blue-800">Proceed to payment to re-activate your 1-year pass.</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/client/payments?appId=${app.id}`)}
+                      className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-bold text-[11px] hover:bg-blue-700 cursor-pointer"
+                    >
+                      Pay Renewal
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* 5-Step Milestone Registration Modal */}
