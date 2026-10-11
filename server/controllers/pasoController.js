@@ -41,18 +41,70 @@ export const getAllApplications = async (req, res) => {
   try {
     const [apps] = await pool.query(`
       SELECT 
-        a.id as application_id, a.status, a.rejection_reason, a.driver_license_url, a.or_cr_url, a.created_at,
+        a.id, a.app_ref_number, a.status, a.rejection_reason, 
+        a.applicant_photo, a.driver_license_url, a.or_cr_url,
+        a.receipt_or_number, a.receipt_photo_url, a.receipt_rejection_remark,
+        a.created_at, a.updated_at,
         u.id as user_id, u.school_id, u.full_name, u.email, u.contact_number,
-        v.id as vehicle_id, v.plate_number, v.vehicle_type, v.make, v.model, v.color, v.year_model, v.vehicle_photo_url,
-        p.or_number, p.amount, p.paid_at
+        u.classification, u.year_course, u.department_unit,
+        v.id as vehicle_id, v.plate_number, v.vehicle_type, v.make, v.model, v.color, v.year_model,
+        vp.id as pass_id, vp.pass_number, vp.valid_until, vp.qr_code_data, vp.status as pass_status
       FROM applications a
       JOIN users u ON a.user_id = u.id
       JOIN vehicles v ON a.vehicle_id = v.id
-      LEFT JOIN payments p ON p.application_id = a.id
+      LEFT JOIN vehicle_passes vp ON vp.vehicle_id = v.id
       ORDER BY a.created_at DESC
     `);
-    res.json(apps);
+
+    const formatted = apps.map((app) => ({
+      id: app.app_ref_number || `APP-2026-${String(app.id).padStart(4, '0')}`,
+      db_id: app.id,
+      user_id: app.user_id,
+      applicant_name: app.full_name,
+      school_id: app.school_id,
+      email: app.email,
+      contact_number: app.contact_number || '',
+      classification: app.classification || 'Student',
+      department: app.year_course || app.department_unit || '',
+      applicant_photo: app.applicant_photo,
+      vehicle: {
+        id: app.vehicle_id,
+        make: app.make,
+        model: app.model,
+        year: String(app.year_model || '2026'),
+        color: app.color,
+        plateNumber: app.plate_number,
+        type: app.vehicle_type,
+      },
+      documents: {
+        driverLicense: app.driver_license_url,
+        orCr: app.or_cr_url,
+      },
+      status: app.status,
+      rejection_reason: app.rejection_reason,
+      receiptRejectionRemark: app.receipt_rejection_remark,
+      receipt: app.receipt_or_number ? {
+        orNumber: app.receipt_or_number,
+        receiptPhoto: app.receipt_photo_url,
+        submittedAt: app.updated_at,
+      } : null,
+      pass: app.pass_number ? {
+        id: app.pass_id,
+        passNumber: app.pass_number,
+        validUntil: app.valid_until,
+        qrData: app.qr_code_data,
+        status: app.pass_status || 'ACTIVE',
+      } : null,
+      submittedDate: new Date(app.created_at).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }),
+    }));
+
+    res.json(formatted);
   } catch (error) {
+    console.error('Error fetching applications:', error);
     res
       .status(500)
       .json({ message: "Error fetching applications", error: error.message });
@@ -82,8 +134,13 @@ export const reviewApplication = async (req, res) => {
         });
     }
 
+    let appCondition = 'id = ?';
+    if (isNaN(Number(applicationId))) {
+      appCondition = 'app_ref_number = ?';
+    }
+
     await pool.query(
-      "UPDATE applications SET status = ?, rejection_reason = ? WHERE id = ?",
+      `UPDATE applications SET status = ?, rejection_reason = ? WHERE ${appCondition}`,
       [status, status === "REJECTED" ? rejection_reason : null, applicationId],
     );
 
@@ -94,7 +151,7 @@ export const reviewApplication = async (req, res) => {
          FROM applications a
          JOIN users u ON a.user_id = u.id
          JOIN vehicles v ON a.vehicle_id = v.id
-         WHERE a.id = ?`,
+         WHERE ${appCondition}`,
         [applicationId]
       );
 
@@ -128,6 +185,151 @@ export const reviewApplication = async (req, res) => {
     res
       .status(500)
       .json({ message: "Error reviewing application", error: error.message });
+  }
+};
+
+// Issue Official Vehicle Gate Pass after Cashier verification (Milestone 4)
+export const issuePass = async (req, res) => {
+  try {
+    const { applicationId } = req.params;
+    const { passNumber, validUntil, orNumber, amount } = req.body;
+
+    let appCondition = 'a.id = ?';
+    if (isNaN(Number(applicationId))) {
+      appCondition = 'a.app_ref_number = ?';
+    }
+
+    const [apps] = await pool.query(
+      `SELECT a.id, a.user_id, a.vehicle_id, a.receipt_or_number,
+              u.school_id, u.full_name, u.email,
+              v.plate_number, v.make, v.model, v.vehicle_type
+       FROM applications a
+       JOIN users u ON a.user_id = u.id
+       JOIN vehicles v ON a.vehicle_id = v.id
+       WHERE ${appCondition}`,
+      [applicationId]
+    );
+
+    if (apps.length === 0) {
+      return res.status(404).json({ message: 'Application not found' });
+    }
+
+    const app = apps[0];
+    const finalPassNum = passNumber || `S-${String(app.id).padStart(3, '0')}`;
+    const finalValidUntil = validUntil ? new Date(validUntil).toISOString().split('T')[0] : `${new Date().getFullYear() + 1}-12-31`;
+    const qrData = `RSU-VPASS:${finalPassNum}:${app.plate_number}:${app.school_id}`;
+
+    // 1. Insert or update vehicle pass
+    await pool.query(
+      `INSERT INTO vehicle_passes (pass_number, vehicle_id, user_id, qr_code_data, valid_until, status)
+       VALUES (?, ?, ?, ?, ?, 'ACTIVE')
+       ON DUPLICATE KEY UPDATE pass_number = VALUES(pass_number), qr_code_data = VALUES(qr_code_data), valid_until = VALUES(valid_until), status = 'ACTIVE'`,
+      [finalPassNum, app.vehicle_id, app.user_id, qrData, finalValidUntil]
+    );
+
+    // 2. Insert payment if OR number is available
+    const finalOr = orNumber || app.receipt_or_number;
+    if (finalOr) {
+      await pool.query(
+        `INSERT INTO payments (application_id, or_number, amount, recorded_by, remarks)
+         VALUES (?, ?, ?, ?, 'Cashier verified by PASO Admin')
+         ON DUPLICATE KEY UPDATE or_number = VALUES(or_number)`,
+        [app.id, finalOr, amount || 150.00, req.user.id]
+      );
+    }
+
+    // 3. Update application status
+    await pool.query(
+      `UPDATE applications SET status = 'PASS_ISSUED' WHERE id = ?`,
+      [app.id]
+    );
+
+    // 4. Trigger Brevo Email
+    try {
+      const vehicleDesc = `${app.make || ''} ${app.model || ''}`.trim() || app.vehicle_type || 'Vehicle';
+      sendPassIssuedEmail({
+        toEmail: app.email,
+        recipientName: app.full_name,
+        vehicle: vehicleDesc,
+        plateNumber: app.plate_number,
+        passNumber: finalPassNum,
+        validUntil: finalValidUntil,
+      }).catch((err) => console.error('[Brevo Hook Error]:', err));
+    } catch (e) {
+      console.error('[Brevo Hook Query Error]:', e);
+    }
+
+    res.json({
+      message: 'Official Vehicle Pass issued successfully!',
+      passNumber: finalPassNum,
+      validUntil: finalValidUntil,
+      qrData
+    });
+  } catch (error) {
+    console.error('Error in issuePass:', error);
+    res.status(500).json({ message: 'Failed to issue vehicle pass', error: error.message });
+  }
+};
+
+// Reject Cashier Receipt Proof with remark
+export const rejectReceipt = async (req, res) => {
+  try {
+    const { applicationId } = req.params;
+    const { remarks } = req.body;
+
+    if (!remarks || remarks.trim() === '') {
+      return res.status(400).json({ message: 'Rejection remark is required when declining a receipt' });
+    }
+
+    let appCondition = 'a.id = ?';
+    if (isNaN(Number(applicationId))) {
+      appCondition = 'a.app_ref_number = ?';
+    }
+
+    const [apps] = await pool.query(
+      `SELECT a.id, a.user_id, a.vehicle_id,
+              u.school_id, u.full_name, u.email,
+              v.plate_number, v.make, v.model, v.vehicle_type
+       FROM applications a
+       JOIN users u ON a.user_id = u.id
+       JOIN vehicles v ON a.vehicle_id = v.id
+       WHERE ${appCondition}`,
+      [applicationId]
+    );
+
+    if (apps.length === 0) {
+      return res.status(404).json({ message: 'Application not found' });
+    }
+
+    const app = apps[0];
+
+    // Set remark and status back to APPROVED so applicant can re-upload
+    await pool.query(
+      `UPDATE applications 
+       SET status = 'APPROVED', 
+           receipt_rejection_remark = ? 
+       WHERE id = ?`,
+      [remarks.trim(), app.id]
+    );
+
+    // Send Brevo Email
+    try {
+      const vehicleDesc = `${app.make || ''} ${app.model || ''}`.trim() || app.vehicle_type || 'Vehicle';
+      sendReceiptRejectedEmail({
+        toEmail: app.email,
+        recipientName: app.full_name,
+        vehicle: vehicleDesc,
+        plateNumber: app.plate_number,
+        reason: remarks.trim(),
+      }).catch((err) => console.error('[Brevo Hook Error]:', err));
+    } catch (e) {
+      console.error('[Brevo Hook Query Error]:', e);
+    }
+
+    res.json({ message: 'Receipt declined. Applicant has been notified to re-upload proof.' });
+  } catch (error) {
+    console.error('Error in rejectReceipt:', error);
+    res.status(500).json({ message: 'Failed to reject receipt', error: error.message });
   }
 };
 

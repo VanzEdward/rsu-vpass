@@ -4,6 +4,8 @@ import {
   getAllApplications, 
   reviewApplication, 
   recordPayment,
+  issuePass,
+  rejectReceipt,
   getGuards,
   createGuard,
   updateGuard,
@@ -37,6 +39,8 @@ router.use(authorizeRoles('PASO_ADMIN'));
 router.get('/stats', getAdminStats);
 router.get('/applications', getAllApplications);
 router.patch('/applications/:applicationId/review', reviewApplication);
+router.post('/applications/:applicationId/issue-pass', issuePass);
+router.post('/applications/:applicationId/reject-receipt', rejectReceipt);
 router.post('/payments/record', recordPayment);
 
 // Security Guard Accounts Management (PASO Admin Only)

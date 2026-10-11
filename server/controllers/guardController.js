@@ -121,58 +121,88 @@ export const manualSearch = async (req, res) => {
 // Create Digital Temporary Visitor Pass (1 to 7 Days Stay)
 export const createTemporaryPass = async (req, res) => {
   try {
-    const { visitor_name, host_name, plate_number, vehicle_description, duration_days = 1 } = req.body;
-    if (!visitor_name || !plate_number) {
+    const name = req.body.visitor_name || req.body.name;
+    const plate = req.body.plate_number || req.body.plateNumber;
+    const destination = req.body.destination || req.body.host_name || 'Administration Building';
+    const purpose = req.body.purpose || 'Official Business';
+    const contact = req.body.contact || 'N/A';
+    const idPresented = req.body.id_presented || req.body.idPresented || "Driver's License";
+    const vehicleType = req.body.vehicle_description || req.body.vehicleType || 'Motorcycle';
+    const durationDays = parseInt(req.body.duration_days || req.body.validityDuration || req.body.validDays || 1, 10);
+    const gateStation = req.body.entry_gate || req.body.gate || 'Gate 1';
+
+    if (!name || !plate) {
       return res.status(400).json({ message: 'Visitor name and plate number are required' });
     }
 
     const passNumber = `TMP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const validFrom = new Date();
     const validTo = new Date();
-    validTo.setDate(validTo.getDate() + (parseInt(duration_days, 10) || 1));
-    const cleanPlate = plate_number.trim().toUpperCase().replace(/\s+/g, '');
+    validTo.setDate(validTo.getDate() + (durationDays || 1));
+    const cleanPlate = plate.trim().toUpperCase().replace(/\s+/g, '');
     const qrData = `RSU-VPASS:${passNumber}:${cleanPlate}:VISITOR`;
 
     const [result] = await pool.query(`
       INSERT INTO temporary_passes 
-      (pass_number, visitor_name, host_name, plate_number, vehicle_description, valid_from, valid_to, qr_code_data, status, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?)
+      (pass_number, visitor_name, host_name, plate_number, vehicle_description, valid_from, valid_to, qr_code_data, status, created_by, destination, purpose, contact, id_presented, entry_gate)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?, ?, ?, ?)
     `, [
       passNumber,
-      visitor_name.trim(),
-      host_name || 'Administration Building',
-      plate_number.trim().toUpperCase(),
-      vehicle_description || 'Motorcycle',
+      name.trim(),
+      destination,
+      plate.trim().toUpperCase(),
+      vehicleType,
       validFrom,
       validTo,
       qrData,
-      req.user ? req.user.id : null
+      req.user ? req.user.id : null,
+      destination,
+      purpose,
+      contact,
+      idPresented,
+      gateStation
     ]);
 
     // Automatically record ENTRY event in verification logs
     await pool.query(`
       INSERT INTO verification_logs 
-      (pass_number, plate_number, owner_name, guard_id, verification_type, verification_method, verification_status)
-      VALUES (?, ?, ?, ?, 'ENTRY', 'MANUAL_SEARCH', 'VALID')
+      (pass_number, plate_number, owner_name, guard_id, verification_type, verification_method, verification_status, gate_station, classification)
+      VALUES (?, ?, ?, ?, 'ENTRY', 'MANUAL_SEARCH', 'VALID', ?, 'VISITOR')
     `, [
       passNumber,
-      plate_number.trim().toUpperCase(),
-      `${visitor_name.trim()} (Visitor)`,
-      req.user ? req.user.id : null
+      plate.trim().toUpperCase(),
+      `${name.trim()} (Visitor)`,
+      req.user ? req.user.id : null,
+      gateStation
     ]);
+
+    const formattedPass = {
+      id: passNumber,
+      db_id: result.insertId,
+      pass_number: passNumber,
+      name: name.trim(),
+      visitor_name: name.trim(),
+      contact,
+      idPresented,
+      plateNumber: plate.trim().toUpperCase(),
+      vehicleType,
+      destination,
+      purpose,
+      validDays: durationDays,
+      validUntil: durationDays === 1 ? 'Today • 11:59 PM (1 Day)' : `${validTo.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} (${durationDays} Days)`,
+      entryGate: gateStation,
+      entryTime: `${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} Today`,
+      entryDate: new Date().toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }),
+      status: 'INSIDE',
+      exitGate: null,
+      exitTime: null,
+      classification: 'VISITOR',
+      qrData
+    };
 
     res.status(201).json({
       message: 'Temporary visitor pass issued successfully',
-      pass: {
-        id: result.insertId,
-        pass_number: passNumber,
-        visitor_name,
-        plate_number: plate_number.trim().toUpperCase(),
-        valid_from: validFrom,
-        valid_to: validTo,
-        qr_code_data: qrData,
-        status: 'ACTIVE'
-      }
+      pass: formattedPass
     });
   } catch (error) {
     res.status(500).json({ message: 'Error creating temporary pass', error: error.message });
@@ -189,7 +219,39 @@ export const getTemporaryPasses = async (req, res) => {
       ORDER BY tp.created_at DESC
       LIMIT 100
     `);
-    res.json(passes);
+
+    const formatted = passes.map(tp => {
+      const entryDate = new Date(tp.created_at || tp.valid_from);
+      const isExited = tp.status === 'EXITED';
+      const isExpired = new Date(tp.valid_to) < new Date();
+
+      return {
+        id: tp.pass_number || `TMP-${tp.id}`,
+        db_id: tp.id,
+        pass_number: tp.pass_number,
+        name: tp.visitor_name,
+        visitor_name: tp.visitor_name,
+        contact: tp.contact || 'N/A',
+        idPresented: tp.id_presented || "Driver's License",
+        plateNumber: tp.plate_number,
+        plate_number: tp.plate_number,
+        vehicleType: tp.vehicle_description || 'Motorcycle',
+        destination: tp.destination || tp.host_name || 'Administration Building',
+        purpose: tp.purpose || 'Official Business',
+        validDays: Math.ceil((new Date(tp.valid_to) - new Date(tp.valid_from)) / (1000 * 60 * 60 * 24)) || 1,
+        validUntil: isExpired ? 'Expired' : `${new Date(tp.valid_to).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}`,
+        entryGate: tp.entry_gate || 'Gate 1',
+        entryTime: `${entryDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+        entryDate: entryDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }),
+        status: isExited ? 'EXITED' : (isExpired ? 'EXPIRED' : 'INSIDE'),
+        exitGate: tp.exit_gate,
+        exitTime: tp.exit_gate ? 'Exited' : null,
+        classification: 'VISITOR',
+        qrData: tp.qr_code_data
+      };
+    });
+
+    res.json(formatted);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching temporary passes', error: error.message });
   }
@@ -199,6 +261,8 @@ export const getTemporaryPasses = async (req, res) => {
 export const logVisitorExitEvent = async (req, res) => {
   try {
     const { id } = req.params;
+    const exitGate = req.body.exit_gate || req.body.gate || 'Gate 1';
+
     const [passes] = await pool.query('SELECT * FROM temporary_passes WHERE id = ? OR pass_number = ?', [id, id]);
     if (passes.length === 0) {
       return res.status(404).json({ message: 'Visitor pass not found' });
@@ -206,16 +270,24 @@ export const logVisitorExitEvent = async (req, res) => {
 
     const pass = passes[0];
 
+    // Update status to EXITED and record exit gate
+    await pool.query(`
+      UPDATE temporary_passes 
+      SET status = 'EXITED', exit_gate = ?
+      WHERE id = ?
+    `, [exitGate, pass.id]);
+
     // Log EXIT event in audit logs
     await pool.query(`
       INSERT INTO verification_logs 
-      (pass_number, plate_number, owner_name, guard_id, verification_type, verification_method, verification_status)
-      VALUES (?, ?, ?, ?, 'EXIT', 'MANUAL_SEARCH', 'VALID')
+      (pass_number, plate_number, owner_name, guard_id, verification_type, verification_method, verification_status, gate_station, classification)
+      VALUES (?, ?, ?, ?, 'EXIT', 'MANUAL_SEARCH', 'VALID', ?, 'VISITOR')
     `, [
       pass.pass_number,
       pass.plate_number,
       `${pass.visitor_name} (Visitor)`,
-      req.user ? req.user.id : null
+      req.user ? req.user.id : null,
+      exitGate
     ]);
 
     res.json({ message: 'Visitor exit successfully recorded' });
@@ -248,8 +320,8 @@ export const renewTemporaryPass = async (req, res) => {
     // Record renewal ENTRY event
     await pool.query(`
       INSERT INTO verification_logs 
-      (pass_number, plate_number, owner_name, guard_id, verification_type, verification_method, verification_status)
-      VALUES (?, ?, ?, ?, 'ENTRY', 'MANUAL_SEARCH', 'VALID')
+      (pass_number, plate_number, owner_name, guard_id, verification_type, verification_method, verification_status, gate_station, classification)
+      VALUES (?, ?, ?, ?, 'ENTRY', 'MANUAL_SEARCH', 'VALID', 'Gate 1', 'VISITOR')
     `, [
       pass.pass_number,
       pass.plate_number,
@@ -266,29 +338,52 @@ export const renewTemporaryPass = async (req, res) => {
 // Log Entry or Exit Event
 export const logVerification = async (req, res) => {
   try {
-    const { pass_number, plate_number, owner_name, verification_type, verification_method, verification_status } = req.body;
+    const { 
+      pass_number, passNumber,
+      plate_number, plateNumber,
+      owner_name, owner,
+      verification_type, type,
+      verification_method, method,
+      verification_status, status,
+      gate_station, gate,
+      classification
+    } = req.body;
 
-    await pool.query(`
+    const passNum = pass_number || passNumber;
+    const plate = plate_number || plateNumber;
+    const ownerName = owner_name || owner || 'Registered Motorist';
+    const vType = verification_type || type || 'ENTRY';
+    const vMethod = verification_method || method || 'QR_SCAN';
+    const vStatus = verification_status || status || 'VALID';
+    const gateSt = gate_station || gate || 'Gate 1';
+    const vClass = classification || 'STUDENT';
+
+    const [result] = await pool.query(`
       INSERT INTO verification_logs 
-      (pass_number, plate_number, owner_name, guard_id, verification_type, verification_method, verification_status)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      (pass_number, plate_number, owner_name, guard_id, verification_type, verification_method, verification_status, gate_station, classification)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      pass_number,
-      plate_number,
-      owner_name,
+      passNum,
+      plate,
+      ownerName,
       req.user ? req.user.id : null,
-      verification_type || 'ENTRY',
-      verification_method || 'QR_SCAN',
-      verification_status || 'VALID'
+      vType,
+      vMethod,
+      vStatus,
+      gateSt,
+      vClass
     ]);
 
-    res.status(201).json({ message: 'Verification event recorded' });
+    res.status(201).json({ 
+      message: 'Verification event recorded',
+      id: result.insertId 
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error recording verification log', error: error.message });
   }
 };
 
-// Get Recent Logs for Guard
+// Get Recent Logs for Guard and Admin
 export const getRecentLogs = async (req, res) => {
   try {
     const [logs] = await pool.query(`
@@ -296,9 +391,38 @@ export const getRecentLogs = async (req, res) => {
       FROM verification_logs vl
       LEFT JOIN users u ON vl.guard_id = u.id
       ORDER BY vl.timestamp DESC
-      LIMIT 50
+      LIMIT 100
     `);
-    res.json(logs);
+
+    const formatted = logs.map(l => {
+      const ts = new Date(l.timestamp);
+      const timeStr = ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const dateStr = ts.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+
+      return {
+        id: l.id,
+        passNumber: l.pass_number,
+        pass_number: l.pass_number,
+        plateNumber: l.plate_number,
+        plate_number: l.plate_number,
+        owner: l.owner_name,
+        owner_name: l.owner_name,
+        classification: l.classification || 'STUDENT',
+        type: l.verification_type,
+        verification_type: l.verification_type,
+        gate: l.gate_station || 'Gate 1',
+        gate_station: l.gate_station || 'Gate 1',
+        time: `${timeStr} Today`,
+        date: dateStr,
+        timestamp: l.timestamp,
+        status: l.verification_status,
+        verification_status: l.verification_status,
+        method: l.verification_method,
+        guard_name: l.guard_name
+      };
+    });
+
+    res.json(formatted);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching logs', error: error.message });
   }

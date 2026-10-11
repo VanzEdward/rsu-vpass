@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { apiRequest } from "../api/client";
+import { useAuth } from "./AuthContext";
 
 const PassContext = createContext(null);
 
@@ -260,6 +261,104 @@ export const PassProvider = ({ children }) => {
       return updated;
     });
   };
+
+  const { user, token } = useAuth();
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  // Real-time synchronization with Aiven Cloud Database
+  const fetchCloudData = useCallback(async () => {
+    if (!token || !user) return;
+    try {
+      setIsSyncing(true);
+      if (user.role === "PASO_ADMIN") {
+        const [appsRes, logsRes, visRes] = await Promise.allSettled([
+          apiRequest("/paso/applications"),
+          apiRequest("/guard/logs"),
+          apiRequest("/guard/visitors"),
+        ]);
+        if (appsRes.status === "fulfilled" && Array.isArray(appsRes.value)) {
+          setApplications(appsRes.value);
+        }
+        if (logsRes.status === "fulfilled" && Array.isArray(logsRes.value)) {
+          setGateLogs(logsRes.value);
+        }
+        if (visRes.status === "fulfilled" && Array.isArray(visRes.value)) {
+          setVisitorPasses(visRes.value);
+        }
+      } else if (user.role === "CLIENT") {
+        const [appsRes, vehsRes] = await Promise.allSettled([
+          apiRequest("/vehicles/my-applications"),
+          apiRequest("/vehicles/my-vehicles"),
+        ]);
+        if (appsRes.status === "fulfilled" && Array.isArray(appsRes.value)) {
+          setApplications(appsRes.value);
+        }
+        if (vehsRes.status === "fulfilled" && Array.isArray(vehsRes.value)) {
+          const vList = vehsRes.value.map((v) => ({
+            id: v.id,
+            make: v.make,
+            model: v.model,
+            year: String(v.year_model || "2026"),
+            color: v.color,
+            plateNumber: v.plate_number,
+            type: v.vehicle_type,
+            status: "Active Pass",
+          }));
+          if (vList.length > 0) {
+            setVehicles(vList);
+          }
+        }
+      } else if (user.role === "GUARD") {
+        const [logsRes, visRes] = await Promise.allSettled([
+          apiRequest("/guard/logs"),
+          apiRequest("/guard/visitors"),
+        ]);
+        if (logsRes.status === "fulfilled" && Array.isArray(logsRes.value)) {
+          setGateLogs(logsRes.value);
+        }
+        if (visRes.status === "fulfilled" && Array.isArray(visRes.value)) {
+          setVisitorPasses(visRes.value);
+        }
+      }
+    } catch (err) {
+      console.warn("[PassContext Cloud Sync Warning]:", err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [user, token]);
+
+  // Initial fetch and on auth change
+  useEffect(() => {
+    if (user && token) {
+      fetchCloudData();
+    }
+  }, [user?.id, user?.role, token, fetchCloudData]);
+
+  // Window focus and active polling (every 6 seconds) for seamless multi-device sync
+  useEffect(() => {
+    if (!user || !token) return;
+
+    const handleSyncTrigger = () => {
+      if (document.visibilityState === "visible") {
+        fetchCloudData();
+      }
+    };
+
+    window.addEventListener("focus", handleSyncTrigger);
+    document.addEventListener("visibilitychange", handleSyncTrigger);
+
+    const pollInterval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchCloudData();
+      }
+    }, 6000);
+
+    return () => {
+      window.removeEventListener("focus", handleSyncTrigger);
+      document.removeEventListener("visibilitychange", handleSyncTrigger);
+      clearInterval(pollInterval);
+    };
+  }, [user, token, fetchCloudData]);
 
   // Sync to localStorage
   useEffect(() => {
@@ -526,20 +625,20 @@ export const PassProvider = ({ children }) => {
     const newId = `APP-2026-${String(applications.length + 1).padStart(4, "0")}`;
     const newApp = {
       id: newId,
-      user_id: 1,
-      applicant_name: formData.applicant_name,
-      school_id: formData.school_id,
-      classification: formData.classification || "Student",
-      department: formData.department,
-      contact_number: formData.contact_number,
+      user_id: user?.id || 1,
+      applicant_name: formData.applicant_name || user?.full_name || "",
+      school_id: formData.school_id || user?.school_id || "",
+      classification: formData.classification || user?.classification || "Student",
+      department: formData.department || user?.year_course || user?.department_unit || "",
+      contact_number: formData.contact_number || user?.contact_number || "",
       applicant_photo: formData.applicant_photo, // Live captured image
       vehicle: {
-        make: formData.make,
-        model: formData.model,
-        year: formData.year,
-        color: formData.color,
-        plateNumber: formData.plateNumber,
-        type: formData.type,
+        make: formData.make || formData.brand || "",
+        model: formData.model || "",
+        year: formData.year || "2026",
+        color: formData.color || "",
+        plateNumber: (formData.plateNumber || "").trim().toUpperCase(),
+        type: formData.type || formData.vehicleType || "Motorcycle",
       },
       documents: {
         driverLicense: formData.driverLicense || "Uploaded Document",
@@ -558,21 +657,43 @@ export const PassProvider = ({ children }) => {
 
     setApplications((prev) => [newApp, ...prev]);
 
-    // Also register into vehicles list
+    // Also register into vehicles list optimistically
     setVehicles((prev) => [
       {
         id: Date.now(),
         appId: newApp.id,
-        make: formData.make,
-        model: formData.model,
-        year: formData.year,
-        color: formData.color,
-        plateNumber: formData.plateNumber,
-        type: formData.type,
+        make: formData.make || formData.brand || "",
+        model: formData.model || "",
+        year: formData.year || "2026",
+        color: formData.color || "",
+        plateNumber: (formData.plateNumber || "").trim().toUpperCase(),
+        type: formData.type || formData.vehicleType || "Motorcycle",
         status: "Pending Review",
       },
       ...prev,
     ]);
+
+    // Connect transaction to Aiven Cloud MySQL
+    apiRequest("/vehicles/register", {
+      method: "POST",
+      body: JSON.stringify({
+        plateNumber: (formData.plateNumber || "").trim().toUpperCase(),
+        vehicleType: formData.type || formData.vehicleType || "Motorcycle",
+        make: formData.make || formData.brand || "",
+        model: formData.model || "",
+        color: formData.color || "",
+        year: formData.year || "2026",
+        applicant_photo: formData.applicant_photo,
+        driverLicense: formData.driverLicense,
+        orCr: formData.orCr,
+      }),
+    })
+      .then(() => {
+        fetchCloudData();
+      })
+      .catch((err) => {
+        console.error("[Aiven Cloud Sync] Vehicle registration error:", err);
+      });
 
     return newApp;
   };
@@ -639,6 +760,21 @@ export const PassProvider = ({ children }) => {
         });
       }
     }
+
+    // Connect review transaction to Aiven Cloud MySQL
+    apiRequest(`/paso/applications/${encodeURIComponent(appId)}/review`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        status: decision,
+        rejection_reason: decision === "REJECTED" ? remarks : null,
+      }),
+    })
+      .then(() => {
+        fetchCloudData();
+      })
+      .catch((err) => {
+        console.error("[Aiven Cloud Sync] Admin review error:", err);
+      });
   };
 
   // Cashier Payment & Receipt Upload (Milestone 3: Client uploads receipt -> Awaiting PASO Verification)
@@ -692,6 +828,21 @@ export const PassProvider = ({ children }) => {
         return v;
       }),
     );
+
+    // Connect transaction to Aiven Cloud MySQL
+    apiRequest(`/vehicles/applications/${encodeURIComponent(appId)}/submit-receipt`, {
+      method: "POST",
+      body: JSON.stringify({
+        orNumber,
+        receiptPhoto,
+      }),
+    })
+      .then(() => {
+        fetchCloudData();
+      })
+      .catch((err) => {
+        console.error("[Aiven Cloud Sync] Cashier receipt upload error:", err);
+      });
   };
 
   // PASO Admin Verifies Cashier Receipt & Generates Official Gate QR Pass (Milestone 4 - Exactly 1 Year Validity)
@@ -796,6 +947,23 @@ export const PassProvider = ({ children }) => {
       validUntil: customDetails.validUntil || oneYear.validUntil,
       academicYear: acadYear,
     });
+
+    // Connect transaction to Aiven Cloud MySQL
+    apiRequest(`/paso/applications/${encodeURIComponent(appId)}/issue-pass`, {
+      method: "POST",
+      body: JSON.stringify({
+        passNumber: generatedPassNum,
+        validUntil: customDetails.expiresAt || oneYear.expiresAt,
+        orNumber: targetApp.receipt?.orNumber,
+        amount: (targetApp.vehicle?.type || "").toLowerCase().includes("4-wheel") ? 300 : 150,
+      }),
+    })
+      .then(() => {
+        fetchCloudData();
+      })
+      .catch((err) => {
+        console.error("[Aiven Cloud Sync] Issue pass error:", err);
+      });
   };
 
   // Reject Receipt (e.g. unreadable photo or mismatched payment amount)
@@ -849,6 +1017,20 @@ export const PassProvider = ({ children }) => {
         reason: remarks,
       });
     }
+
+    // Connect transaction to Aiven Cloud MySQL
+    apiRequest(`/paso/applications/${encodeURIComponent(appId)}/reject-receipt`, {
+      method: "POST",
+      body: JSON.stringify({
+        remarks: remarks || "Cashier receipt image is unreadable or invalid.",
+      }),
+    })
+      .then(() => {
+        fetchCloudData();
+      })
+      .catch((err) => {
+        console.error("[Aiven Cloud Sync] Reject receipt error:", err);
+      });
   };
 
   // Re-submit an application that was previously returned/rejected by PASO
@@ -944,6 +1126,28 @@ export const PassProvider = ({ children }) => {
       link: "/client/applications",
       appId,
     });
+
+    // Connect transaction to Aiven Cloud MySQL
+    apiRequest(`/vehicles/applications/${encodeURIComponent(appId)}/resubmit`, {
+      method: "PUT",
+      body: JSON.stringify({
+        plateNumber: updatedData.plateNumber,
+        vehicleType: updatedData.type,
+        make: updatedData.make,
+        model: updatedData.model,
+        color: updatedData.color,
+        year: updatedData.year,
+        driverLicense: updatedData.driverLicense,
+        orCr: updatedData.orCr,
+        applicant_photo: updatedData.applicant_photo,
+      }),
+    })
+      .then(() => {
+        fetchCloudData();
+      })
+      .catch((err) => {
+        console.error("[Aiven Cloud Sync] Resubmit application error:", err);
+      });
   };
 
   // Submit Pass Renewal Application (Pre-filled vehicle data, FRESH LIVE SELFIE REQUIRED, preserves S-number & QR code)
@@ -1031,6 +1235,28 @@ export const PassProvider = ({ children }) => {
       link: "/client/applications",
       appId,
     });
+
+    // Connect transaction to Aiven Cloud MySQL
+    apiRequest(`/vehicles/applications/${encodeURIComponent(appId)}/resubmit`, {
+      method: "PUT",
+      body: JSON.stringify({
+        plateNumber: renewalData.plateNumber,
+        vehicleType: renewalData.type,
+        make: renewalData.make,
+        model: renewalData.model,
+        color: renewalData.color,
+        year: renewalData.year,
+        driverLicense: renewalData.driverLicense,
+        orCr: renewalData.orCr,
+        applicant_photo: renewalData.applicant_photo,
+      }),
+    })
+      .then(() => {
+        fetchCloudData();
+      })
+      .catch((err) => {
+        console.error("[Aiven Cloud Sync] Renewal application error:", err);
+      });
   };
 
   // Add Gate Log (Records Employee Entry/Exit, Student Spot-Check, or Visitor Event)
@@ -1059,6 +1285,23 @@ export const PassProvider = ({ children }) => {
       status: logData.status || "VALID",
     };
     setGateLogs((prev) => [newLog, ...prev]);
+
+    // Connect transaction to Aiven Cloud MySQL
+    apiRequest("/guard/log", {
+      method: "POST",
+      body: JSON.stringify({
+        passNumber: logData.passNumber,
+        plateNumber: logData.plateNumber,
+        owner: logData.owner,
+        classification: logData.classification || "EMPLOYEE",
+        type: logData.type || "ENTRY",
+        gate: gateStation,
+        status: logData.status || "VALID",
+      }),
+    }).catch((err) => {
+      console.warn("[Aiven Cloud Sync] Gate verification log warning:", err);
+    });
+
     return newLog;
   };
 
@@ -1119,6 +1362,28 @@ export const PassProvider = ({ children }) => {
       status: "VALID",
     });
 
+    // Connect transaction to Aiven Cloud MySQL
+    apiRequest("/guard/visitor-pass", {
+      method: "POST",
+      body: JSON.stringify({
+        name: visitorForm.name.trim(),
+        contact: visitorForm.contact?.trim() || "N/A",
+        idPresented: visitorForm.idPresented || "Driver's License",
+        plateNumber: visitorForm.plateNumber.trim().toUpperCase(),
+        vehicleType: visitorForm.vehicleType || "Motorcycle",
+        destination: visitorForm.destination,
+        purpose: visitorForm.purpose,
+        validityDuration: days,
+        gate: currentPost,
+      }),
+    })
+      .then(() => {
+        fetchCloudData();
+      })
+      .catch((err) => {
+        console.error("[Aiven Cloud Sync] Issue visitor pass error:", err);
+      });
+
     return newVisitor;
   };
 
@@ -1163,8 +1428,19 @@ export const PassProvider = ({ children }) => {
         status: "VALID",
       });
     }
-  };
 
+    // Connect transaction to Aiven Cloud MySQL
+    apiRequest(`/guard/visitors/${encodeURIComponent(idOrPlate)}/exit`, {
+      method: "PUT",
+      body: JSON.stringify({ gate: currentPost }),
+    })
+      .then(() => {
+        fetchCloudData();
+      })
+      .catch((err) => {
+        console.error("[Aiven Cloud Sync] Log visitor exit error:", err);
+      });
+  };
 
   // Extend Visitor Stay (Adds days for visitor already INSIDE campus, WITHOUT duplicate ENTRY log)
   const extendVisitorPass = (idOrPlate, additionalDays = 1) => {
@@ -1190,6 +1466,18 @@ export const PassProvider = ({ children }) => {
         return v;
       }),
     );
+
+    // Connect transaction to Aiven Cloud MySQL
+    apiRequest(`/guard/visitors/${encodeURIComponent(idOrPlate)}/renew`, {
+      method: "PUT",
+      body: JSON.stringify({ duration_days: additionalDays }),
+    })
+      .then(() => {
+        fetchCloudData();
+      })
+      .catch((err) => {
+        console.error("[Aiven Cloud Sync] Extend visitor pass error:", err);
+      });
 
     return extendedItem;
   };
@@ -1276,6 +1564,8 @@ export const PassProvider = ({ children }) => {
         logVisitorExit,
         extendVisitorPass,
         getSequentialPassNumber,
+        refreshCloudData: fetchCloudData,
+        isSyncing,
       }}
     >
       {children}
