@@ -10,8 +10,9 @@ export default function CameraCaptureModal({
 }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const isStartingRef = useRef(false);
 
-  const [stream, setStream] = useState(null);
   const [capturedImage, setCapturedImage] = useState(null);
   const [cameraError, setCameraError] = useState('');
   const [facingMode, setFacingMode] = useState('user'); // 'user' (front) or 'environment' (rear)
@@ -19,33 +20,75 @@ export default function CameraCaptureModal({
 
   const isReceipt = title.toLowerCase().includes('receipt');
 
-  // Start webcam stream
+  const stopTracks = () => {
+    if (streamRef.current) {
+      try {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      } catch (e) {
+        console.warn('Error stopping camera track:', e);
+      }
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  // Start webcam stream with hardware release pause and progressive fallback
   const startCamera = async (mode = facingMode) => {
+    if (isStartingRef.current) return;
+    isStartingRef.current = true;
     setIsLoadingCamera(true);
     setCameraError('');
     
-    // Stop any existing stream
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-    }
+    // Explicitly stop previous tracks and release hardware sensor
+    stopTracks();
+
+    // 100ms delay gives mobile OS camera driver time to release previous sensor
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('Camera access is not supported by your browser.');
       }
 
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: selfieOnly ? 'user' : mode,
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-        audio: false,
-      });
+      let mediaStream = null;
+      try {
+        // First priority: direct facingMode constraint to strictly command mobile to activate front ('user') or rear ('environment')
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: selfieOnly ? 'user' : mode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        });
+      } catch (firstErr) {
+        console.warn('Direct facingMode constraints failed, attempting ideal fallback:', firstErr);
+        try {
+          // Second fallback: ideal facingMode for devices that do not support strict facingMode constraints
+          mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: selfieOnly ? 'user' : { ideal: mode },
+            },
+            audio: false,
+          });
+        } catch (secondErr) {
+          console.warn('Ideal facingMode failed, attempting basic video:', secondErr);
+          // Ultimate fallback: any available video device (e.g. external USB desktop webcam)
+          mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+        }
+      }
 
-      setStream(mediaStream);
+      streamRef.current = mediaStream;
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
+        videoRef.current.setAttribute('playsinline', 'true');
+        videoRef.current.setAttribute('webkit-playsinline', 'true');
+        await videoRef.current.play().catch(() => {});
       }
     } catch (err) {
       console.warn('Webcam stream error:', err);
@@ -54,6 +97,7 @@ export default function CameraCaptureModal({
       );
     } finally {
       setIsLoadingCamera(false);
+      isStartingRef.current = false;
     }
   };
 
@@ -63,10 +107,7 @@ export default function CameraCaptureModal({
     }
 
     return () => {
-      // Clean up stream on unmount
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-      }
+      stopTracks();
     };
   }, [isOpen, facingMode]);
 
@@ -85,18 +126,12 @@ export default function CameraCaptureModal({
     const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
     setCapturedImage(dataUrl);
 
-    // Stop active camera stream while previewing
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      setStream(null);
-    }
+    stopTracks();
   };
 
-  // Switch camera front/back
+  // Switch camera front/back cleanly without duplicate getUserMedia calls
   const toggleCamera = () => {
-    const newMode = facingMode === 'user' ? 'environment' : 'user';
-    setFacingMode(newMode);
-    startCamera(newMode);
+    setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'));
   };
 
   // Retake photo
@@ -114,10 +149,7 @@ export default function CameraCaptureModal({
   };
 
   const handleClose = () => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      setStream(null);
-    }
+    stopTracks();
     setCapturedImage(null);
     setCameraError('');
     onClose();

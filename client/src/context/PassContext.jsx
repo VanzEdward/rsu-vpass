@@ -309,10 +309,14 @@ export const PassProvider = ({ children }) => {
           }
         }
       } else if (user.role === "GUARD") {
-        const [logsRes, visRes] = await Promise.allSettled([
+        const [appsRes, logsRes, visRes] = await Promise.allSettled([
+          apiRequest("/guard/passes"),
           apiRequest("/guard/logs"),
           apiRequest("/guard/visitors"),
         ]);
+        if (appsRes.status === "fulfilled" && Array.isArray(appsRes.value)) {
+          setApplications(appsRes.value);
+        }
         if (logsRes.status === "fulfilled" && Array.isArray(logsRes.value)) {
           setGateLogs(logsRes.value);
         }

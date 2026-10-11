@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import jsQR from "jsqr";
 import QRCode from "qrcode";
 import { usePass, isPassExpired } from "../../context/PassContext";
+import { apiRequest } from "../../api/client";
 import {
   Camera,
   Search,
@@ -163,25 +164,45 @@ export default function GuardScanner() {
         streamRef.current.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
       }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 80));
 
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error("Camera API is not supported by your browser.");
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: mode,
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-        audio: false,
-      });
+      let stream = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: mode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        });
+      } catch (err1) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: mode } },
+            audio: false,
+          });
+        } catch (err2) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+        }
+      }
 
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.setAttribute("playsinline", "true");
-        await videoRef.current.play();
+        await videoRef.current.play().catch(() => {});
       }
       setCameraActive(true);
       setFacingMode(mode);
@@ -330,16 +351,22 @@ export default function GuardScanner() {
   };
 
   // Manual search lookup (Unified under Scanner)
-  const handleManualSearch = (query) => {
+  const handleManualSearch = async (query) => {
     const q = (query || quickSearchQuery).trim().toLowerCase();
     if (!q) return;
 
+    const qNoSpace = q.replace(/\s+/g, "");
+
     // Search in registered student/employee passes
     const matchingApp = (applications || []).find((a) => {
-      const matchPlate = a.vehicle?.plateNumber?.toLowerCase().includes(q);
-      const matchName = a.applicant_name?.toLowerCase().includes(q);
-      const matchId = a.school_id?.toLowerCase().includes(q);
-      const matchPass = a.pass?.passNumber?.toLowerCase().includes(q);
+      const plate = (a.vehicle?.plateNumber || "").toLowerCase();
+      const plateNoSpace = plate.replace(/\s+/g, "");
+      const matchPlate = plate.includes(q) || (qNoSpace && plateNoSpace.includes(qNoSpace));
+      const matchName = (a.applicant_name || "").toLowerCase().includes(q);
+      const matchId = (a.school_id || "").toLowerCase().includes(q);
+      const passNum = (a.pass?.passNumber || "").toLowerCase();
+      const passNumNoSpace = passNum.replace(/[^a-z0-9]/g, "");
+      const matchPass = passNum.includes(q) || (qNoSpace && passNumNoSpace.includes(qNoSpace));
       return matchPlate || matchName || matchId || matchPass;
     });
 
@@ -381,9 +408,11 @@ export default function GuardScanner() {
 
     // Search in temporary visitor passes
     const matchingVisitor = (visitors || []).find((v) => {
-      const matchPlate = v.plateNumber?.toLowerCase().includes(q);
-      const matchName = v.name?.toLowerCase().includes(q);
-      const matchId = v.id?.toLowerCase().includes(q);
+      const plate = (v.plateNumber || "").toLowerCase();
+      const plateNoSpace = plate.replace(/\s+/g, "");
+      const matchPlate = plate.includes(q) || (qNoSpace && plateNoSpace.includes(qNoSpace));
+      const matchName = (v.name || "").toLowerCase().includes(q);
+      const matchId = (v.id || "").toLowerCase().includes(q);
       return matchPlate || matchName || matchId;
     });
 
@@ -412,6 +441,43 @@ export default function GuardScanner() {
       return;
     }
 
+    // Authoritative Cloud Database Search
+    try {
+      const cloudResults = await apiRequest(`/guard/search?query=${encodeURIComponent(q)}`);
+      if (Array.isArray(cloudResults) && cloudResults.length > 0) {
+        const found = cloudResults[0];
+        const isExpired = found.status === "EXPIRED" || found.status === "REVOKED" || (found.valid_until && new Date(found.valid_until) < new Date());
+        if (isExpired) {
+          playBeep(false);
+          triggerHaptic(false);
+        } else {
+          triggerHaptic(true);
+        }
+        const isStudent = (found.classification || "").toUpperCase() === "STUDENT";
+        const isVisitor = (found.classification || "").toUpperCase() === "VISITOR";
+        const isEmployee = !isStudent && !isVisitor;
+        setVerifiedPass({
+          passNumber: found.pass_number,
+          client: found.full_name,
+          schoolId: found.school_id,
+          classification: isVisitor ? "VISITOR" : (isStudent ? "STUDENT" : "EMPLOYEE"),
+          vehicle: `${found.make || ""} ${found.model || ""}`.trim() || found.vehicle_type || "Vehicle",
+          plateNumber: found.plate_number,
+          vehicleType: found.vehicle_type || "Vehicle",
+          color: found.color || "N/A",
+          validUntil: found.valid_until ? new Date(found.valid_until).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Active Clearance",
+          status: isExpired ? "EXPIRED" : (found.status || "ACTIVE"),
+          isValid: !isExpired && (found.status || "ACTIVE") === "ACTIVE",
+          department: found.department_unit || found.destination || (isStudent ? "College of Engineering and Technology" : "RSU University Personnel"),
+          yearCourse: found.year_course || "",
+          photo: found.client_photo || null,
+        });
+        return;
+      }
+    } catch (err) {
+      console.warn("Backend manual search error:", err);
+    }
+
     // Fallback demo matching
     if (
       q.includes("nbm") ||
@@ -438,7 +504,7 @@ export default function GuardScanner() {
   };
 
   // Decode scanned QR text
-  const handleScannedData = (rawText) => {
+  const handleScannedData = async (rawText) => {
     if (!rawText) return;
     const text = String(rawText).trim();
     if (!text) return;
@@ -463,7 +529,7 @@ export default function GuardScanner() {
     const cleanPass = extractedPass.toLowerCase().replace(/[^a-z0-9]/g, "");
     const cleanPlate = extractedPlate.toLowerCase();
 
-    // 1. Registered Passes
+    // 1. Registered Passes (Local sync)
     const matchApp = (applications || []).find((a) => {
       if (!a.pass) return false;
       const appPassNum = (a.pass.passNumber || "")
@@ -526,7 +592,7 @@ export default function GuardScanner() {
       return;
     }
 
-    // 2. Temporary Visitor Passes
+    // 2. Temporary Visitor Passes (Local sync)
     const matchVisitor = (visitors || []).find((v) => {
       const vId = (v.id || "").toLowerCase().replace(/[^a-z0-9]/g, "");
       const vPlate = (v.plateNumber || "")
@@ -568,7 +634,47 @@ export default function GuardScanner() {
       return;
     }
 
-    // 3. UNRECOGNIZED / TROLL / INVALID QR CODE INTERCEPTOR
+    // 3. Authoritative Online Cloud Backend Verification
+    try {
+      const verifyRes = await apiRequest("/guard/verify", {
+        method: "POST",
+        body: JSON.stringify({ code: text }),
+      });
+      if (verifyRes && verifyRes.found && verifyRes.pass) {
+        const p = verifyRes.pass;
+        const isExpired = verifyRes.status === "EXPIRED" || !verifyRes.isValid;
+        if (isExpired) {
+          playBeep(false);
+          triggerHaptic(false);
+        } else {
+          triggerHaptic(true);
+        }
+        const isStudent = (p.classification || "").toUpperCase() === "STUDENT";
+        const isVisitor = verifyRes.type === "TEMPORARY" || (p.classification || "").toUpperCase() === "VISITOR";
+        const isEmployee = !isStudent && !isVisitor;
+        setVerifiedPass({
+          passNumber: p.pass_number,
+          client: p.full_name || p.visitor_name,
+          schoolId: p.school_id || `VISITOR (${p.id_presented || "ID"})`,
+          classification: isVisitor ? "VISITOR" : (isStudent ? "STUDENT" : "EMPLOYEE"),
+          vehicle: `${p.make || ""} ${p.model || ""}`.trim() || p.vehicle_type || p.vehicle_description || "Vehicle",
+          plateNumber: p.plate_number,
+          vehicleType: p.vehicle_type || p.vehicle_description || "Vehicle",
+          color: p.color || "N/A",
+          validUntil: p.valid_until ? new Date(p.valid_until).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : (p.valid_to ? new Date(p.valid_to).toLocaleDateString() : "Active Clearance"),
+          status: verifyRes.status || "ACTIVE",
+          isValid: verifyRes.isValid,
+          department: p.department_unit || p.destination || (isStudent ? "College of Engineering and Technology" : "RSU University Personnel"),
+          yearCourse: p.year_course || "",
+          photo: p.client_photo || null,
+        });
+        return;
+      }
+    } catch (err) {
+      console.warn("Backend QR verify check failed:", err);
+    }
+
+    // 4. UNRECOGNIZED / TROLL / INVALID QR CODE INTERCEPTOR
     playBeep(false);
     triggerHaptic(false);
 
@@ -682,7 +788,7 @@ export default function GuardScanner() {
           }
 
           if (detected) {
-            cooldownUntilRef.current = now + 2500;
+            cooldownUntilRef.current = now + 3500;
             handleScannedData(detected);
           }
         } catch {

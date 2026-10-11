@@ -2,6 +2,7 @@ import express from 'express';
 import { 
   verifyPass, 
   manualSearch, 
+  getGuardPasses,
   logVerification, 
   getRecentLogs,
   createTemporaryPass,
@@ -19,6 +20,7 @@ router.use(authorizeRoles('GUARD', 'PASO_ADMIN'));
 
 router.post('/verify', verifyPass);
 router.get('/search', manualSearch);
+router.get('/passes', getGuardPasses);
 router.post('/log', logVerification);
 router.get('/logs', getRecentLogs);
 
