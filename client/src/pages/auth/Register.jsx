@@ -272,6 +272,19 @@ export default function Register() {
     }
   }, [selectedYear, currentCourse, selectedMajor, classification]);
 
+  // Deflect and clear any unwanted browser password manager autofill on register page
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setFormData((prev) => {
+        if (prev.password && !prev.confirmPassword) {
+          return { ...prev, password: '', confirmPassword: '' };
+        }
+        return prev;
+      });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, []);
+
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -1310,6 +1323,10 @@ export default function Register() {
               </h3>
             </div>
 
+            {/* Deflect aggressive browser password manager autofill */}
+            <input type="text" name="fake_username_prevent_autofill" style={{ display: 'none' }} tabIndex={-1} autoComplete="off" readOnly />
+            <input type="password" name="fake_password_prevent_autofill" style={{ display: 'none' }} tabIndex={-1} autoComplete="new-password" readOnly />
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {/* Email Address */}
               <div>
@@ -1320,6 +1337,9 @@ export default function Register() {
                   <Mail className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
                   <input
                     type="email"
+                    name="rsu_reg_email"
+                    id="rsu_reg_email"
+                    autoComplete="off"
                     required
                     maxLength={50}
                     placeholder="e.g. juan@rsu.edu.ph"
@@ -1352,6 +1372,9 @@ export default function Register() {
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
+                    name="rsu_reg_new_password"
+                    id="rsu_reg_new_password"
+                    autoComplete="new-password"
                     required
                     maxLength={40}
                     placeholder="Min 6 characters"
@@ -1403,6 +1426,9 @@ export default function Register() {
                 <div className="relative">
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
+                    name="rsu_reg_confirm_password"
+                    id="rsu_reg_confirm_password"
+                    autoComplete="new-password"
                     required
                     maxLength={40}
                     placeholder="Confirm password"
