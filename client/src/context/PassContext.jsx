@@ -1310,7 +1310,7 @@ export const PassProvider = ({ children }) => {
   };
 
   // Issue New Visitor Pass (1-to-7 days duration)
-  const issueVisitorPass = (visitorForm) => {
+  const issueVisitorPass = async (visitorForm) => {
     const passId = `TMP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const days = parseInt(visitorForm.validityDuration, 10) || 1;
     const expiryDate = new Date();
@@ -1330,16 +1330,17 @@ export const PassProvider = ({ children }) => {
       year: "numeric",
     });
     const currentPost = visitorForm.gate || activeGate || "Gate 1";
+    const cleanPlate = visitorForm.plateNumber.trim().toUpperCase();
 
     const newVisitor = {
       id: passId,
       name: visitorForm.name.trim(),
-      contact: visitorForm.contact.trim() || "N/A",
+      contact: visitorForm.contact ? visitorForm.contact.trim() : "N/A",
       idPresented: visitorForm.idPresented || "Driver's License",
-      plateNumber: visitorForm.plateNumber.trim().toUpperCase(),
+      plateNumber: cleanPlate,
       vehicleType: visitorForm.vehicleType || "Motorcycle",
-      destination: visitorForm.destination,
-      purpose: visitorForm.purpose,
+      destination: visitorForm.destination ? visitorForm.destination.trim() : "Administration Building",
+      purpose: visitorForm.purpose ? visitorForm.purpose.trim() : "Official Business",
       validDays: days,
       validUntil: expiryStr,
       entryGate: currentPost,
@@ -1350,43 +1351,48 @@ export const PassProvider = ({ children }) => {
       exitTime: null,
       exitDate: null,
       classification: "VISITOR",
-      qrData: `RSU-VPASS:${passId}:${visitorForm.plateNumber.trim().toUpperCase().replace(/\\s+/g, "")}:VISITOR`,
+      qrData: `RSU-VPASS:${passId}:${cleanPlate.replace(/\s+/g, "")}:VISITOR`,
     };
 
     setVisitorPasses((prev) => [newVisitor, ...prev]);
 
-    // Also auto-record initial ENTRY log with active gate
-    addGateLog({
+    // Local state log for instant UI rendering (server will insert single authoritative log)
+    const initialEntryLog = {
+      id: Date.now(),
       passNumber: newVisitor.id,
       plateNumber: newVisitor.plateNumber,
       owner: newVisitor.name,
       classification: "VISITOR",
       type: "ENTRY",
       gate: currentPost,
+      time: `${timeStr} Today`,
+      date: dateStr,
       status: "VALID",
-    });
+    };
+    setGateLogs((prev) => [initialEntryLog, ...prev]);
 
-    // Connect transaction to Aiven Cloud MySQL
-    apiRequest("/guard/visitor-pass", {
-      method: "POST",
-      body: JSON.stringify({
-        name: visitorForm.name.trim(),
-        contact: visitorForm.contact?.trim() || "N/A",
-        idPresented: visitorForm.idPresented || "Driver's License",
-        plateNumber: visitorForm.plateNumber.trim().toUpperCase(),
-        vehicleType: visitorForm.vehicleType || "Motorcycle",
-        destination: visitorForm.destination,
-        purpose: visitorForm.purpose,
-        validityDuration: days,
-        gate: currentPost,
-      }),
-    })
-      .then(() => {
-        fetchCloudData();
-      })
-      .catch((err) => {
-        console.error("[Aiven Cloud Sync] Issue visitor pass error:", err);
+    // Connect transaction to Aiven Cloud MySQL with matching passNumber
+    try {
+      await apiRequest("/guard/visitor-pass", {
+        method: "POST",
+        body: JSON.stringify({
+          pass_number: passId,
+          passNumber: passId,
+          name: visitorForm.name.trim(),
+          contact: visitorForm.contact ? visitorForm.contact.trim() : "N/A",
+          idPresented: visitorForm.idPresented || "Driver's License",
+          plateNumber: cleanPlate,
+          vehicleType: visitorForm.vehicleType || "Motorcycle",
+          destination: visitorForm.destination ? visitorForm.destination.trim() : "Administration Building",
+          purpose: visitorForm.purpose ? visitorForm.purpose.trim() : "Official Business",
+          validityDuration: days,
+          gate: currentPost,
+        }),
       });
+      fetchCloudData();
+    } catch (err) {
+      console.error("[Aiven Cloud Sync] Issue visitor pass error:", err);
+    }
 
     return newVisitor;
   };
@@ -1407,7 +1413,9 @@ export const PassProvider = ({ children }) => {
 
     setVisitorPasses((prev) =>
       prev.map((v) => {
-        if (v.id === idOrPlate || v.plateNumber === idOrPlate) {
+        const cleanVPlate = (v.plateNumber || "").replace(/\s+/g, "").toUpperCase();
+        const cleanTarget = String(idOrPlate || "").replace(/\s+/g, "").toUpperCase();
+        if (v.id === idOrPlate || cleanVPlate === cleanTarget || v.plateNumber === idOrPlate) {
           visitorFound = v;
           return {
             ...v,
@@ -1422,21 +1430,25 @@ export const PassProvider = ({ children }) => {
     );
 
     if (visitorFound) {
-      addGateLog({
+      const exitLog = {
+        id: Date.now(),
         passNumber: visitorFound.id,
         plateNumber: visitorFound.plateNumber,
         owner: visitorFound.name,
         classification: "VISITOR",
         type: "EXIT",
         gate: currentPost,
+        time: `${timeStr} Today`,
+        date: dateStr,
         status: "VALID",
-      });
+      };
+      setGateLogs((prev) => [exitLog, ...prev]);
     }
 
     // Connect transaction to Aiven Cloud MySQL
     apiRequest(`/guard/visitors/${encodeURIComponent(idOrPlate)}/exit`, {
       method: "PUT",
-      body: JSON.stringify({ gate: currentPost }),
+      body: JSON.stringify({ gate: currentPost, exit_gate: currentPost }),
     })
       .then(() => {
         fetchCloudData();

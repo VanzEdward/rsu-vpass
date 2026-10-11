@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS temporary_passes (
     valid_from DATETIME NOT NULL,
     valid_to DATETIME NOT NULL,
     qr_code_data LONGTEXT NOT NULL,
-    status ENUM('ACTIVE', 'EXPIRED') DEFAULT 'ACTIVE',
+    status ENUM('ACTIVE', 'EXPIRED', 'EXITED') DEFAULT 'ACTIVE',
     created_by INT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL

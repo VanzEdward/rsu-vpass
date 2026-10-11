@@ -220,7 +220,7 @@ export const createTemporaryPass = async (req, res) => {
       return res.status(400).json({ message: 'Visitor name and plate number are required' });
     }
 
-    const passNumber = `TMP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const passNumber = req.body.pass_number || req.body.passNumber || `TMP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const validFrom = new Date();
     const validTo = new Date();
     validTo.setDate(validTo.getDate() + (durationDays || 1));
@@ -248,7 +248,7 @@ export const createTemporaryPass = async (req, res) => {
       gateStation
     ]);
 
-    // Automatically record ENTRY event in verification logs
+    // Automatically record ENTRY event in verification logs (single authoritative record)
     await pool.query(`
       INSERT INTO verification_logs 
       (pass_number, plate_number, owner_name, guard_id, verification_type, verification_method, verification_status, gate_station, classification)
@@ -256,7 +256,7 @@ export const createTemporaryPass = async (req, res) => {
     `, [
       passNumber,
       plate.trim().toUpperCase(),
-      `${name.trim()} (Visitor)`,
+      name.trim(),
       req.user ? req.user.id : null,
       gateStation
     ]);
@@ -347,8 +347,19 @@ export const logVisitorExitEvent = async (req, res) => {
   try {
     const { id } = req.params;
     const exitGate = req.body.exit_gate || req.body.gate || 'Gate 1';
+    const cleanId = String(id).trim();
+    const cleanPlate = cleanId.replace(/\s+/g, '').toUpperCase();
 
-    const [passes] = await pool.query('SELECT * FROM temporary_passes WHERE id = ? OR pass_number = ?', [id, id]);
+    const [passes] = await pool.query(`
+      SELECT * FROM temporary_passes 
+      WHERE id = ? 
+         OR pass_number = ? 
+         OR plate_number = ? 
+         OR REPLACE(UPPER(plate_number), ' ', '') = ?
+      ORDER BY id DESC
+      LIMIT 1
+    `, [cleanId, cleanId, cleanId, cleanPlate]);
+
     if (passes.length === 0) {
       return res.status(404).json({ message: 'Visitor pass not found' });
     }
@@ -362,18 +373,29 @@ export const logVisitorExitEvent = async (req, res) => {
       WHERE id = ?
     `, [exitGate, pass.id]);
 
-    // Log EXIT event in audit logs
-    await pool.query(`
-      INSERT INTO verification_logs 
-      (pass_number, plate_number, owner_name, guard_id, verification_type, verification_method, verification_status, gate_station, classification)
-      VALUES (?, ?, ?, ?, 'EXIT', 'MANUAL_SEARCH', 'VALID', ?, 'VISITOR')
-    `, [
-      pass.pass_number,
-      pass.plate_number,
-      `${pass.visitor_name} (Visitor)`,
-      req.user ? req.user.id : null,
-      exitGate
-    ]);
+    // Check if an EXIT log was already inserted in the last 10 seconds to avoid duplicates
+    const [recentExit] = await pool.query(`
+      SELECT id FROM verification_logs 
+      WHERE (pass_number = ? OR plate_number = ?)
+        AND verification_type = 'EXIT'
+        AND timestamp >= NOW() - INTERVAL 10 SECOND
+      LIMIT 1
+    `, [pass.pass_number, pass.plate_number]);
+
+    if (recentExit.length === 0) {
+      // Log EXIT event in audit logs
+      await pool.query(`
+        INSERT INTO verification_logs 
+        (pass_number, plate_number, owner_name, guard_id, verification_type, verification_method, verification_status, gate_station, classification)
+        VALUES (?, ?, ?, ?, 'EXIT', 'MANUAL_SEARCH', 'VALID', ?, 'VISITOR')
+      `, [
+        pass.pass_number,
+        pass.plate_number,
+        pass.visitor_name,
+        req.user ? req.user.id : null,
+        exitGate
+      ]);
+    }
 
     res.json({ message: 'Visitor exit successfully recorded' });
   } catch (error) {

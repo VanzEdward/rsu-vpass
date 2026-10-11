@@ -33,6 +33,38 @@ import {
   ArrowRight,
 } from "lucide-react";
 
+export const PHILIPPINE_VALID_IDS = [
+  "Driver's License (LTO)",
+  "Philippine National ID (PhilID / ePhilID)",
+  "Philippine Passport (DFA)",
+  "UMID (Unified Multi-Purpose ID)",
+  "SSS ID (Social Security System)",
+  "GSIS eCard",
+  "PRC ID (Professional Regulation Commission)",
+  "Postal ID (PHLPost)",
+  "Voter's ID / Certification (COMELEC)",
+  "TIN Card (BIR)",
+  "PhilHealth ID",
+  "Senior Citizen ID",
+  "PWD ID (Persons with Disability)",
+  "Barangay ID / Clearance",
+  "Company / Employee ID",
+  "Student ID / School ID",
+  "Other (Please specify)",
+];
+
+export const VEHICLE_TYPE_CHOICES = [
+  "Motorcycle",
+  "Sedan / Hatchback",
+  "SUV / AUV",
+  "Pickup Truck",
+  "Van",
+  "Tricycle",
+  "Electric Vehicle (E-Bike / E-Trike)",
+  "Delivery Truck / Utility Vehicle",
+  "Other Vehicle",
+];
+
 export default function GuardScanner() {
   const {
     applications,
@@ -93,17 +125,19 @@ export default function GuardScanner() {
     }
   }, [selectedVisitorModal]);
 
-  // New Visitor Form State
+  // New Visitor Form State (Empty defaults with Philippine ID choices)
   const [visitorForm, setVisitorForm] = useState({
     name: "",
     contact: "",
-    idPresented: "Driver's License",
+    idPresented: "Driver's License (LTO)",
+    otherId: "",
     plateNumber: "",
-    vehicleType: "Motorcycle",
-    destination: "Administration Building",
-    purpose: "Official Business / Inquiry",
+    vehicleType: "",
+    destination: "",
+    purpose: "",
     validityDuration: "1",
   });
+  const [visitorFormError, setVisitorFormError] = useState("");
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -840,52 +874,101 @@ export default function GuardScanner() {
   };
 
   // Issue new visitor pass
-  const handleIssueVisitorPass = (e) => {
+  const handleIssueVisitorPass = async (e) => {
     e.preventDefault();
-    if (!visitorForm.name.trim() || !visitorForm.plateNumber.trim()) {
-      setLogSuccessMessage(
-        "Please enter visitor name and vehicle plate number.",
-      );
-      setTimeout(() => setLogSuccessMessage(""), 3500);
+    setVisitorFormError("");
+
+    if (!visitorForm.name.trim()) {
+      setVisitorFormError("Please enter the visitor's full name.");
+      return;
+    }
+    if (!visitorForm.plateNumber.trim()) {
+      setVisitorFormError("Please enter the vehicle plate number.");
+      return;
+    }
+    if (!visitorForm.vehicleType || visitorForm.vehicleType === "") {
+      setVisitorFormError("Please select a vehicle type.");
+      return;
+    }
+    if (!visitorForm.idPresented) {
+      setVisitorFormError("Please select a valid ID presented.");
+      return;
+    }
+    if (
+      visitorForm.idPresented === "Other (Please specify)" &&
+      !(visitorForm.otherId || "").trim()
+    ) {
+      setVisitorFormError("Please specify the valid ID presented.");
+      return;
+    }
+    if (!visitorForm.contact.trim()) {
+      setVisitorFormError("Please enter a visitor contact number.");
+      return;
+    }
+    if (!visitorForm.destination.trim()) {
+      setVisitorFormError("Please enter the destination office or building.");
+      return;
+    }
+    if (!visitorForm.purpose.trim()) {
+      setVisitorFormError("Please enter the purpose of the visit.");
       return;
     }
 
-    const newVisitor = issueVisitorPass(visitorForm);
-    playBeep(true);
-    triggerHaptic(true);
+    const finalId =
+      visitorForm.idPresented === "Other (Please specify)"
+        ? (visitorForm.otherId || "").trim()
+        : visitorForm.idPresented;
 
-    setSelectedVisitorModal(newVisitor);
-    setLogSuccessMessage(
-      `Visitor Pass ${newVisitor.id} issued & ENTRY logged for ${newVisitor.plateNumber}!`,
-    );
-    setTimeout(() => setLogSuccessMessage(""), 3500);
+    try {
+      const newVisitor = await issueVisitorPass({
+        ...visitorForm,
+        idPresented: finalId,
+        gate: activeGate || "Gate 1",
+      });
 
-    setVisitorForm({
-      name: "",
-      contact: "",
-      idPresented: "Driver's License",
-      plateNumber: "",
-      vehicleType: "Motorcycle",
-      destination: "Administration Building",
-      purpose: "Official Business / Inquiry",
-      validityDuration: "1",
-    });
+      playBeep(true);
+      triggerHaptic(true);
 
-    setVisitorSubTab("active");
+      setSelectedVisitorModal(newVisitor);
+      setLogSuccessMessage(
+        `Visitor Pass ${newVisitor.id} issued & ENTRY logged for ${newVisitor.plateNumber}!`,
+      );
+      setTimeout(() => setLogSuccessMessage(""), 3500);
+
+      setVisitorForm({
+        name: "",
+        contact: "",
+        idPresented: "Driver's License (LTO)",
+        otherId: "",
+        plateNumber: "",
+        vehicleType: "",
+        destination: "",
+        purpose: "",
+        validityDuration: "1",
+      });
+
+      setVisitorSubTab("active");
+    } catch (err) {
+      console.error("Error issuing visitor pass:", err);
+      setVisitorFormError("Failed to issue visitor pass. Please try again.");
+    }
   };
 
   // Pre-fill form to register a new entry for a returning visitor
   const handleStartNewEntryForVisitor = (visitor) => {
+    const isStandardId = PHILIPPINE_VALID_IDS.includes(visitor.idPresented);
     setVisitorForm({
-      name: visitor.name,
-      contact: visitor.contact !== "N/A" ? visitor.contact : "",
-      idPresented: visitor.idPresented,
-      plateNumber: visitor.plateNumber,
-      vehicleType: visitor.vehicleType,
-      destination: visitor.destination,
-      purpose: visitor.purpose,
+      name: visitor.name || "",
+      contact: visitor.contact !== "N/A" ? visitor.contact || "" : "",
+      idPresented: isStandardId ? visitor.idPresented : "Other (Please specify)",
+      otherId: isStandardId ? "" : visitor.idPresented || "",
+      plateNumber: visitor.plateNumber || "",
+      vehicleType: visitor.vehicleType || "",
+      destination: visitor.destination || "",
+      purpose: visitor.purpose || "",
       validityDuration: String(visitor.validDays || "1"),
     });
+    setVisitorFormError("");
     setVisitorSubTab("new");
   };
 
@@ -1438,6 +1521,13 @@ export default function GuardScanner() {
                 immediately.
               </div>
 
+              {visitorFormError && (
+                <div className="p-3 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-xs text-rose-200 font-bold flex items-center space-x-2 animate-in fade-in">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>{visitorFormError}</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
                   <label className="block text-slate-300 font-bold mb-1">
@@ -1493,51 +1583,82 @@ export default function GuardScanner() {
 
                 <div>
                   <label className="block text-slate-300 font-bold mb-1">
-                    Vehicle Type
+                    Vehicle Type *
                   </label>
-                  <select
-                    value={visitorForm.vehicleType}
-                    onChange={(e) =>
-                      setVisitorForm({
-                        ...visitorForm,
-                        vehicleType: e.target.value,
-                      })
-                    }
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer"
-                  >
-                    <option value="Motorcycle">Motorcycle</option>
-                    <option value="Sedan / Car">Sedan / Car</option>
-                    <option value="SUV / AUV">SUV / AUV</option>
-                    <option value="Van">Van</option>
-                    <option value="Delivery Truck">Delivery Truck</option>
-                  </select>
+                  <div className="relative">
+                    <select
+                      required
+                      value={visitorForm.vehicleType}
+                      onChange={(e) =>
+                        setVisitorForm({
+                          ...visitorForm,
+                          vehicleType: e.target.value,
+                        })
+                      }
+                      className="w-full appearance-none px-3.5 py-2.5 pr-10 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer"
+                    >
+                      <option value="" disabled>PLEASE SELECT VEHICLE</option>
+                      {VEHICLE_TYPE_CHOICES.map((type) => (
+                        <option key={type} value={type} className="bg-slate-900 text-white">
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-slate-300 font-bold mb-1">
                     Valid ID Presented *
                   </label>
-                  <input
-                    type="text"
-                    required
-                    value={visitorForm.idPresented}
-                    onChange={(e) =>
-                      setVisitorForm({
-                        ...visitorForm,
-                        idPresented: e.target.value,
-                      })
-                    }
-                    placeholder="e.g. Driver's License #N02-..."
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
-                  />
+                  <div className="relative">
+                    <select
+                      required
+                      value={visitorForm.idPresented}
+                      onChange={(e) =>
+                        setVisitorForm({
+                          ...visitorForm,
+                          idPresented: e.target.value,
+                        })
+                      }
+                      className="w-full appearance-none px-3.5 py-2.5 pr-10 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer"
+                    >
+                      {PHILIPPINE_VALID_IDS.map((id) => (
+                        <option key={id} value={id} className="bg-slate-900 text-white">
+                          {id}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+
+                  {visitorForm.idPresented === "Other (Please specify)" && (
+                    <div className="mt-2">
+                      <input
+                        type="text"
+                        required
+                        value={visitorForm.otherId || ""}
+                        onChange={(e) =>
+                          setVisitorForm({
+                            ...visitorForm,
+                            otherId: e.target.value,
+                          })
+                        }
+                        placeholder="Type ID presented (e.g. NBI Clearance)..."
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-emerald-500/50 text-white text-xs focus:ring-2 focus:ring-emerald-500 outline-none animate-in fade-in"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div>
                   <label className="block text-slate-300 font-bold mb-1">
-                    Contact Number
+                    Contact Number *
                   </label>
                   <input
-                    type="text"
+                    type="tel"
+                    required
                     value={visitorForm.contact}
                     onChange={(e) =>
                       setVisitorForm({
@@ -1552,31 +1673,35 @@ export default function GuardScanner() {
 
                 <div>
                   <label className="block text-slate-300 font-bold mb-1">
-                    Pass Duration
+                    Pass Duration *
                   </label>
-                  <select
-                    value={visitorForm.validityDuration}
-                    onChange={(e) =>
-                      setVisitorForm({
-                        ...visitorForm,
-                        validityDuration: e.target.value,
-                      })
-                    }
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer"
-                  >
-                    <option value="1">1 Day (Today Until 11:59 PM)</option>
-                    <option value="2">2 Days (Multi-Day Business)</option>
-                    <option value="3">3 Days (Conference / Event)</option>
-                    <option value="7">7 Days (Official Contractor)</option>
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={visitorForm.validityDuration}
+                      onChange={(e) =>
+                        setVisitorForm({
+                          ...visitorForm,
+                          validityDuration: e.target.value,
+                        })
+                      }
+                      className="w-full appearance-none px-3.5 py-2.5 pr-10 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer"
+                    >
+                      <option value="1" className="bg-slate-900 text-white">1 Day (Today Until 11:59 PM)</option>
+                      <option value="2" className="bg-slate-900 text-white">2 Days (Multi-Day Business)</option>
+                      <option value="3" className="bg-slate-900 text-white">3 Days (Conference / Event)</option>
+                      <option value="7" className="bg-slate-900 text-white">7 Days (Official Contractor)</option>
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
                 </div>
 
                 <div className="sm:col-span-2">
                   <label className="block text-slate-300 font-bold mb-1">
-                    Destination Office / Building
+                    Destination Office / Building *
                   </label>
                   <input
                     type="text"
+                    required
                     value={visitorForm.destination}
                     onChange={(e) =>
                       setVisitorForm({
@@ -1584,7 +1709,26 @@ export default function GuardScanner() {
                         destination: e.target.value,
                       })
                     }
-                    placeholder="e.g. Administration Building, CET, or Gymnasium"
+                    placeholder="e.g. Administration Building, CET, Registrar, or Gymnasium"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-slate-300 font-bold mb-1">
+                    Purpose of Visit *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={visitorForm.purpose}
+                    onChange={(e) =>
+                      setVisitorForm({
+                        ...visitorForm,
+                        purpose: e.target.value,
+                      })
+                    }
+                    placeholder="e.g. Official Business, Document Submission, Meeting with Dean"
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
                   />
                 </div>
@@ -1635,25 +1779,49 @@ export default function GuardScanner() {
           </div>
 
           {/* Filter Pills */}
-          <div className="flex space-x-1.5 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
-            {["ALL", "ENTRY", "EXIT"].map((filter) => (
-              <button
-                key={filter}
-                type="button"
-                onClick={() => setLogFilter(filter)}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  logFilter === filter
-                    ? "bg-emerald-600 text-white"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                {filter}
-              </button>
-            ))}
+          <div className="grid grid-cols-3 gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
+            <button
+              type="button"
+              onClick={() => setLogFilter("ALL")}
+              className={`py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center space-x-1 ${
+                logFilter === "ALL"
+                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-950/40"
+                  : "text-slate-400 hover:text-white hover:bg-slate-900/60"
+              }`}
+            >
+              <span>ALL</span>
+              <span className="text-[10px] opacity-75 font-mono font-normal">({logs.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setLogFilter("ENTRY")}
+              className={`py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center space-x-1 ${
+                logFilter === "ENTRY"
+                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-950/40"
+                  : "text-slate-400 hover:text-white hover:bg-slate-900/60"
+              }`}
+            >
+              <LogIn className="w-3.5 h-3.5 mr-0.5" />
+              <span>ENTRY</span>
+              <span className="text-[10px] opacity-75 font-mono font-normal">({totalEntries})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setLogFilter("EXIT")}
+              className={`py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center space-x-1 ${
+                logFilter === "EXIT"
+                  ? "bg-blue-600 text-white shadow-md shadow-blue-950/40"
+                  : "text-slate-400 hover:text-white hover:bg-slate-900/60"
+              }`}
+            >
+              <LogOut className="w-3.5 h-3.5 mr-0.5" />
+              <span>EXIT</span>
+              <span className="text-[10px] opacity-75 font-mono font-normal">({totalExits})</span>
+            </button>
           </div>
 
           {/* Activity Log List */}
-          <div className="divide-y divide-slate-800 max-h-80 overflow-y-auto pr-1">
+          <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
             {filteredLogs.length === 0 ? (
               <p className="text-xs text-slate-500 text-center py-6">
                 No gate logs recorded yet.
@@ -1662,46 +1830,56 @@ export default function GuardScanner() {
               filteredLogs.map((log) => (
                 <div
                   key={log.id}
-                  className="py-2.5 flex items-center justify-between"
+                  className="py-2.5 px-3 rounded-2xl bg-slate-950/50 border border-slate-800/80 hover:border-slate-700/80 transition-all flex items-center justify-between gap-2.5"
                 >
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <span className="font-bold text-white text-sm font-mono">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center space-x-1.5 truncate">
+                      <span className="font-bold text-white text-xs sm:text-sm font-mono tracking-wide shrink-0">
                         {log.plateNumber}
                       </span>
-                      <span className="text-xs text-slate-300 truncate max-w-[140px]">
+                      <span className="text-[11px] text-slate-300 truncate">
                         • {log.owner}
                       </span>
                     </div>
-                    <div className="flex items-center space-x-2 text-[11px] text-slate-400 font-mono mt-0.5">
-                      <span>{log.passNumber}</span>
-                      <span>•</span>
-                      <span>{log.time}</span>
-                      {log.classification && (
-                        <span
-                          className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                            log.classification === "EMPLOYEE"
-                              ? "bg-blue-900/60 text-blue-300 border border-blue-800/40"
-                              : log.classification === "STUDENT"
-                                ? "bg-pink-900/60 text-pink-300 border border-pink-800/40"
-                                : "bg-amber-900/60 text-amber-300 border border-amber-800/40"
-                          }`}
-                        >
-                          {log.classification}
-                        </span>
-                      )}
+                    <div className="flex items-center space-x-1.5 text-[10px] text-slate-400 font-mono mt-1 whitespace-nowrap overflow-hidden text-ellipsis">
+                      <span className="text-slate-300 font-semibold shrink-0">{log.passNumber}</span>
+                      <span className="text-slate-600">•</span>
+                      <span className="shrink-0">{log.gate || "Gate 1"}</span>
+                      <span className="text-slate-600">•</span>
+                      <span className="text-slate-400 truncate">{log.time}</span>
                     </div>
                   </div>
 
-                  <span
-                    className={`px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider ${
-                      log.type === "ENTRY"
-                        ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                        : "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                    }`}
-                  >
-                    {log.type}
-                  </span>
+                  <div className="flex items-center space-x-1.5 shrink-0">
+                    {log.classification && (
+                      <span
+                        className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider shrink-0 ${
+                          log.classification === "EMPLOYEE"
+                            ? "bg-blue-500/15 text-blue-300 border border-blue-500/30"
+                            : log.classification === "STUDENT"
+                              ? "bg-pink-500/15 text-pink-300 border border-pink-500/30"
+                              : "bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                        }`}
+                      >
+                        {log.classification}
+                      </span>
+                    )}
+
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider shrink-0 flex items-center space-x-1 ${
+                        log.type === "ENTRY"
+                          ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                          : "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                      }`}
+                    >
+                      {log.type === "ENTRY" ? (
+                        <LogIn className="w-3 h-3 mr-0.5" />
+                      ) : (
+                        <LogOut className="w-3 h-3 mr-0.5" />
+                      )}
+                      <span>{log.type}</span>
+                    </span>
+                  </div>
                 </div>
               ))
             )}
