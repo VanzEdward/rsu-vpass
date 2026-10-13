@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Sparkles
 } from 'lucide-react';
+import SignOutConfirmModal from './SignOutConfirmModal';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -29,6 +30,7 @@ export default function Navbar() {
 
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const notifRef = useRef(null);
+  const [isSignOutModalOpen, setIsSignOutModalOpen] = useState(false);
 
   const unreadCount = (notifications || []).filter((n) => !n.read).length;
 
@@ -267,7 +269,8 @@ export default function Navbar() {
 
               {/* Logout Button */}
               <button
-                onClick={logout}
+                type="button"
+                onClick={() => setIsSignOutModalOpen(true)}
                 title="Sign Out"
                 className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
               >
@@ -284,6 +287,14 @@ export default function Navbar() {
           )}
         </div>
       </div>
+
+      {/* Confirmation Modal before signing out */}
+      <SignOutConfirmModal
+        isOpen={isSignOutModalOpen}
+        onClose={() => setIsSignOutModalOpen(false)}
+        onConfirm={logout}
+        user={user}
+      />
     </header>
   );
 }

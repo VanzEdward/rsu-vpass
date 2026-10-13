@@ -23,10 +23,12 @@ import {
   HeartPulse,
   RefreshCw
 } from 'lucide-react';
+import SignOutConfirmModal from '../../components/SignOutConfirmModal';
 
 export default function Profile() {
   const { user, updateUser, logout } = useAuth();
   const { vehicles = [], applications = [] } = usePass() || {};
+  const [isSignOutModalOpen, setIsSignOutModalOpen] = useState(false);
 
   // Edit Contact Information State
   const [isEditingContact, setIsEditingContact] = useState(false);
@@ -498,7 +500,7 @@ export default function Profile() {
 
             <button
               type="button"
-              onClick={logout}
+              onClick={() => setIsSignOutModalOpen(true)}
               className="px-4 py-2 rounded-xl border border-red-200 text-red-700 hover:bg-red-50 text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
@@ -610,6 +612,14 @@ export default function Profile() {
           </div>
         </div>
       )}
+
+      {/* Sign Out Confirmation Modal */}
+      <SignOutConfirmModal
+        isOpen={isSignOutModalOpen}
+        onClose={() => setIsSignOutModalOpen(false)}
+        onConfirm={logout}
+        user={user}
+      />
 
     </div>
   );

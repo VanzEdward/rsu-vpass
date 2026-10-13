@@ -1,9 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { LayoutDashboard, FileCheck, Layers, BarChart3, Sliders, ShieldCheck } from 'lucide-react';
+import SignOutConfirmModal from '../components/SignOutConfirmModal';
+import { useAuth } from '../context/AuthContext';
+import { LayoutDashboard, FileCheck, Layers, BarChart3, Sliders, ShieldCheck, LogOut } from 'lucide-react';
 
 export default function AdminLayout() {
+  const { user, logout } = useAuth();
+  const [isSignOutModalOpen, setIsSignOutModalOpen] = useState(false);
+
   const navs = [
     { name: 'Dashboard Overview', path: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Application Reviews', path: '/admin/applications', icon: FileCheck },
@@ -50,11 +55,31 @@ export default function AdminLayout() {
               })}
             </nav>
           </div>
+
+          {/* Sidebar Sign Out Action */}
+          <div className="pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsSignOutModalOpen(true)}
+              className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-semibold text-sm text-slate-600 hover:text-red-700 hover:bg-red-50 transition-all cursor-pointer"
+            >
+              <LogOut className="w-5 h-5 text-slate-400" />
+              <span>Sign Out</span>
+            </button>
+          </div>
         </aside>
         <main className="flex-1 p-6 lg:p-10 overflow-y-auto w-full min-w-0">
           <Outlet />
         </main>
       </div>
+
+      {/* Admin Sign Out Confirmation Modal */}
+      <SignOutConfirmModal
+        isOpen={isSignOutModalOpen}
+        onClose={() => setIsSignOutModalOpen(false)}
+        onConfirm={logout}
+        user={user}
+      />
     </div>
   );
 }
