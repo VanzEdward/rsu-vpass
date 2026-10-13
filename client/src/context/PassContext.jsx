@@ -182,31 +182,73 @@ export const getSequentialPassNumber = (targetApp, allApplications = []) => {
   return `${prefix}-${String(nextSeq).padStart(3, "0")}`;
 };
 
-// Purge legacy dummy data from browser localStorage once
+// One-time safe purge to ensure clean state without deleting active user data
 const purgeLegacyDummyDataOnce = () => {
   try {
-    const apps = localStorage.getItem("vpass_applications");
-    const vList = localStorage.getItem("vpass_vehicles");
-    const isLegacy =
-      (apps && (apps.includes("APP-2026-0001") || apps.includes("APP-2026-0089"))) ||
-      (vList && (vList.includes("XYZ 5678") || vList.includes("RSU 2026"))) ||
-      !localStorage.getItem("vpass_fresh_clean_v1");
-
-    if (isLegacy) {
-      localStorage.removeItem("vpass_applications");
+    if (localStorage.getItem("vpass_clean_storage_v2")) return;
+    const vList = localStorage.getItem("vpass_vehicles") || "";
+    // Only remove obsolete mock demo plate if still present from old code
+    if (vList.includes("XYZ 5678")) {
       localStorage.removeItem("vpass_vehicles");
-      localStorage.removeItem("vpass_notifications");
-      localStorage.removeItem("vpass_visitor_passes");
-      localStorage.removeItem("vpass_gate_logs");
-      localStorage.removeItem("vpass_registration_draft");
-      localStorage.setItem("vpass_fresh_clean_v1", "true");
     }
+    localStorage.setItem("vpass_clean_storage_v2", "true");
   } catch (e) {
     // ignore
   }
 };
 
 purgeLegacyDummyDataOnce();
+
+// Persistent read notification ID tracker helpers to ensure read status survives tab closes
+const getReadNotifIds = (userId) => {
+  try {
+    const userKey = userId ? `vpass_read_notifs_${userId}` : null;
+    const userSaved = userKey ? localStorage.getItem(userKey) : null;
+    const globalSaved = localStorage.getItem("vpass_read_notifs");
+    const userList = userSaved ? JSON.parse(userSaved) : [];
+    const globalList = globalSaved ? JSON.parse(globalSaved) : [];
+    return Array.from(new Set([...userList, ...globalList]));
+  } catch (e) {
+    return [];
+  }
+};
+
+const persistReadNotifId = (id, userId) => {
+  try {
+    if (!id) return;
+    const globalRaw = localStorage.getItem("vpass_read_notifs");
+    const globalList = globalRaw ? JSON.parse(globalRaw) : [];
+    if (!globalList.includes(id)) {
+      localStorage.setItem("vpass_read_notifs", JSON.stringify([...globalList, id]));
+    }
+    if (userId) {
+      const userKey = `vpass_read_notifs_${userId}`;
+      const userRaw = localStorage.getItem(userKey);
+      const userList = userRaw ? JSON.parse(userRaw) : [];
+      if (!userList.includes(id)) {
+        localStorage.setItem(userKey, JSON.stringify([...userList, id]));
+      }
+    }
+  } catch (e) {}
+};
+
+const persistAllReadNotifIds = (ids, userId) => {
+  try {
+    if (!ids || ids.length === 0) return;
+    const globalRaw = localStorage.getItem("vpass_read_notifs");
+    const globalList = globalRaw ? JSON.parse(globalRaw) : [];
+    const mergedGlobal = Array.from(new Set([...globalList, ...ids]));
+    localStorage.setItem("vpass_read_notifs", JSON.stringify(mergedGlobal));
+
+    if (userId) {
+      const userKey = `vpass_read_notifs_${userId}`;
+      const userRaw = localStorage.getItem(userKey);
+      const userList = userRaw ? JSON.parse(userRaw) : [];
+      const mergedUser = Array.from(new Set([...userList, ...ids]));
+      localStorage.setItem(userKey, JSON.stringify(mergedUser));
+    }
+  } catch (e) {}
+};
 
 export const PassProvider = ({ children }) => {
   const [applications, setApplications] = useState(() => {
@@ -388,20 +430,60 @@ export const PassProvider = ({ children }) => {
     localStorage.setItem("vpass_visitor_passes", JSON.stringify(visitorPasses));
   }, [visitorPasses]);
 
-  // Persistent Notifications
+  // Persistent Notifications with Read State Retention
   const [notifications, setNotifications] = useState(() => {
-    const saved = localStorage.getItem("vpass_notifications");
-    return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
+    try {
+      const savedUser = user?.id ? localStorage.getItem(`vpass_notifications_${user.id}`) : null;
+      const savedGlobal = localStorage.getItem("vpass_notifications");
+      const raw = savedUser || savedGlobal;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const readIds = getReadNotifIds(user?.id);
+        return parsed.map((n) =>
+          readIds.includes(n.id) ? { ...n, read: true } : n
+        );
+      }
+    } catch (e) {}
+    return INITIAL_NOTIFICATIONS;
   });
 
   useEffect(() => {
-    localStorage.setItem("vpass_notifications", JSON.stringify(notifications));
-  }, [notifications]);
+    try {
+      localStorage.setItem("vpass_notifications", JSON.stringify(notifications));
+      if (user?.id) {
+        localStorage.setItem(`vpass_notifications_${user.id}`, JSON.stringify(notifications));
+      }
+    } catch (e) {}
+  }, [notifications, user?.id]);
+
+  // When active user switches, re-hydrate notifications and read state for that user
+  useEffect(() => {
+    if (!user?.id) return;
+    try {
+      const userSaved = localStorage.getItem(`vpass_notifications_${user.id}`);
+      if (userSaved) {
+        const parsed = JSON.parse(userSaved);
+        const readIds = getReadNotifIds(user.id);
+        setNotifications(
+          parsed.map((n) => (readIds.includes(n.id) ? { ...n, read: true } : n))
+        );
+      }
+    } catch (e) {}
+  }, [user?.id]);
 
   // Helper to add a notification
-  const addNotification = ({ type, title, message, link, appId }) => {
+  const addNotification = ({ id, type, title, message, link, appId }) => {
+    const notifId =
+      id ||
+      (appId && type
+        ? `notif-${type.toLowerCase().replace(/_/g, "-")}-${appId}`
+        : `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
+
+    const readIds = getReadNotifIds(user?.id);
+    const isAlreadyRead = readIds.includes(notifId);
+
     const newNotif = {
-      id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      id: notifId,
       type,
       title,
       message,
@@ -409,9 +491,25 @@ export const PassProvider = ({ children }) => {
       appId,
       time: "Just now",
       date: new Date().toISOString(),
-      read: false,
+      read: isAlreadyRead,
     };
-    setNotifications((prev) => [newNotif, ...prev]);
+
+    setNotifications((prev) => {
+      const existingIdx = prev.findIndex(
+        (n) => n.id === notifId || (appId && n.appId === appId && n.type === type)
+      );
+      if (existingIdx !== -1) {
+        const existing = prev[existingIdx];
+        const updated = [...prev];
+        updated[existingIdx] = {
+          ...newNotif,
+          read: existing.read || isAlreadyRead,
+        };
+        return updated;
+      }
+      return [newNotif, ...prev];
+    });
+
     return newNotif;
   };
 
@@ -426,13 +524,18 @@ export const PassProvider = ({ children }) => {
   };
 
   const markNotificationAsRead = (id) => {
+    persistReadNotifId(id, user?.id);
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
     );
   };
 
   const markAllNotificationsAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setNotifications((prev) => {
+      const ids = prev.map((n) => n.id);
+      persistAllReadNotifIds(ids, user?.id);
+      return prev.map((n) => ({ ...n, read: true }));
+    });
   };
 
   useEffect(() => {
@@ -562,27 +665,29 @@ export const PassProvider = ({ children }) => {
     });
   }, [applications]);
 
-  // Self-healing synchronization: guarantee notifications for any issued passes
+  // Self-healing synchronization: guarantee notifications for any issued passes or status changes
   useEffect(() => {
     if (!applications || applications.length === 0) return;
 
     setNotifications((prev) => {
       let changed = false;
       const nextNotifs = [...prev];
+      const readIds = getReadNotifIds(user?.id);
 
       applications.forEach((app) => {
+        // 1. Pass Issued Notification
         if (app.status === "PASS_ISSUED" && app.pass) {
           const passNum = app.pass.passNumber || app.assignedPassNumber;
-          const alreadyNotified = nextNotifs.some(
-            (n) =>
-              (n.appId && n.appId === app.id && n.type === "PASS_ISSUED") ||
-              (n.message && passNum && n.message.includes(passNum))
+          const notifId = `notif-issued-${app.id}`;
+          const existing = nextNotifs.find(
+            (n) => n.id === notifId || (n.appId === app.id && n.type === "PASS_ISSUED")
           );
 
-          if (!alreadyNotified) {
+          if (!existing) {
             changed = true;
+            const isRead = readIds.includes(notifId);
             nextNotifs.unshift({
-              id: `notif-issued-${app.id}`,
+              id: notifId,
               type: "PASS_ISSUED",
               title: "Official Gate QR Pass Issued!",
               message: `Your Cashier receipt has been verified! Gate Pass ${passNum || "Activated"} for ${app.vehicle?.make || "Vehicle"} (${app.vehicle?.plateNumber}) is now active for Academic Year ${systemSettings?.academicYear || "2026-2027"}.`,
@@ -590,15 +695,107 @@ export const PassProvider = ({ children }) => {
               appId: app.id,
               time: "Just now",
               date: new Date().toISOString(),
-              read: false,
+              read: isRead,
             });
+          } else if (readIds.includes(existing.id) && !existing.read) {
+            existing.read = true;
+            changed = true;
+          }
+        }
+
+        // 2. Registration Approved Notification (Ready for Cashier Payment)
+        if (app.status === "APPROVED") {
+          const notifId = `notif-approved-${app.id}`;
+          const existing = nextNotifs.find(
+            (n) => n.id === notifId || (n.appId === app.id && n.type === "REGISTRATION_APPROVED")
+          );
+
+          if (!existing) {
+            changed = true;
+            const isRead = readIds.includes(notifId);
+            nextNotifs.unshift({
+              id: notifId,
+              type: "REGISTRATION_APPROVED",
+              title: "Vehicle Registration Approved!",
+              message: `Your registration for ${app.vehicle?.make || "Vehicle"} ${app.vehicle?.model || ""} (${app.vehicle?.plateNumber}) was approved by PASO. You may now pay at the Cashier window and upload your receipt.`,
+              link: `/client/payments?appId=${app.id}`,
+              appId: app.id,
+              time: "Just now",
+              date: new Date().toISOString(),
+              read: isRead,
+            });
+          } else if (readIds.includes(existing.id) && !existing.read) {
+            existing.read = true;
+            changed = true;
+          }
+        }
+
+        // 3. Receipt Rejected Notification
+        if (
+          app.receiptRejectionRemark ||
+          app.receipt?.status === "REJECTED" ||
+          (app.receipt?.rejectionRemark && app.status !== "PASS_ISSUED")
+        ) {
+          const notifId = `notif-receipt-declined-${app.id}`;
+          const remark =
+            app.receiptRejectionRemark ||
+            app.receipt?.rejectionRemark ||
+            "Cashier receipt image is unreadable or invalid.";
+          const existing = nextNotifs.find(
+            (n) => n.id === notifId || (n.appId === app.id && n.type === "RECEIPT_REJECTED")
+          );
+
+          if (!existing) {
+            changed = true;
+            const isRead = readIds.includes(notifId);
+            nextNotifs.unshift({
+              id: notifId,
+              type: "RECEIPT_REJECTED",
+              title: "Cashier Receipt Declined",
+              message: `Cashier receipt for ${app.vehicle?.make || "Vehicle"} (${app.vehicle?.plateNumber}) was declined by PASO. Note: "${remark}". Please re-upload your valid receipt.`,
+              link: `/client/payments?appId=${app.id}`,
+              appId: app.id,
+              time: "Just now",
+              date: new Date().toISOString(),
+              read: isRead,
+            });
+          } else if (readIds.includes(existing.id) && !existing.read) {
+            existing.read = true;
+            changed = true;
+          }
+        }
+
+        // 4. Registration Rejected Notification
+        if (app.status === "REJECTED" && app.rejection_reason) {
+          const notifId = `notif-rejected-${app.id}`;
+          const existing = nextNotifs.find(
+            (n) => n.id === notifId || (n.appId === app.id && n.type === "REGISTRATION_REJECTED")
+          );
+
+          if (!existing) {
+            changed = true;
+            const isRead = readIds.includes(notifId);
+            nextNotifs.unshift({
+              id: notifId,
+              type: "REGISTRATION_REJECTED",
+              title: "Registration Form Needs Correction",
+              message: `PASO returned your application for ${app.vehicle?.make || "Vehicle"} (${app.vehicle?.plateNumber}). Note: "${app.rejection_reason}". Click to correct mistakes and re-submit.`,
+              link: "/client/applications",
+              appId: app.id,
+              time: "Just now",
+              date: new Date().toISOString(),
+              read: isRead,
+            });
+          } else if (readIds.includes(existing.id) && !existing.read) {
+            existing.read = true;
+            changed = true;
           }
         }
       });
 
       return changed ? nextNotifs : prev;
     });
-  }, [applications, systemSettings?.academicYear]);
+  }, [applications, systemSettings?.academicYear, user?.id]);
 
   // Save/Update Draft
   const saveDraft = (data, step = 1) => {
