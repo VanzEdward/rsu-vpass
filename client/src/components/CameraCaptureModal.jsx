@@ -117,13 +117,25 @@ export default function CameraCaptureModal({
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
+
+    let w = video.videoWidth || 640;
+    let h = video.videoHeight || 480;
+    const maxDim = 1200;
+    if (w > maxDim || h > maxDim) {
+      const ratio = Math.min(maxDim / w, maxDim / h);
+      w = Math.round(w * ratio);
+      h = Math.round(h * ratio);
+    }
+
+    canvas.width = w;
+    canvas.height = h;
 
     const context = canvas.getContext('2d');
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(video, 0, 0, w, h);
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
     setCapturedImage(dataUrl);
 
     stopTracks();

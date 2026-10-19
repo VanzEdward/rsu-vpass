@@ -4,6 +4,7 @@ import { usePass } from '../../context/PassContext';
 import { useAuth } from '../../context/AuthContext';
 import CameraCaptureModal from '../../components/CameraCaptureModal';
 import ConfirmModal from '../../components/ConfirmModal';
+import { compressImage } from '../../utils/imageCompressor';
 import { 
   Car, 
   Plus, 
@@ -335,19 +336,19 @@ export default function MyVehicle() {
     setShowWizard(true);
   };
 
-  const handlePhotoCaptured = (photoDataUrl) => {
-    handleFieldChange('applicant_photo', photoDataUrl);
+  const handlePhotoCaptured = async (photoDataUrl) => {
+    const compressed = await compressImage(photoDataUrl, 800, 800, 0.75);
+    handleFieldChange('applicant_photo', compressed || photoDataUrl);
   };
 
-  // Mock file uploads for documents
-  const handleFileChange = (field, e) => {
-    const file = e.target.files[0];
+  // Upload documents with client-side canvas compression
+  const handleFileChange = async (field, e) => {
+    const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        handleFieldChange(field, event.target.result);
-      };
-      reader.readAsDataURL(file);
+      const compressed = await compressImage(file, 1200, 1200, 0.75);
+      if (compressed) {
+        handleFieldChange(field, compressed);
+      }
     }
   };
 

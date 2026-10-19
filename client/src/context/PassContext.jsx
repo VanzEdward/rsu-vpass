@@ -185,15 +185,22 @@ export const getSequentialPassNumber = (targetApp, allApplications = []) => {
 // One-time safe purge to ensure clean state without deleting active user data
 const purgeLegacyDummyDataOnce = () => {
   try {
-    if (localStorage.getItem("vpass_clean_storage_v2")) return;
+    if (localStorage.getItem("vpass_clean_storage_v3")) return;
     const vList = localStorage.getItem("vpass_vehicles") || "";
     // Only remove obsolete mock demo plate if still present from old code
     if (vList.includes("XYZ 5678")) {
       localStorage.removeItem("vpass_vehicles");
     }
-    localStorage.setItem("vpass_clean_storage_v2", "true");
+    // Clean out any bloated or corrupted applications cache from earlier unsanitized uploads
+    const rawApps = localStorage.getItem("vpass_applications") || "";
+    if (rawApps.length > 50000) {
+      localStorage.removeItem("vpass_applications");
+    }
+    localStorage.setItem("vpass_clean_storage_v3", "true");
   } catch (e) {
-    // ignore
+    try {
+      localStorage.removeItem("vpass_applications");
+    } catch (_) {}
   }
 };
 
@@ -252,32 +259,52 @@ const persistAllReadNotifIds = (ids, userId) => {
 
 export const PassProvider = ({ children }) => {
   const [applications, setApplications] = useState(() => {
-    const saved = localStorage.getItem("vpass_applications");
-    const rawList = saved ? JSON.parse(saved) : [];
-    return rawList;
+    try {
+      const saved = localStorage.getItem("vpass_applications");
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      try { localStorage.removeItem("vpass_applications"); } catch (_) {}
+      return [];
+    }
   });
 
   const [vehicles, setVehicles] = useState(() => {
-    const saved = localStorage.getItem("vpass_vehicles");
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem("vpass_vehicles");
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
   });
 
   // Auto-saved In-Progress Draft Application
   const [draftApplication, setDraftApplication] = useState(() => {
-    const saved = localStorage.getItem("vpass_registration_draft");
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem("vpass_registration_draft");
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
   });
 
   // Persistent Temporary Visitor Passes
   const [visitorPasses, setVisitorPasses] = useState(() => {
-    const saved = localStorage.getItem("vpass_visitor_passes");
-    return saved ? JSON.parse(saved) : INITIAL_VISITORS;
+    try {
+      const saved = localStorage.getItem("vpass_visitor_passes");
+      return saved ? JSON.parse(saved) : INITIAL_VISITORS;
+    } catch (e) {
+      return INITIAL_VISITORS;
+    }
   });
 
   // Persistent Gate Audit Logs
   const [gateLogs, setGateLogs] = useState(() => {
-    const saved = localStorage.getItem("vpass_gate_logs");
-    return saved ? JSON.parse(saved) : INITIAL_LOGS;
+    try {
+      const saved = localStorage.getItem("vpass_gate_logs");
+      return saved ? JSON.parse(saved) : INITIAL_LOGS;
+    } catch (e) {
+      return INITIAL_LOGS;
+    }
   });
 
   // Guard Active Gate Shift Post (Gate 1, Gate 2, Gate 3, Gate 4)
@@ -406,28 +433,65 @@ export const PassProvider = ({ children }) => {
     };
   }, [user, token, fetchCloudData]);
 
-  // Sync to localStorage
+  // Sync to localStorage safely (strips out heavy Base64 image data to prevent Safari QuotaExceededError crashes)
   useEffect(() => {
-    localStorage.setItem("vpass_applications", JSON.stringify(applications));
+    try {
+      if (!applications || applications.length === 0) {
+        localStorage.setItem("vpass_applications", JSON.stringify([]));
+        return;
+      }
+
+      const lightweightApps = applications.map((app) => ({
+        ...app,
+        applicant_photo: app.applicant_photo && app.applicant_photo.length > 500 ? "[IN_CLOUD_STORAGE]" : app.applicant_photo,
+        documents: {
+          driverLicense: app.documents?.driverLicense && app.documents.driverLicense.length > 500 ? "[IN_CLOUD_STORAGE]" : app.documents?.driverLicense,
+          orCr: app.documents?.orCr && app.documents.orCr.length > 500 ? "[IN_CLOUD_STORAGE]" : app.documents?.orCr,
+        },
+        receipt: app.receipt ? {
+          ...app.receipt,
+          receiptPhoto: app.receipt.receiptPhoto && app.receipt.receiptPhoto.length > 500 ? "[IN_CLOUD_STORAGE]" : app.receipt.receiptPhoto,
+        } : null,
+      }));
+
+      localStorage.setItem("vpass_applications", JSON.stringify(lightweightApps));
+    } catch (err) {
+      console.warn("[PassContext] LocalStorage quota reached for applications; clearing local cache:", err);
+      try {
+        localStorage.removeItem("vpass_applications");
+      } catch (_) {}
+    }
   }, [applications]);
 
   useEffect(() => {
-    localStorage.setItem("vpass_vehicles", JSON.stringify(vehicles));
+    try {
+      localStorage.setItem("vpass_vehicles", JSON.stringify(vehicles));
+    } catch (err) {
+      console.warn("[PassContext] LocalStorage setItem error for vehicles:", err);
+    }
   }, [vehicles]);
 
   useEffect(() => {
-    if (draftApplication) {
-      localStorage.setItem(
-        "vpass_registration_draft",
-        JSON.stringify(draftApplication),
-      );
-    } else {
-      localStorage.removeItem("vpass_registration_draft");
+    try {
+      if (draftApplication) {
+        localStorage.setItem(
+          "vpass_registration_draft",
+          JSON.stringify(draftApplication),
+        );
+      } else {
+        localStorage.removeItem("vpass_registration_draft");
+      }
+    } catch (err) {
+      console.warn("[PassContext] LocalStorage setItem error for draftApplication:", err);
     }
   }, [draftApplication]);
 
   useEffect(() => {
-    localStorage.setItem("vpass_visitor_passes", JSON.stringify(visitorPasses));
+    try {
+      localStorage.setItem("vpass_visitor_passes", JSON.stringify(visitorPasses));
+    } catch (err) {
+      console.warn("[PassContext] LocalStorage setItem error for visitorPasses:", err);
+    }
   }, [visitorPasses]);
 
   // Persistent Notifications with Read State Retention
@@ -539,7 +603,11 @@ export const PassProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    localStorage.setItem("vpass_gate_logs", JSON.stringify(gateLogs));
+    try {
+      localStorage.setItem("vpass_gate_logs", JSON.stringify(gateLogs));
+    } catch (err) {
+      console.warn("[PassContext] LocalStorage setItem error for gateLogs:", err);
+    }
   }, [gateLogs]);
 
   // Multi-tab storage synchronization so actions taken in Admin or Client tabs sync in real time
@@ -550,7 +618,30 @@ export const PassProvider = ({ children }) => {
           setNotifications(JSON.parse(e.newValue));
         }
         if (e.key === "vpass_applications" && e.newValue) {
-          setApplications(JSON.parse(e.newValue));
+          const parsed = JSON.parse(e.newValue);
+          // Preserve in-memory full photos if incoming storage items are sanitized
+          if (Array.isArray(parsed)) {
+            setApplications((prev) => {
+              return parsed.map((item) => {
+                const existing = prev.find((p) => p.id === item.id);
+                if (existing) {
+                  return {
+                    ...item,
+                    applicant_photo: item.applicant_photo === "[IN_CLOUD_STORAGE]" ? existing.applicant_photo : item.applicant_photo,
+                    documents: {
+                      driverLicense: item.documents?.driverLicense === "[IN_CLOUD_STORAGE]" ? existing.documents?.driverLicense : item.documents?.driverLicense,
+                      orCr: item.documents?.orCr === "[IN_CLOUD_STORAGE]" ? existing.documents?.orCr : item.documents?.orCr,
+                    },
+                    receipt: item.receipt ? {
+                      ...item.receipt,
+                      receiptPhoto: item.receipt.receiptPhoto === "[IN_CLOUD_STORAGE]" ? existing.receipt?.receiptPhoto : item.receipt.receiptPhoto,
+                    } : null,
+                  };
+                }
+                return item;
+              });
+            });
+          }
         }
         if (e.key === "vpass_vehicles" && e.newValue) {
           setVehicles(JSON.parse(e.newValue));

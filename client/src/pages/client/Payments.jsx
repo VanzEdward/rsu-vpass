@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { usePass } from '../../context/PassContext';
 import CameraCaptureModal from '../../components/CameraCaptureModal';
+import { compressImage } from '../../utils/imageCompressor';
 import { 
   Receipt, 
   Info, 
@@ -73,20 +74,20 @@ export default function Payments() {
     }
   }, [selectedAppId, selectedApp]);
 
-  const handleReceiptPhotoCaptured = (photoDataUrl) => {
-    setReceiptPhoto(photoDataUrl);
+  const handleReceiptPhotoCaptured = async (photoDataUrl) => {
+    const compressed = await compressImage(photoDataUrl, 1200, 1200, 0.75);
+    setReceiptPhoto(compressed || photoDataUrl);
     setError('');
   };
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setReceiptPhoto(event.target.result);
+      const compressed = await compressImage(file, 1200, 1200, 0.75);
+      if (compressed) {
+        setReceiptPhoto(compressed);
         setError('');
-      };
-      reader.readAsDataURL(file);
+      }
     }
   };
 
