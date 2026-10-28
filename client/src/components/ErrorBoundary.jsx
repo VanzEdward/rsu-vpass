@@ -17,12 +17,10 @@ export default class ErrorBoundary extends React.Component {
 
   handleReset = () => {
     try {
-      // Clear oversized caches that could cause QuotaExceeded errors
-      localStorage.removeItem('vpass_applications');
-      localStorage.removeItem('vpass_vehicles');
-      localStorage.removeItem('vpass_registration_draft');
+      localStorage.clear();
+      sessionStorage.clear();
     } catch (_) {}
-    window.location.reload();
+    window.location.href = '/login';
   };
 
   render() {
@@ -38,6 +36,11 @@ export default class ErrorBoundary extends React.Component {
               <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                 The application encountered an unexpected display issue. Your saved records are securely stored in the cloud database.
               </p>
+              {this.state.error && (
+                <div className="p-2 rounded-lg bg-slate-100 border border-slate-200 text-left font-mono text-[10px] text-slate-700 max-h-24 overflow-y-auto break-words">
+                  {this.state.error.message || String(this.state.error)}
+                </div>
+              )}
             </div>
             <button
               type="button"
