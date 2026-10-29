@@ -185,35 +185,23 @@ export default function AdminGuards() {
 
     try {
       setLoading(true);
-      let createdGuard = null;
-      try {
-        const res = await apiRequest('/paso/guards', {
-          method: 'POST',
-          body: JSON.stringify({
-            last_name: formData.lastName.trim(),
-            first_name: formData.firstName.trim(),
-            middle_name: formattedMI,
-            school_id: formData.badgeId.trim().toUpperCase(),
-            email: formData.email.trim().toLowerCase(),
-            contact_number: formData.contactNumber.trim(),
-            password: formData.password
-          })
-        });
-        createdGuard = res.guard;
-      } catch (apiErr) {
-        createdGuard = {
-          id: Date.now(),
-          school_id: formData.badgeId.trim().toUpperCase(),
-          first_name: formData.firstName.trim(),
+      const res = await apiRequest('/paso/guards', {
+        method: 'POST',
+        body: JSON.stringify({
           last_name: formData.lastName.trim(),
+          first_name: formData.firstName.trim(),
           middle_name: formattedMI,
-          full_name: fullName,
+          school_id: formData.badgeId.trim().toUpperCase(),
           email: formData.email.trim().toLowerCase(),
           contact_number: formData.contactNumber.trim(),
-          role: 'GUARD',
-          created_at: new Date().toISOString()
-        };
+          password: formData.password
+        })
+      });
+
+      if (!res || !res.guard) {
+        throw new Error(res?.message || 'Failed to create security guard account on the server.');
       }
+      const createdGuard = res.guard;
 
       setGuards((prev) => [createdGuard, ...prev.filter(g => g.school_id !== createdGuard.school_id)]);
       setShowAddModal(false);
@@ -307,21 +295,13 @@ export default function AdminGuards() {
           method: 'PUT',
           body: JSON.stringify(payload)
         });
+        if (!res || !res.guard) {
+          throw new Error(res?.message || 'Failed to update security guard account on the server.');
+        }
         updatedGuard = res.guard;
         passwordChanged = res.passwordChanged;
       } catch (apiErr) {
-        updatedGuard = {
-          ...editGuardModal,
-          school_id: editFormData.badgeId.trim().toUpperCase(),
-          first_name: editFormData.firstName.trim(),
-          last_name: editFormData.lastName.trim(),
-          middle_name: formattedMI,
-          full_name: fullName,
-          email: editFormData.email.trim().toLowerCase(),
-          contact_number: editFormData.contactNumber.trim(),
-          updated_at: new Date().toISOString()
-        };
-        passwordChanged = editFormData.password.trim() !== '';
+        throw apiErr;
       }
 
       setGuards((prev) => prev.map((g) => (g.id === editGuardModal.id ? updatedGuard : g)));

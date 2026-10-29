@@ -479,7 +479,7 @@ export const createGuard = async (req, res) => {
       `INSERT INTO users (
         school_id, email, password, full_name, first_name, last_name, middle_name,
         role, contact_number, classification
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'GUARD', ?, 'STAFF')`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'GUARD', ?, 'EMPLOYEE')`,
       [
         school_id.trim(),
         email.trim(),
