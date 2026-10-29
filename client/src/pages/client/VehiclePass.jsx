@@ -524,12 +524,21 @@ export default function VehiclePass() {
 
   const {
     pass,
-    vehicle,
+    vehicle: rawVehicle,
     applicant_name,
     school_id,
     classification,
     applicant_photo,
   } = issuedApp;
+
+  const vehicle = rawVehicle || {
+    make: issuedApp.make || "Registered",
+    model: issuedApp.model || "Vehicle",
+    year: "2026",
+    color: "N/A",
+    plateNumber: issuedApp.plateNumber || issuedApp.plate_number || "RSU 2026",
+    type: issuedApp.vehicle_type || "Motorcycle",
+  };
 
   return (
     <div className="space-y-6 max-w-5xl pb-12">
@@ -567,7 +576,7 @@ export default function VehiclePass() {
           <div className="flex items-center space-x-2 font-semibold">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>
-              {downloadMessage || `Official Pass for ${vehicle.plateNumber} downloaded successfully!`}
+              {downloadMessage || `Official Pass for ${vehicle?.plateNumber || 'N/A'} downloaded successfully!`}
             </span>
           </div>
           <button
@@ -668,7 +677,7 @@ export default function VehiclePass() {
                     ID: {school_id}
                   </p>
                   <p className="text-[11px] text-emerald-700 font-semibold truncate">
-                    {classification} • {vehicle.type}
+                    {classification} • {vehicle?.type || 'Vehicle'}
                   </p>
                 </div>
               </div>
@@ -677,13 +686,13 @@ export default function VehiclePass() {
                 <div className="flex justify-between items-center gap-2">
                   <span className="text-slate-500 shrink-0">Vehicle:</span>
                   <span className="font-semibold text-slate-800 truncate text-right">
-                    {vehicle.make} {vehicle.model}
+                    {vehicle?.make || 'Vehicle'} {vehicle?.model || ''}
                   </span>
                 </div>
                 <div className="flex justify-between items-center gap-2">
                   <span className="text-slate-500 shrink-0">Plate Number:</span>
                   <span className="font-mono font-bold text-slate-900 truncate text-right">
-                    {vehicle.plateNumber}
+                    {vehicle?.plateNumber || 'N/A'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center gap-2">
@@ -758,7 +767,7 @@ export default function VehiclePass() {
               classification={classification || "Student"}
               passNumber={pass.passNumber || "S-001"}
               plateNumber={vehicle.plateNumber || "RSU 2026"}
-              qrPayload={pass.qrData || `RSU-VPASS:${pass.passNumber}:${vehicle.plateNumber}:${school_id}`}
+              qrPayload={pass.qrData || `RSU-VPASS:${pass.passNumber}:${vehicle?.plateNumber || 'N/A'}:${school_id}`}
               showDownloadButton={true}
             />
 
@@ -780,7 +789,7 @@ export default function VehiclePass() {
                   <span>Pass Expired on {issuedApp.pass.validUntil}</span>
                 </p>
                 <p className="text-[11px] text-rose-800 leading-relaxed">
-                  Your 1-year gate clearance for <strong>{vehicle.make} {vehicle.model} ({vehicle.plateNumber})</strong> has expired. Renew your pass to restore campus gate entry.
+                  Your 1-year gate clearance for <strong>{vehicle?.make || 'Vehicle'} {vehicle?.model || ''} ({vehicle?.plateNumber || 'N/A'})</strong> has expired. Renew your pass to restore campus gate entry.
                 </p>
                 <button
                   type="button"
@@ -845,9 +854,9 @@ export default function VehiclePass() {
             </div>
 
             <p className="text-xs font-bold text-slate-800 mt-4 truncate px-2">
-              {vehicle.make} {vehicle.model} •{" "}
+              {vehicle?.make || 'Vehicle'} {vehicle?.model || ''} •{" "}
               <span className="font-mono text-emerald-700">
-                {vehicle.plateNumber}
+                {vehicle?.plateNumber || 'N/A'}
               </span>
             </p>
             <p className="text-[11px] text-slate-500 mt-0.5">

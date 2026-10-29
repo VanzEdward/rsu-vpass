@@ -258,10 +258,30 @@ const persistAllReadNotifIds = (ids, userId) => {
 };
 
 export const PassProvider = ({ children }) => {
+  const sanitizeApp = (app) => {
+    if (!app || typeof app !== "object") return app;
+    if (!app.vehicle || typeof app.vehicle !== "object") {
+      return {
+        ...app,
+        vehicle: {
+          id: app.vehicle_id || app.vehicleId || null,
+          make: app.make || "Registered",
+          model: app.model || "Vehicle",
+          year: String(app.year || "2026"),
+          color: app.color || "N/A",
+          plateNumber: app.plateNumber || app.plate_number || "N/A",
+          type: app.vehicleType || app.vehicle_type || "Motorcycle",
+        },
+      };
+    }
+    return app;
+  };
+
   const [applications, setApplications] = useState(() => {
     try {
       const saved = localStorage.getItem("vpass_applications");
-      return saved ? JSON.parse(saved) : [];
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) ? parsed.map(sanitizeApp) : [];
     } catch (e) {
       try { localStorage.removeItem("vpass_applications"); } catch (_) {}
       return [];
@@ -346,7 +366,7 @@ export const PassProvider = ({ children }) => {
           apiRequest("/guard/visitors"),
         ]);
         if (appsRes.status === "fulfilled" && Array.isArray(appsRes.value)) {
-          setApplications(appsRes.value);
+          setApplications((appsRes.value || []).map(sanitizeApp));
         }
         if (logsRes.status === "fulfilled" && Array.isArray(logsRes.value)) {
           setGateLogs(logsRes.value);

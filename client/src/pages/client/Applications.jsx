@@ -267,7 +267,7 @@ export default function Applications() {
                       <span className="text-xs text-slate-500">Submitted {app.renewalSubmittedAt || app.submittedDate}</span>
                     </div>
                     <h3 className="text-sm font-bold text-slate-900 mt-0.5">
-                      {app.vehicle.make} {app.vehicle.model} ({app.vehicle.year}) — <span className="font-mono">{app.vehicle.plateNumber}</span>
+                      {app.vehicle?.make || 'Vehicle'} {app.vehicle?.model || ''} {app.vehicle?.year ? `(${app.vehicle.year})` : ''} — <span className="font-mono text-emerald-800">{app.vehicle?.plateNumber || app.plate_number || 'N/A'}</span>
                     </h3>
                   </div>
                 </div>
