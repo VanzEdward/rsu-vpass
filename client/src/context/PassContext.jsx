@@ -206,7 +206,7 @@ const purgeLegacyDummyDataOnce = () => {
 
 purgeLegacyDummyDataOnce();
 
-// Persistent read notification ID tracker helpers to ensure read status survives tab closes
+// Persistent read notification ID tracker & cutoff timestamp helpers to ensure read status permanently survives server restarts
 const getReadNotifIds = (userId) => {
   try {
     const userKey = userId ? `vpass_read_notifs_${userId}` : null;
@@ -220,38 +220,81 @@ const getReadNotifIds = (userId) => {
   }
 };
 
-const persistReadNotifId = (id, userId) => {
+const getReadCutoffTime = (userId) => {
   try {
-    if (!id) return;
-    const globalRaw = localStorage.getItem("vpass_read_notifs");
-    const globalList = globalRaw ? JSON.parse(globalRaw) : [];
-    if (!globalList.includes(id)) {
-      localStorage.setItem("vpass_read_notifs", JSON.stringify([...globalList, id]));
-    }
+    const userKey = userId ? `vpass_read_cutoff_${userId}` : null;
+    const userVal = userKey ? localStorage.getItem(userKey) : null;
+    const globalVal = localStorage.getItem("vpass_read_cutoff");
+    const t = Number(userVal || globalVal || 0);
+    return isNaN(t) ? 0 : t;
+  } catch (e) {
+    return 0;
+  }
+};
+
+const setReadCutoffTime = (userId, timestamp = Date.now()) => {
+  try {
+    localStorage.setItem("vpass_read_cutoff", String(timestamp));
     if (userId) {
-      const userKey = `vpass_read_notifs_${userId}`;
-      const userRaw = localStorage.getItem(userKey);
-      const userList = userRaw ? JSON.parse(userRaw) : [];
-      if (!userList.includes(id)) {
-        localStorage.setItem(userKey, JSON.stringify([...userList, id]));
-      }
+      localStorage.setItem(`vpass_read_cutoff_${userId}`, String(timestamp));
     }
   } catch (e) {}
 };
 
-const persistAllReadNotifIds = (ids, userId) => {
+const isNotifMarkedRead = (notif, userId) => {
+  if (!notif) return true;
+  if (notif.read === true) return true;
+  const readIds = getReadNotifIds(userId);
+  if (notif.id && readIds.includes(String(notif.id))) return true;
+  if (notif.appId && notif.type && readIds.includes(`app-${notif.appId}-${notif.type}`)) return true;
+  const cutoff = getReadCutoffTime(userId);
+  if (cutoff > 0 && notif.date) {
+    const notifTime = new Date(notif.date).getTime();
+    if (!isNaN(notifTime) && notifTime <= cutoff) return true;
+  }
+  return false;
+};
+
+const persistReadNotifId = (id, userId, notif = null) => {
   try {
-    if (!ids || ids.length === 0) return;
+    if (!id && !notif) return;
+    const idsToAdd = [];
+    if (id) idsToAdd.push(String(id));
+    if (notif?.id) idsToAdd.push(String(notif.id));
+    if (notif?.appId && notif?.type) {
+      idsToAdd.push(`app-${notif.appId}-${notif.type}`);
+      idsToAdd.push(`notif-${String(notif.type).toLowerCase().replace(/_/g, '-')}-${notif.appId}`);
+    }
+
     const globalRaw = localStorage.getItem("vpass_read_notifs");
     const globalList = globalRaw ? JSON.parse(globalRaw) : [];
-    const mergedGlobal = Array.from(new Set([...globalList, ...ids]));
+    const mergedGlobal = Array.from(new Set([...globalList, ...idsToAdd]));
     localStorage.setItem("vpass_read_notifs", JSON.stringify(mergedGlobal));
 
     if (userId) {
       const userKey = `vpass_read_notifs_${userId}`;
       const userRaw = localStorage.getItem(userKey);
       const userList = userRaw ? JSON.parse(userRaw) : [];
-      const mergedUser = Array.from(new Set([...userList, ...ids]));
+      const mergedUser = Array.from(new Set([...userList, ...idsToAdd]));
+      localStorage.setItem(userKey, JSON.stringify(mergedUser));
+    }
+  } catch (e) {}
+};
+
+const persistAllReadNotifIds = (ids, userId) => {
+  try {
+    setReadCutoffTime(userId, Date.now());
+    if (!ids || ids.length === 0) return;
+    const globalRaw = localStorage.getItem("vpass_read_notifs");
+    const globalList = globalRaw ? JSON.parse(globalRaw) : [];
+    const mergedGlobal = Array.from(new Set([...globalList, ...ids.map(String)]));
+    localStorage.setItem("vpass_read_notifs", JSON.stringify(mergedGlobal));
+
+    if (userId) {
+      const userKey = `vpass_read_notifs_${userId}`;
+      const userRaw = localStorage.getItem(userKey);
+      const userList = userRaw ? JSON.parse(userRaw) : [];
+      const mergedUser = Array.from(new Set([...userList, ...ids.map(String)]));
       localStorage.setItem(userKey, JSON.stringify(mergedUser));
     }
   } catch (e) {}
@@ -522,10 +565,12 @@ export const PassProvider = ({ children }) => {
       const raw = savedUser || savedGlobal;
       if (raw) {
         const parsed = JSON.parse(raw);
-        const readIds = getReadNotifIds(user?.id);
-        return parsed.map((n) =>
-          readIds.includes(n.id) ? { ...n, read: true } : n
-        );
+        if (Array.isArray(parsed)) {
+          return parsed.map((n) => ({
+            ...n,
+            read: isNotifMarkedRead(n, user?.id)
+          }));
+        }
       }
     } catch (e) {}
     return INITIAL_NOTIFICATIONS;
@@ -608,13 +653,16 @@ export const PassProvider = ({ children }) => {
   };
 
   const markNotificationAsRead = (id) => {
-    persistReadNotifId(id, user?.id);
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
-    );
+    setNotifications((prev) => {
+      const target = prev.find((n) => n.id === id);
+      persistReadNotifId(id, user?.id, target);
+      return prev.map((n) => (n.id === id ? { ...n, read: true } : n));
+    });
   };
 
   const markAllNotificationsAsRead = () => {
+    const now = Date.now();
+    setReadCutoffTime(user?.id, now);
     setNotifications((prev) => {
       const ids = prev.map((n) => n.id);
       persistAllReadNotifIds(ids, user?.id);
@@ -776,68 +824,85 @@ export const PassProvider = ({ children }) => {
     });
   }, [applications]);
 
-  // Self-healing synchronization: guarantee notifications for any issued passes or status changes
+  // Self-healing synchronization: guarantee notifications for any issued passes or status changes with robust deduplication & persistent read status
   useEffect(() => {
     if (!applications || applications.length === 0) return;
 
     setNotifications((prev) => {
       let changed = false;
       const nextNotifs = [...prev];
-      const readIds = getReadNotifIds(user?.id);
 
       applications.forEach((app) => {
+        const appRef = app.app_ref_number || app.id;
+        const appDbId = app.db_id || app.id;
+
+        const matchesApp = (n, targetType) => {
+          if (n.type !== targetType) return false;
+          if (n.appId && (n.appId == app.id || n.appId == appDbId || n.appId == appRef)) return true;
+          if (n.id && (n.id.includes(String(app.id)) || (appDbId && n.id.includes(String(appDbId))) || (appRef && n.id.includes(String(appRef))))) return true;
+          return false;
+        };
+
         // 1. Pass Issued Notification
         if (app.status === "PASS_ISSUED" && app.pass) {
           const passNum = app.pass.passNumber || app.assignedPassNumber;
-          const notifId = `notif-issued-${app.id}`;
-          const existing = nextNotifs.find(
-            (n) => n.id === notifId || (n.appId === app.id && n.type === "PASS_ISSUED")
-          );
+          const notifId = `notif-issued-${appRef}`;
+          const existing = nextNotifs.find((n) => matchesApp(n, "PASS_ISSUED"));
 
           if (!existing) {
             changed = true;
-            const isRead = readIds.includes(notifId);
-            nextNotifs.unshift({
+            const tempNotif = {
               id: notifId,
               type: "PASS_ISSUED",
+              appId: appRef,
+              date: app.pass.issuedAt || app.updated_at || app.created_at || new Date().toISOString()
+            };
+            const isRead = isNotifMarkedRead(tempNotif, user?.id);
+            nextNotifs.unshift({
+              ...tempNotif,
               title: "Official Gate QR Pass Issued!",
               message: `Your Cashier receipt has been verified! Gate Pass ${passNum || "Activated"} for ${app.vehicle?.make || "Vehicle"} (${app.vehicle?.plateNumber}) is now active for Academic Year ${systemSettings?.academicYear || "2026-2027"}.`,
               link: "/client/vehicle-pass",
-              appId: app.id,
               time: "Just now",
-              date: new Date().toISOString(),
               read: isRead,
             });
-          } else if (readIds.includes(existing.id) && !existing.read) {
-            existing.read = true;
-            changed = true;
+          } else {
+            const shouldBeRead = existing.read || isNotifMarkedRead(existing, user?.id);
+            if (existing.read !== shouldBeRead) {
+              existing.read = shouldBeRead;
+              changed = true;
+            }
           }
         }
 
         // 2. Registration Approved Notification (Ready for Cashier Payment)
         if (app.status === "APPROVED") {
-          const notifId = `notif-approved-${app.id}`;
-          const existing = nextNotifs.find(
-            (n) => n.id === notifId || (n.appId === app.id && n.type === "REGISTRATION_APPROVED")
-          );
+          const notifId = `notif-approved-${appRef}`;
+          const existing = nextNotifs.find((n) => matchesApp(n, "REGISTRATION_APPROVED"));
 
           if (!existing) {
             changed = true;
-            const isRead = readIds.includes(notifId);
-            nextNotifs.unshift({
+            const tempNotif = {
               id: notifId,
               type: "REGISTRATION_APPROVED",
+              appId: appRef,
+              date: app.updated_at || app.created_at || new Date().toISOString()
+            };
+            const isRead = isNotifMarkedRead(tempNotif, user?.id);
+            nextNotifs.unshift({
+              ...tempNotif,
               title: "Vehicle Registration Approved!",
               message: `Your registration for ${app.vehicle?.make || "Vehicle"} ${app.vehicle?.model || ""} (${app.vehicle?.plateNumber}) was approved by PASO. You may now pay at the Cashier window and upload your receipt.`,
-              link: `/client/payments?appId=${app.id}`,
-              appId: app.id,
+              link: `/client/payments?appId=${appRef}`,
               time: "Just now",
-              date: new Date().toISOString(),
               read: isRead,
             });
-          } else if (readIds.includes(existing.id) && !existing.read) {
-            existing.read = true;
-            changed = true;
+          } else {
+            const shouldBeRead = existing.read || isNotifMarkedRead(existing, user?.id);
+            if (existing.read !== shouldBeRead) {
+              existing.read = shouldBeRead;
+              changed = true;
+            }
           }
         }
 
@@ -847,59 +912,67 @@ export const PassProvider = ({ children }) => {
           app.receipt?.status === "REJECTED" ||
           (app.receipt?.rejectionRemark && app.status !== "PASS_ISSUED")
         ) {
-          const notifId = `notif-receipt-declined-${app.id}`;
+          const notifId = `notif-receipt-declined-${appRef}`;
           const remark =
             app.receiptRejectionRemark ||
             app.receipt?.rejectionRemark ||
             "Cashier receipt image is unreadable or invalid.";
-          const existing = nextNotifs.find(
-            (n) => n.id === notifId || (n.appId === app.id && n.type === "RECEIPT_REJECTED")
-          );
+          const existing = nextNotifs.find((n) => matchesApp(n, "RECEIPT_REJECTED"));
 
           if (!existing) {
             changed = true;
-            const isRead = readIds.includes(notifId);
-            nextNotifs.unshift({
+            const tempNotif = {
               id: notifId,
               type: "RECEIPT_REJECTED",
+              appId: appRef,
+              date: app.updated_at || new Date().toISOString()
+            };
+            const isRead = isNotifMarkedRead(tempNotif, user?.id);
+            nextNotifs.unshift({
+              ...tempNotif,
               title: "Cashier Receipt Declined",
               message: `Cashier receipt for ${app.vehicle?.make || "Vehicle"} (${app.vehicle?.plateNumber}) was declined by PASO. Note: "${remark}". Please re-upload your valid receipt.`,
-              link: `/client/payments?appId=${app.id}`,
-              appId: app.id,
+              link: `/client/payments?appId=${appRef}`,
               time: "Just now",
-              date: new Date().toISOString(),
               read: isRead,
             });
-          } else if (readIds.includes(existing.id) && !existing.read) {
-            existing.read = true;
-            changed = true;
+          } else {
+            const shouldBeRead = existing.read || isNotifMarkedRead(existing, user?.id);
+            if (existing.read !== shouldBeRead) {
+              existing.read = shouldBeRead;
+              changed = true;
+            }
           }
         }
 
         // 4. Registration Rejected Notification
         if (app.status === "REJECTED" && app.rejection_reason) {
-          const notifId = `notif-rejected-${app.id}`;
-          const existing = nextNotifs.find(
-            (n) => n.id === notifId || (n.appId === app.id && n.type === "REGISTRATION_REJECTED")
-          );
+          const notifId = `notif-rejected-${appRef}`;
+          const existing = nextNotifs.find((n) => matchesApp(n, "REGISTRATION_REJECTED"));
 
           if (!existing) {
             changed = true;
-            const isRead = readIds.includes(notifId);
-            nextNotifs.unshift({
+            const tempNotif = {
               id: notifId,
               type: "REGISTRATION_REJECTED",
+              appId: appRef,
+              date: app.updated_at || new Date().toISOString()
+            };
+            const isRead = isNotifMarkedRead(tempNotif, user?.id);
+            nextNotifs.unshift({
+              ...tempNotif,
               title: "Registration Form Needs Correction",
               message: `PASO returned your application for ${app.vehicle?.make || "Vehicle"} (${app.vehicle?.plateNumber}). Note: "${app.rejection_reason}". Click to correct mistakes and re-submit.`,
               link: "/client/applications",
-              appId: app.id,
               time: "Just now",
-              date: new Date().toISOString(),
               read: isRead,
             });
-          } else if (readIds.includes(existing.id) && !existing.read) {
-            existing.read = true;
-            changed = true;
+          } else {
+            const shouldBeRead = existing.read || isNotifMarkedRead(existing, user?.id);
+            if (existing.read !== shouldBeRead) {
+              existing.read = shouldBeRead;
+              changed = true;
+            }
           }
         }
       });
