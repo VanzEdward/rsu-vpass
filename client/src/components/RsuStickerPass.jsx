@@ -1,18 +1,69 @@
 import React, { useState, useEffect } from "react";
 import QRCode from "qrcode";
 import { Download } from "lucide-react";
-import studentPassImg from "../assets/student_pass.png";
-import employeePassImg from "../assets/employee_pass.png";
+import { usePass } from "../context/PassContext";
+
+// 6 Canva Templates (3 pairs for Students & Employees across Academic Years)
+import studentPassImgV1 from "../assets/student_pass.png";
+import employeePassImgV1 from "../assets/employee_pass.png";
+import studentPassImgV2 from "../assets/student_passV2.png";
+import employeePassImgV2 from "../assets/employee_passV2.png";
+import studentPassImgV3 from "../assets/student_passV3.png";
+import employeePassImgV3 from "../assets/employee_passV3.png";
+
+/**
+ * Registry of Official RSU Vehicle Pass Canva Templates
+ * Allows PASO Administration to designate an official color theme for each Academic Year.
+ */
+export const PASS_TEMPLATES = {
+  V1: {
+    id: "V1",
+    name: "Set 1: Classic Pink & Red",
+    academicYearDefault: "2026-2027",
+    studentImg: studentPassImgV1,
+    employeeImg: employeePassImgV1,
+    studentAccent: "#fbcfe8",
+    employeeAccent: "#fecaca",
+    studentColorName: "Rose Pink",
+    employeeColorName: "Crimson Red",
+    studentBadgeBg: "bg-pink-100 text-pink-800 border-pink-300",
+    employeeBadgeBg: "bg-red-100 text-red-800 border-red-300",
+    description: "RSU official launch template (A.Y. 2026–2027)",
+  },
+  V2: {
+    id: "V2",
+    name: "Set 2: Forest Emerald & Royal Blue",
+    academicYearDefault: "2027-2028",
+    studentImg: studentPassImgV2,
+    employeeImg: employeePassImgV2,
+    studentAccent: "#bbf7d0",
+    employeeAccent: "#bfdbfe",
+    studentColorName: "Forest Emerald",
+    employeeColorName: "Royal Navy Blue",
+    studentBadgeBg: "bg-emerald-100 text-emerald-800 border-emerald-300",
+    employeeBadgeBg: "bg-blue-100 text-blue-800 border-blue-300",
+    description: "University heritage colors for A.Y. 2027–2028",
+  },
+  V3: {
+    id: "V3",
+    name: "Set 3: Amber Gold & Crimson Maroon",
+    academicYearDefault: "2028-2029",
+    studentImg: studentPassImgV3,
+    employeeImg: employeePassImgV3,
+    studentAccent: "#fde68a",
+    employeeAccent: "#fecdd3",
+    studentColorName: "Amber Gold",
+    employeeColorName: "Deep Maroon",
+    studentBadgeBg: "bg-amber-100 text-amber-800 border-amber-300",
+    employeeBadgeBg: "bg-rose-100 text-rose-800 border-rose-300",
+    description: "High-contrast gate security template for A.Y. 2028–2029",
+  },
+};
 
 /**
  * Authentic RSU Vehicle Pass Sticker Component
- * Uses the user-created Canva templates:
- * - student_pass.png (Pink theme) for students
- * - employee_pass.png (Red theme) for employees
- * Automatically stamps:
- * - QR code onto the blank white square (right side)
- * - S-Number or E-Number + Vehicle Plate on the left side
- * - High-resolution (1200x1500, 300 DPI) canvas exporter for printing
+ * Automatically selects the appropriate Canva template (Set 1, Set 2, or Set 3)
+ * based on the pass's assigned version or the active system setting.
  */
 export default function RsuStickerPass({
   classification = "STUDENT",
@@ -21,9 +72,18 @@ export default function RsuStickerPass({
   qrPayload = "",
   className = "",
   showDownloadButton = true,
+  templateVersion, // "V1" | "V2" | "V3"
 }) {
+  const { systemSettings } = usePass() || {};
+  const activeVersion =
+    templateVersion || systemSettings?.stickerTemplateVersion || "V1";
+  const activeSet = PASS_TEMPLATES[activeVersion] || PASS_TEMPLATES.V1;
+
   const isStudent = (classification || "").toLowerCase().includes("student");
-  const templateImg = isStudent ? studentPassImg : employeePassImg;
+  const templateImg = isStudent ? activeSet.studentImg : activeSet.employeeImg;
+  const accentColor = isStudent
+    ? activeSet.studentAccent
+    : activeSet.employeeAccent;
   const roleTitle = isStudent ? "STUDENT" : "EMPLOYEE";
 
   // Normalize pass number so it always displays cleanly as 3-digit zero-padded S-### or E-### (e.g. S-001, E-001)
@@ -32,7 +92,6 @@ export default function RsuStickerPass({
     if (!rawPass) return `${prefix}-001`;
     const clean = String(rawPass).trim().toUpperCase();
 
-    // S-001, E-001, S-1, E-1, S1, E1
     const seMatch = clean.match(/^([SE])-?(\d+)$/);
     if (seMatch) {
       const p = seMatch[1];
@@ -40,7 +99,6 @@ export default function RsuStickerPass({
       return `${p}-${String(num).padStart(3, "0")}`;
     }
 
-    // Trailing digits (e.g., VP-2026-0001, 1, 001)
     const match = clean.match(/(\d+)$/);
     if (match) {
       const num = parseInt(match[1], 10);
@@ -111,10 +169,9 @@ export default function RsuStickerPass({
       });
 
       // 3. Draw QR Code centered inside the blank white square (bounds: 750-1130, 1058-1438)
-      // Centered at x: 765, y: 1073 with size 350x350
       ctx.drawImage(qrImg, 765, 1073, 350, 350);
 
-      // 4. Draw Pass Series Number (e.g., S-396 or E-081) on the left
+      // 4. Draw Pass Series Number on the left
       ctx.save();
       ctx.fillStyle = "#ffffff";
       ctx.textAlign = "left";
@@ -128,9 +185,9 @@ export default function RsuStickerPass({
       ctx.fillText(displayPassNumber, 85, 1085, 640);
       ctx.shadowColor = "transparent";
 
-      // Pass Category Label
+      // Pass Category Label with dynamic color
       ctx.font = "700 32px Arial, sans-serif";
-      ctx.fillStyle = isStudent ? "#fbcfe8" : "#fecaca";
+      ctx.fillStyle = accentColor;
       ctx.fillText(`${roleTitle} AUTHORIZED`, 90, 1235, 630);
 
       // Vehicle Plate Number
@@ -168,7 +225,7 @@ export default function RsuStickerPass({
         {/* Background Canva Template */}
         <img
           src={templateImg}
-          alt={`${roleTitle} Vehicle Pass Template`}
+          alt={`${roleTitle} Vehicle Pass Template (${activeSet.name})`}
           className="w-full h-full object-contain pointer-events-none"
         />
 
@@ -193,11 +250,10 @@ export default function RsuStickerPass({
             {displayPassNumber}
           </span>
 
-          {/* Subtitle label */}
+          {/* Subtitle label with dynamic accent color */}
           <span
-            className={`text-[9px] font-bold uppercase tracking-wider block mt-1 ${
-              isStudent ? "text-pink-200" : "text-red-200"
-            }`}
+            className="text-[9px] font-bold uppercase tracking-wider block mt-1"
+            style={{ color: accentColor }}
           >
             {roleTitle} AUTHORIZED
           </span>
@@ -218,40 +274,32 @@ export default function RsuStickerPass({
           className="absolute flex items-center justify-center p-1.5"
           style={{
             left: "63.75%",
-            top: "71.53%",
-            width: "29.17%",
-            height: "23.33%",
+            top: "71.5%",
+            width: "29.5%",
+            height: "24%",
           }}
         >
           {qrCodeDataUrl ? (
             <img
               src={qrCodeDataUrl}
-              alt={`Gate QR Code for ${displayPassNumber}`}
-              className="w-full h-full object-contain rounded-xl"
+              alt="Gate Scanner QR"
+              className="w-full h-full object-contain rounded-md"
             />
           ) : (
-            <div className="w-full h-full bg-slate-100 rounded-xl flex items-center justify-center text-[9px] text-slate-400 font-bold">
-              QR
-            </div>
+            <div className="w-full h-full bg-slate-200 animate-pulse rounded-md" />
           )}
         </div>
       </div>
 
-      {/* Direct Download Button */}
+      {/* Download Action Button */}
       {showDownloadButton && (
         <button
           type="button"
           onClick={handleDownloadSticker}
-          className={`mt-3.5 w-full max-w-[340px] py-2.5 px-2.5 sm:px-4 rounded-xl text-white text-[11px] sm:text-xs font-black tracking-tight shadow-lg transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-98 select-none ${
-            isStudent
-              ? "bg-pink-600 hover:bg-pink-500 shadow-pink-900/30"
-              : "bg-red-600 hover:bg-red-500 shadow-red-900/30"
-          }`}
+          className="mt-4 w-full max-w-[340px] py-3 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-bold text-xs flex items-center justify-center space-x-2 shadow-md transition-all cursor-pointer"
         >
-          <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 text-white" />
-          <span className="whitespace-nowrap">
-            Download Official {roleTitle} Pass (PNG)
-          </span>
+          <Download className="w-4 h-4" />
+          <span>Download High-Resolution Pass Sticker</span>
         </button>
       )}
     </div>

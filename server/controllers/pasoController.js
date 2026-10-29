@@ -216,7 +216,7 @@ export const issuePass = async (req, res) => {
 
     const app = apps[0];
     const finalPassNum = passNumber || `S-${String(app.id).padStart(3, '0')}`;
-    const finalValidUntil = validUntil ? new Date(validUntil).toISOString().split('T')[0] : `${new Date().getFullYear() + 1}-12-31`;
+    const finalValidUntil = validUntil ? new Date(validUntil).toISOString().split('T')[0] : `${new Date().getFullYear() + 1}-07-31`;
     const qrData = `RSU-VPASS:${finalPassNum}:${app.plate_number}:${app.school_id}`;
 
     // 1. Insert or update vehicle pass

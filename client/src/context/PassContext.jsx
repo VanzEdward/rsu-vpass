@@ -15,8 +15,9 @@ export const CAMPUS_GATES = [
 
 export const DEFAULT_SETTINGS = {
   academicYear: "2026-2027",
-  passValidityType: "ONE_YEAR", // Exactly 1 year from issuance
-  renewalWindowDays: "30",
+  passValidityType: "ACADEMIC_YEAR", // Academic Calendar (Expires July 31)
+  stickerTemplateVersion: "V1", // "V1" (Pink/Red) | "V2" (Green/Blue) | "V3" (Gold/Maroon)
+  renewalWindowDays: "60",
   motorcycleFee: "150",
   fourWheelFee: "300",
   commercialFee: "500",
@@ -53,19 +54,28 @@ export const isPassExpired = (pass) => {
  * Calculates exactly 1 year of validity from a given date
  * (e.g. Oct 10, 2026 -> Oct 10, 2027)
  */
-export const calculateOneYearExpiry = (startDate = new Date()) => {
-  const d = new Date(startDate);
-  const exp = new Date(d);
-  exp.setFullYear(exp.getFullYear() + 1);
-  const formatted = exp.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
+export const calculateAcademicYearExpiry = (academicYear = "2026-2027") => {
+  const parts = String(academicYear).split("-");
+  let endYear = 2027;
+  if (parts.length >= 2 && !isNaN(parseInt(parts[1], 10))) {
+    const raw = parseInt(parts[1], 10);
+    endYear = raw < 100 ? 2000 + raw : raw;
+  } else if (!isNaN(parseInt(parts[0], 10))) {
+    endYear = parseInt(parts[0], 10) + 1;
+  }
+
+  // Expires July 31 at 23:59:59 (covering full academic year + summer enrollment grace period)
+  const exp = new Date(endYear, 6, 31, 23, 59, 59);
+  const formatted = `July 31, ${endYear}`;
   return {
     expiresAt: exp.toISOString(),
     validUntil: formatted,
+    academicYear,
   };
+};
+
+export const calculateOneYearExpiry = (startDate = new Date(), academicYear = "2026-2027") => {
+  return calculateAcademicYearExpiry(academicYear);
 };
 
 const INITIAL_NOTIFICATIONS = [];
@@ -1242,8 +1252,10 @@ export const PassProvider = ({ children }) => {
       getSequentialPassNumber(targetApp, applications);
 
     const now = new Date();
-    const oneYear = calculateOneYearExpiry(now);
     const acadYear = systemSettings?.academicYear || "2026-2027";
+    const acadExpiry = calculateAcademicYearExpiry(acadYear);
+    const activeTemplateVersion = systemSettings?.stickerTemplateVersion || "V1";
+    const oneYear = acadExpiry;
     const vehiclePlate = targetApp.vehicle?.plateNumber;
 
     setApplications((prev) =>
@@ -1255,9 +1267,10 @@ export const PassProvider = ({ children }) => {
               customDetails.qrData ||
               targetApp.pass?.qrData ||
               `RSU-VPASS:${generatedPassNum}:${app.vehicle?.plateNumber || ""}:${app.school_id || ""}`,
-            validUntil: customDetails.validUntil || oneYear.validUntil,
-            expiresAt: customDetails.expiresAt || oneYear.expiresAt,
+            validUntil: customDetails.validUntil || acadExpiry.validUntil,
+            expiresAt: customDetails.expiresAt || acadExpiry.expiresAt,
             academicYear: acadYear,
+            templateVersion: customDetails.templateVersion || activeTemplateVersion,
             status: "ACTIVE",
             issuedAt: now.toLocaleDateString("en-US", {
               month: "long",
@@ -1947,6 +1960,7 @@ export const PassProvider = ({ children }) => {
         updateSystemSettings,
         isPassExpired,
         calculateOneYearExpiry,
+        calculateAcademicYearExpiry,
         notifications,
         addNotification,
         markNotificationAsRead,

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Calendar, 
+  Calendar,
+  Sparkles, 
   Save, 
   Check, 
   RotateCcw,
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react';
 
 import { usePass, DEFAULT_SETTINGS } from '../../context/PassContext';
+import { PASS_TEMPLATES } from '../../components/RsuStickerPass';
 import { useAuth } from '../../context/AuthContext';
 import { apiRequest } from '../../api/client';
 
@@ -207,11 +209,11 @@ export default function AdminSettings() {
 
       <form onSubmit={handleSaveAll} className="space-y-6">
         {/* ======================================================== */}
-        {/* SECTION 1: ACADEMIC YEAR & PASS EXPIRATION POLICY         */}
+        {/* SECTION 1: ACADEMIC YEAR & ANNUAL STICKER COLOR THEME    */}
         {/* ======================================================== */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-6">
           <div className="flex items-center space-x-3 pb-3 border-b border-slate-100">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
               <Calendar className="w-5 h-5" />
             </div>
             <div>
@@ -222,9 +224,9 @@ export default function AdminSettings() {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 flex items-center space-x-1">
-                <span>Current Academic Year</span>
-                <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.2 rounded font-mono">Live</span>
+              <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                <span>Active Academic Year</span>
+                <span className="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded font-mono font-bold">Active</span>
               </label>
               <input
                 type="text"
@@ -233,18 +235,38 @@ export default function AdminSettings() {
                 onChange={(e) => handleSettingsFieldChange('academicYear', e.target.value)}
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none font-mono"
               />
-              <p className="text-[11px] text-slate-400">Institutional year displayed across client and admin passes</p>
+              <div className="flex items-center space-x-1.5 pt-1">
+                {['2026-2027', '2027-2028', '2028-2029'].map((ay) => (
+                  <button
+                    key={ay}
+                    type="button"
+                    onClick={() => {
+                      handleSettingsFieldChange('academicYear', ay);
+                      if (ay === '2026-2027') handleSettingsFieldChange('stickerTemplateVersion', 'V1');
+                      if (ay === '2027-2028') handleSettingsFieldChange('stickerTemplateVersion', 'V2');
+                      if (ay === '2028-2029') handleSettingsFieldChange('stickerTemplateVersion', 'V3');
+                    }}
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
+                      settings.academicYear === ay
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                        : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border-slate-200'
+                    }`}
+                  >
+                    {ay}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">Pass Validity Duration</label>
-              <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 flex items-center justify-between">
-                <span>Exactly 1 Year from Issue Date</span>
+              <label className="text-xs font-bold text-slate-700">Pass Expiration Policy</label>
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 flex items-center justify-between">
+                <span>July 31, {settings.academicYear?.split('-')[1] || '2027'}</span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
-                  365 Days
+                  Academic Calendar
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400">e.g. Issued today ➔ Valid for exactly 365 days</p>
+              <p className="text-[11px] text-slate-400">Valid for both semesters + June–July summer renewal grace period</p>
             </div>
 
             <div className="space-y-1.5">
@@ -252,13 +274,71 @@ export default function AdminSettings() {
               <div className="relative">
                 <input
                   type="number"
-                  value={settings.renewalWindowDays || '30'}
+                  value={settings.renewalWindowDays || '60'}
                   onChange={(e) => handleSettingsFieldChange('renewalWindowDays', e.target.value)}
                   className="w-full pr-12 pl-3 py-2 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
                 />
                 <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-semibold">days</span>
               </div>
-              <p className="text-[11px] text-slate-400">Shows renewal prompt on specific vehicle before expiry</p>
+              <p className="text-[11px] text-slate-400">Prompts client to renew before July 31 cutoff</p>
+            </div>
+          </div>
+
+          {/* Color Template Selection */}
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center space-x-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Annual Vehicle Sticker Color Theme (Canva Templates)</span>
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Select which color pair will be issued for this Academic Year. Gate guards spot valid vehicles by this color at campus checkpoints.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+              {Object.values(PASS_TEMPLATES).map((template) => {
+                const isSelected = (settings.stickerTemplateVersion || 'V1') === template.id;
+                return (
+                  <div
+                    key={template.id}
+                    onClick={() => handleSettingsFieldChange('stickerTemplateVersion', template.id)}
+                    className={`p-4 rounded-2xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
+                      isSelected
+                        ? 'border-emerald-600 bg-emerald-50/40 shadow-sm ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-slate-900">{template.name}</span>
+                        {isSelected ? (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold flex items-center space-x-1">
+                            <Check className="w-2.5 h-2.5" />
+                            <span>Active</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 font-semibold">Click to select</span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 leading-snug">{template.description}</p>
+                    </div>
+
+                    <div className="mt-3.5 pt-3 border-t border-slate-200/80 grid grid-cols-2 gap-2">
+                      <div className={`p-2 rounded-xl border text-center ${template.studentBadgeBg}`}>
+                        <span className="text-[9px] font-extrabold uppercase block tracking-wider">Student</span>
+                        <span className="text-[11px] font-black truncate block mt-0.5">{template.studentColorName}</span>
+                      </div>
+                      <div className={`p-2 rounded-xl border text-center ${template.employeeBadgeBg}`}>
+                        <span className="text-[9px] font-extrabold uppercase block tracking-wider">Employee</span>
+                        <span className="text-[11px] font-black truncate block mt-0.5">{template.employeeColorName}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
