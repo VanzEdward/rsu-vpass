@@ -31,6 +31,8 @@ import {
   ChevronUp,
   AlertTriangle,
   ArrowRight,
+  Zap,
+  ZapOff,
 } from "lucide-react";
 
 export const PHILIPPINE_VALID_IDS = [
@@ -211,6 +213,8 @@ export default function GuardScanner() {
   const [logFilter, setLogFilter] = useState("ALL"); // 'ALL' | 'ENTRY' | 'EXIT'
   const [facingMode, setFacingMode] = useState("environment"); // 'environment' | 'user'
   const [scanSuccessFlash, setScanSuccessFlash] = useState(false);
+  const [hasTorch, setHasTorch] = useState(false);
+  const [isTorchOn, setIsTorchOn] = useState(false);
 
   // Simulator drawer toggle (keeps main screen 100% clean for guards)
   const [showDemoSimulator, setShowDemoSimulator] = useState(false);
@@ -348,6 +352,16 @@ export default function GuardScanner() {
       }
 
       streamRef.current = stream;
+      try {
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack) {
+          const capabilities = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
+          setHasTorch(Boolean(capabilities && capabilities.torch));
+        }
+      } catch {
+        setHasTorch(false);
+      }
+      setIsTorchOn(false);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.setAttribute("playsinline", "true");
@@ -357,6 +371,23 @@ export default function GuardScanner() {
       setFacingMode(mode);
     } catch (err) {
       setCameraActive(false);
+    setIsTorchOn(false);
+    setHasTorch(false);
+  };
+
+  const toggleTorch = async () => {
+    if (!streamRef.current) return;
+    const track = streamRef.current.getVideoTracks()[0];
+    if (!track) return;
+    try {
+      const nextTorch = !isTorchOn;
+      await track.applyConstraints({
+        advanced: [{ torch: nextTorch }],
+      });
+      setIsTorchOn(nextTorch);
+    } catch (err) {
+      console.warn("Torch toggle error:", err);
+    }
       if (err.name === "NotAllowedError") {
         setCameraError(
           "Camera access denied. Please grant permission in your browser.",
@@ -384,6 +415,23 @@ export default function GuardScanner() {
       videoRef.current.srcObject = null;
     }
     setCameraActive(false);
+    setIsTorchOn(false);
+    setHasTorch(false);
+  };
+
+  const toggleTorch = async () => {
+    if (!streamRef.current) return;
+    const track = streamRef.current.getVideoTracks()[0];
+    if (!track) return;
+    try {
+      const nextTorch = !isTorchOn;
+      await track.applyConstraints({
+        advanced: [{ torch: nextTorch }],
+      });
+      setIsTorchOn(nextTorch);
+    } catch (err) {
+      console.warn("Torch toggle error:", err);
+    }
   };
 
   const toggleCamera = () => {
@@ -1254,11 +1302,11 @@ export default function GuardScanner() {
           <div className="bg-slate-900 rounded-3xl border border-slate-800 p-4 shadow-xl space-y-3.5">
             {/* Camera Viewfinder */}
             <div
-              className={`aspect-square max-w-[290px] mx-auto rounded-2xl bg-black flex flex-col items-center justify-center relative overflow-hidden border-2 shadow-inner transition-all duration-200 ${
+              className={`w-full max-w-[390px] aspect-4/3 sm:aspect-square mx-auto rounded-3xl bg-slate-950 flex flex-col items-center justify-center relative overflow-hidden border-2 transition-all duration-300 shadow-2xl ${
                 scanSuccessFlash
-                  ? "border-emerald-400 ring-4 ring-emerald-500/40 shadow-emerald-500/30"
+                  ? "border-emerald-400 ring-4 ring-emerald-400/60 shadow-[0_0_35px_rgba(52,211,153,0.5)]"
                   : cameraActive
-                    ? "border-emerald-500/60 shadow-emerald-950/40"
+                    ? "border-emerald-500/60 shadow-[0_0_25px_rgba(16,185,129,0.25)]"
                     : "border-slate-800"
               }`}
             >
@@ -1268,88 +1316,136 @@ export default function GuardScanner() {
                 playsInline
                 muted
                 className={
-                  cameraActive ? "w-full h-full object-cover" : "hidden"
+                  cameraActive
+                    ? `w-full h-full object-cover transition-transform duration-200 ${
+                        facingMode === "user" ? "-scale-x-100" : "scale-x-100"
+                      }`
+                    : "hidden"
                 }
               />
 
+              {/* Inactive State: Modern Scanner Graphic */}
               {!cameraActive && (
-                <div className="text-center p-6 space-y-2">
-                  <div className="w-14 h-14 rounded-2xl bg-slate-800/80 border border-slate-700 flex items-center justify-center mx-auto text-slate-500">
-                    <Camera className="w-7 h-7" />
+                <div className="text-center p-6 space-y-3 z-10">
+                  <div className="w-16 h-16 rounded-3xl bg-slate-900 border border-slate-700/80 flex items-center justify-center mx-auto text-emerald-400 shadow-lg shadow-emerald-950/40 relative">
+                    <QrCode className="w-8 h-8" />
+                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-slate-500 rounded-full border-2 border-slate-950" />
                   </div>
-                  <p className="text-xs text-slate-300 font-bold">
-                    Camera is Inactive
-                  </p>
-                  <p className="text-[11px] text-slate-500 max-w-[200px] mx-auto">
-                    Tap the green button below to start real-time QR scanning
-                  </p>
+                  <div>
+                    <p className="text-sm text-white font-extrabold">
+                      Gate QR Scanner Inactive
+                    </p>
+                    <p className="text-[11px] text-slate-400 max-w-[220px] mx-auto mt-1 leading-relaxed">
+                      Tap the green button below to start real-time QR camera scanning for vehicle passes
+                    </p>
+                  </div>
                 </div>
               )}
 
-              {/* Viewfinder Target Brackets */}
-              <div className="absolute inset-8 pointer-events-none">
-                <div
-                  className={`absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 rounded-tl-xl transition-colors ${
-                    cameraActive
-                      ? "border-emerald-400 shadow-[0_0_8px_#34d399]"
-                      : "border-slate-700"
-                  }`}
-                />
-                <div
-                  className={`absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 rounded-tr-xl transition-colors ${
-                    cameraActive
-                      ? "border-emerald-400 shadow-[0_0_8px_#34d399]"
-                      : "border-slate-700"
-                  }`}
-                />
-                <div
-                  className={`absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 rounded-bl-xl transition-colors ${
-                    cameraActive
-                      ? "border-emerald-400 shadow-[0_0_8px_#34d399]"
-                      : "border-slate-700"
-                  }`}
-                />
-                <div
-                  className={`absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 rounded-br-xl transition-colors ${
-                    cameraActive
-                      ? "border-emerald-400 shadow-[0_0_8px_#34d399]"
-                      : "border-slate-700"
-                  }`}
-                />
-              </div>
-
-              {cameraActive && <div className="qr-laser-line" />}
-
+              {/* Active Scanner Mode: Authentic Scanner App UI */}
               {cameraActive && (
-                <button
-                  type="button"
-                  onClick={flipCamera}
-                  title="Switch Camera (Front / Rear)"
-                  className="absolute top-3 right-3 z-20 p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-200 shadow-md cursor-pointer transition-colors"
-                >
-                  <SwitchCamera className="w-4 h-4 text-emerald-400" />
-                </button>
+                <>
+                  {/* Surrounding Darkened Mask */}
+                  <div className="absolute inset-0 bg-slate-950/40 pointer-events-none" />
+
+                  {/* Top Floating Glassmorphic Toolbar */}
+                  <div className="absolute top-3 inset-x-3 z-20 flex items-center justify-between pointer-events-auto">
+                    {/* Status Badge */}
+                    <div className="px-2.5 py-1 rounded-full bg-slate-950/85 backdrop-blur-md border border-emerald-500/40 text-[10px] font-extrabold text-emerald-300 flex items-center space-x-1.5 shadow-md">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                      <span>SCANNER READY</span>
+                    </div>
+
+                    {/* Quick Action Icons */}
+                    <div className="flex items-center space-x-1.5">
+                      {/* Torch Flashlight Toggle */}
+                      {hasTorch && (
+                        <button
+                          type="button"
+                          onClick={toggleTorch}
+                          title={isTorchOn ? "Turn Flashlight Off" : "Turn Flashlight On"}
+                          className={`p-2 rounded-xl backdrop-blur-md border transition-all cursor-pointer shadow-md ${
+                            isTorchOn
+                              ? "bg-amber-400 text-slate-950 border-amber-300 ring-2 ring-amber-400/60"
+                              : "bg-slate-950/80 text-slate-300 border-slate-700 hover:bg-slate-800"
+                          }`}
+                        >
+                          {isTorchOn ? <Zap className="w-4 h-4 fill-current" /> : <ZapOff className="w-4 h-4" />}
+                        </button>
+                      )}
+
+                      {/* Sound Toggle */}
+                      <button
+                        type="button"
+                        onClick={() => setSoundEnabled((prev) => !prev)}
+                        title={soundEnabled ? "Mute scan sound" : "Unmute scan sound"}
+                        className="p-2 rounded-xl bg-slate-950/80 hover:bg-slate-800 backdrop-blur-md border border-slate-700 text-slate-300 shadow-md cursor-pointer transition-colors"
+                      >
+                        {soundEnabled ? (
+                          <Volume2 className="w-4 h-4 text-emerald-400" />
+                        ) : (
+                          <VolumeX className="w-4 h-4 text-slate-500" />
+                        )}
+                      </button>
+
+                      {/* Switch Camera */}
+                      <button
+                        type="button"
+                        onClick={flipCamera}
+                        title="Switch Camera (Rear / Front)"
+                        className="p-2 rounded-xl bg-slate-950/80 hover:bg-slate-800 backdrop-blur-md border border-slate-700 text-slate-300 shadow-md cursor-pointer transition-colors"
+                      >
+                        <SwitchCamera className="w-4 h-4 text-emerald-400" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* High-Precision Central Viewfinder Target Box */}
+                  <div className="relative z-10 w-52 h-52 sm:w-60 sm:h-60 rounded-3xl border border-emerald-400/40 pointer-events-none shadow-[0_0_25px_rgba(52,211,153,0.3)] flex items-center justify-center">
+                    {/* 4 Precision Glowing Corner Brackets */}
+                    <div className="absolute -top-1 -left-1 w-7 h-7 border-t-3 border-l-3 border-emerald-400 rounded-tl-2xl shadow-[0_0_10px_#34d399]" />
+                    <div className="absolute -top-1 -right-1 w-7 h-7 border-t-3 border-r-3 border-emerald-400 rounded-tr-2xl shadow-[0_0_10px_#34d399]" />
+                    <div className="absolute -bottom-1 -left-1 w-7 h-7 border-b-3 border-l-3 border-emerald-400 rounded-bl-2xl shadow-[0_0_10px_#34d399]" />
+                    <div className="absolute -bottom-1 -right-1 w-7 h-7 border-b-3 border-r-3 border-emerald-400 rounded-br-2xl shadow-[0_0_10px_#34d399]" />
+
+                    {/* Subtle Crosshair Reticle */}
+                    <div className="w-5 h-[1px] bg-emerald-400/40 absolute" />
+                    <div className="h-5 w-[1px] bg-emerald-400/40 absolute" />
+
+                    {/* Animated Scanning Laser Line */}
+                    <div className="qr-laser-line" />
+
+                    {/* Verified Detection Burst */}
+                    {scanSuccessFlash && (
+                      <div className="absolute inset-0 bg-emerald-500/25 rounded-3xl flex items-center justify-center backdrop-blur-2xs animate-in zoom-in-75 duration-150">
+                        <div className="w-12 h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg">
+                          <Check className="w-7 h-7 stroke-[3]" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bottom Guidance Pill */}
+                  <div className="absolute bottom-3 inset-x-3 flex justify-center z-20 pointer-events-none">
+                    <span className="px-3.5 py-1 rounded-full bg-slate-950/85 backdrop-blur-md text-[11px] font-bold text-emerald-200 border border-emerald-500/30 shadow-lg flex items-center space-x-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Point camera at Vehicle Gate Pass QR</span>
+                    </span>
+                  </div>
+                </>
               )}
 
-              {cameraActive && (
-                <div className="absolute bottom-3 inset-x-0 flex justify-center z-20 pointer-events-none">
-                  <span className="px-2.5 py-0.5 rounded-full bg-slate-950/90 text-[10px] font-bold text-emerald-300 border border-emerald-500/30 flex items-center space-x-1.5 shadow-md">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                    <span>Point at vehicle QR code</span>
-                  </span>
-                </div>
-              )}
-
+              {/* Error Display */}
               {cameraError && (
-                <div className="absolute inset-0 bg-slate-900/95 p-4 flex flex-col items-center justify-center text-center z-30">
-                  <AlertTriangle className="w-8 h-8 text-amber-400 mb-2" />
-                  <p className="text-xs text-slate-200 max-w-xs">
+                <div className="absolute inset-0 bg-slate-950/95 p-5 flex flex-col items-center justify-center text-center z-30">
+                  <AlertTriangle className="w-9 h-9 text-amber-400 mb-2" />
+                  <p className="text-xs text-slate-200 max-w-xs leading-relaxed">
                     {cameraError}
                   </p>
                   <button
                     type="button"
                     onClick={() => setCameraError("")}
-                    className="mt-3 px-3 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs hover:text-white border border-slate-700 cursor-pointer"
+                    className="mt-3.5 px-4 py-1.5 bg-slate-800 text-slate-200 rounded-xl text-xs font-bold hover:text-white border border-slate-700 cursor-pointer shadow-sm"
                   >
                     Dismiss
                   </button>
@@ -1357,24 +1453,27 @@ export default function GuardScanner() {
               )}
             </div>
 
-            {/* Single Large Camera Power Button */}
+            {/* Main Scanner Toggle Power Button */}
             <button
               type="button"
               onClick={toggleCamera}
-              className={`w-full py-3 rounded-2xl font-black text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-lg active:scale-98 ${
+              className={`w-full py-3.5 rounded-2xl font-black text-xs flex items-center justify-center space-x-2.5 transition-all cursor-pointer shadow-xl active:scale-98 ${
                 cameraActive
-                  ? "bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30"
-                  : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/40"
+                  ? "bg-rose-500/15 text-rose-300 border border-rose-500/40 hover:bg-rose-500/25"
+                  : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/50"
               }`}
             >
               {cameraActive ? (
-                <VideoOff className="w-4 h-4 text-rose-400" />
+                <>
+                  <VideoOff className="w-4 h-4 text-rose-400" />
+                  <span>Stop Camera Scanner</span>
+                </>
               ) : (
-                <Video className="w-4 h-4 text-white" />
+                <>
+                  <Camera className="w-4 h-4 text-white" />
+                  <span>Start Live QR Camera Scanner</span>
+                </>
               )}
-              <span>
-                {cameraActive ? "Stop Camera" : "Start Phone Camera Scanner"}
-              </span>
             </button>
 
             {/* Integrated Direct Plate / ID Lookup (No tab switching needed) */}

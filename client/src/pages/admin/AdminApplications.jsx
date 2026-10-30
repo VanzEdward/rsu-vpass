@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { usePass, getSequentialPassNumber, calculateOneYearExpiry } from '../../context/PassContext';
+import { usePass, getSequentialPassNumber, calculateOneYearExpiry, calculateAcademicYearExpiry } from '../../context/PassContext';
 import { 
   FileCheck, 
   Clock, 
@@ -144,7 +144,7 @@ export default function AdminApplications() {
   // Confirm and Release the Generated QR Code to Client (Exactly 1-Year Expiration)
   const handleConfirmIssuePass = () => {
     if (!qrModalApp) return;
-    const expiry = calculateOneYearExpiry(new Date());
+    const expiry = calculateAcademicYearExpiry(systemSettings?.academicYear || '2026-2027');
     const qrData = `RSU-VPASS:${generatedPassNum}:${qrModalApp.vehicle?.plateNumber || ''}:${qrModalApp.school_id || ''}`;
 
     verifyReceiptAndIssuePass(qrModalApp.id, {
@@ -901,7 +901,7 @@ export default function AdminApplications() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500 font-medium">Validity Period:</span>
-                  <span className="font-bold text-slate-800">1 Year (until {calculateOneYearExpiry(new Date()).validUntil})</span>
+                  <span className="font-bold text-slate-800">Until {calculateAcademicYearExpiry(systemSettings?.academicYear).validUntil}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500 font-medium">Academic Year:</span>

@@ -18,6 +18,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import SignOutConfirmModal from './SignOutConfirmModal';
+import { formatNotificationTime, getFullNotificationTimestamp } from '../utils/dateUtils';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -214,8 +215,8 @@ export default function Navbar() {
                                     <p className={`text-xs truncate ${isUnread ? 'font-black text-slate-900' : 'font-bold text-slate-700'}`}>
                                       {notif.title}
                                     </p>
-                                    <span className="text-[10px] text-slate-400 shrink-0 ml-2">
-                                      {notif.time || 'Just now'}
+                                    <span className="text-[10px] text-slate-400 shrink-0 ml-2" title={getFullNotificationTimestamp(notif.date)}>
+                                      {formatNotificationTime(notif.date, notif.time)}
                                     </span>
                                   </div>
                                   <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed line-clamp-2">

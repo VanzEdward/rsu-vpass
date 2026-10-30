@@ -48,7 +48,8 @@ export const getAllApplications = async (req, res) => {
         u.id as user_id, u.school_id, u.full_name, u.email, u.contact_number,
         u.classification, u.year_course, u.department_unit,
         v.id as vehicle_id, v.plate_number, v.vehicle_type, v.make, v.model, v.color, v.year_model,
-        vp.id as pass_id, vp.pass_number, vp.valid_until, vp.qr_code_data, vp.status as pass_status
+        vp.id as pass_id, vp.pass_number, vp.valid_until, vp.qr_code_data, vp.status as pass_status,
+        vp.issued_at as pass_issued_at
       FROM applications a
       JOIN users u ON a.user_id = u.id
       JOIN vehicles v ON a.vehicle_id = v.id
@@ -83,6 +84,8 @@ export const getAllApplications = async (req, res) => {
       status: app.status,
       rejection_reason: app.rejection_reason,
       receiptRejectionRemark: app.receipt_rejection_remark,
+      created_at: app.created_at,
+      updated_at: app.updated_at,
       receipt: app.receipt_or_number ? {
         orNumber: app.receipt_or_number,
         receiptPhoto: app.receipt_photo_url,
@@ -94,6 +97,7 @@ export const getAllApplications = async (req, res) => {
         validUntil: app.valid_until,
         qrData: app.qr_code_data,
         status: app.pass_status || 'ACTIVE',
+        issuedAt: app.pass_issued_at || app.updated_at,
       } : null,
       submittedDate: new Date(app.created_at).toLocaleDateString('en-US', {
         month: 'short',

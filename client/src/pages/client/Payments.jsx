@@ -443,6 +443,7 @@ export default function Payments() {
         onClose={() => setIsCameraOpen(false)}
         onCapture={handleReceiptPhotoCaptured}
         title="Snap Cashier Receipt"
+        mode="receipt"
       />
     </div>
   );

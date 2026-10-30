@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { apiRequest } from "../api/client";
 import { useAuth } from "./AuthContext";
+import { formatNotificationTime, getFullNotificationTimestamp } from "../utils/dateUtils";
 
 const PassContext = createContext(null);
 
@@ -578,6 +579,7 @@ export const PassProvider = ({ children }) => {
         if (Array.isArray(parsed)) {
           return parsed.map((n) => ({
             ...n,
+            time: formatNotificationTime(n.date, n.time),
             read: isNotifMarkedRead(n, user?.id)
           }));
         }
@@ -604,14 +606,18 @@ export const PassProvider = ({ children }) => {
         const parsed = JSON.parse(userSaved);
         const readIds = getReadNotifIds(user.id);
         setNotifications(
-          parsed.map((n) => (readIds.includes(n.id) ? { ...n, read: true } : n))
+          parsed.map((n) => ({
+            ...n,
+            time: formatNotificationTime(n.date, n.time),
+            read: readIds.includes(n.id) || isNotifMarkedRead(n, user.id)
+          }))
         );
       }
     } catch (e) {}
   }, [user?.id]);
 
   // Helper to add a notification
-  const addNotification = ({ id, type, title, message, link, appId }) => {
+  const addNotification = ({ id, type, title, message, link, appId, date, time }) => {
     const notifId =
       id ||
       (appId && type
@@ -628,8 +634,9 @@ export const PassProvider = ({ children }) => {
       message,
       link: link || "/client/applications",
       appId,
-      time: "Just now",
-      date: new Date().toISOString(),
+      date: date || new Date().toISOString(),
+      time: time || formatNotificationTime(date || new Date().toISOString()),
+
       read: isAlreadyRead,
     };
 
@@ -642,6 +649,8 @@ export const PassProvider = ({ children }) => {
         const updated = [...prev];
         updated[existingIdx] = {
           ...newNotif,
+          date: date || existing.date || newNotif.date,
+          time: formatNotificationTime(date || existing.date || newNotif.date),
           read: existing.read || isAlreadyRead,
         };
         return updated;
@@ -842,6 +851,20 @@ export const PassProvider = ({ children }) => {
       let changed = false;
       const nextNotifs = [...prev];
 
+      const syncNotifDateAndTime = (notif, authoritativeDate) => {
+        let updated = false;
+        if (authoritativeDate && (!notif.date || notif.date !== authoritativeDate)) {
+          notif.date = authoritativeDate;
+          updated = true;
+        }
+        const formatted = formatNotificationTime(notif.date, notif.time);
+        if (notif.time !== formatted) {
+          notif.time = formatted;
+          updated = true;
+        }
+        return updated;
+      };
+
       applications.forEach((app) => {
         const appRef = app.app_ref_number || app.id;
         const appDbId = app.db_id || app.id;
@@ -858,14 +881,16 @@ export const PassProvider = ({ children }) => {
           const passNum = app.pass.passNumber || app.assignedPassNumber;
           const notifId = `notif-issued-${appRef}`;
           const existing = nextNotifs.find((n) => matchesApp(n, "PASS_ISSUED"));
+          const authoritativeDate = app.pass.issuedAt || app.updated_at || app.created_at;
 
           if (!existing) {
             changed = true;
+            const notifDate = authoritativeDate || new Date().toISOString();
             const tempNotif = {
               id: notifId,
               type: "PASS_ISSUED",
               appId: appRef,
-              date: app.pass.issuedAt || app.updated_at || app.created_at || new Date().toISOString()
+              date: notifDate,
             };
             const isRead = isNotifMarkedRead(tempNotif, user?.id);
             nextNotifs.unshift({
@@ -873,13 +898,16 @@ export const PassProvider = ({ children }) => {
               title: "Official Gate QR Pass Issued!",
               message: `Your Cashier receipt has been verified! Gate Pass ${passNum || "Activated"} for ${app.vehicle?.make || "Vehicle"} (${app.vehicle?.plateNumber}) is now active for Academic Year ${systemSettings?.academicYear || "2026-2027"}.`,
               link: "/client/vehicle-pass",
-              time: "Just now",
+              time: formatNotificationTime(notifDate),
               read: isRead,
             });
           } else {
             const shouldBeRead = existing.read || isNotifMarkedRead(existing, user?.id);
             if (existing.read !== shouldBeRead) {
               existing.read = shouldBeRead;
+              changed = true;
+            }
+            if (syncNotifDateAndTime(existing, authoritativeDate)) {
               changed = true;
             }
           }
@@ -889,14 +917,16 @@ export const PassProvider = ({ children }) => {
         if (app.status === "APPROVED") {
           const notifId = `notif-approved-${appRef}`;
           const existing = nextNotifs.find((n) => matchesApp(n, "REGISTRATION_APPROVED"));
+          const authoritativeDate = app.updated_at || app.created_at;
 
           if (!existing) {
             changed = true;
+            const notifDate = authoritativeDate || new Date().toISOString();
             const tempNotif = {
               id: notifId,
               type: "REGISTRATION_APPROVED",
               appId: appRef,
-              date: app.updated_at || app.created_at || new Date().toISOString()
+              date: notifDate,
             };
             const isRead = isNotifMarkedRead(tempNotif, user?.id);
             nextNotifs.unshift({
@@ -904,13 +934,16 @@ export const PassProvider = ({ children }) => {
               title: "Vehicle Registration Approved!",
               message: `Your registration for ${app.vehicle?.make || "Vehicle"} ${app.vehicle?.model || ""} (${app.vehicle?.plateNumber}) was approved by PASO. You may now pay at the Cashier window and upload your receipt.`,
               link: `/client/payments?appId=${appRef}`,
-              time: "Just now",
+              time: formatNotificationTime(notifDate),
               read: isRead,
             });
           } else {
             const shouldBeRead = existing.read || isNotifMarkedRead(existing, user?.id);
             if (existing.read !== shouldBeRead) {
               existing.read = shouldBeRead;
+              changed = true;
+            }
+            if (syncNotifDateAndTime(existing, authoritativeDate)) {
               changed = true;
             }
           }
@@ -928,14 +961,16 @@ export const PassProvider = ({ children }) => {
             app.receipt?.rejectionRemark ||
             "Cashier receipt image is unreadable or invalid.";
           const existing = nextNotifs.find((n) => matchesApp(n, "RECEIPT_REJECTED"));
+          const authoritativeDate = app.updated_at || app.created_at;
 
           if (!existing) {
             changed = true;
+            const notifDate = authoritativeDate || new Date().toISOString();
             const tempNotif = {
               id: notifId,
               type: "RECEIPT_REJECTED",
               appId: appRef,
-              date: app.updated_at || new Date().toISOString()
+              date: notifDate,
             };
             const isRead = isNotifMarkedRead(tempNotif, user?.id);
             nextNotifs.unshift({
@@ -943,13 +978,16 @@ export const PassProvider = ({ children }) => {
               title: "Cashier Receipt Declined",
               message: `Cashier receipt for ${app.vehicle?.make || "Vehicle"} (${app.vehicle?.plateNumber}) was declined by PASO. Note: "${remark}". Please re-upload your valid receipt.`,
               link: `/client/payments?appId=${appRef}`,
-              time: "Just now",
+              time: formatNotificationTime(notifDate),
               read: isRead,
             });
           } else {
             const shouldBeRead = existing.read || isNotifMarkedRead(existing, user?.id);
             if (existing.read !== shouldBeRead) {
               existing.read = shouldBeRead;
+              changed = true;
+            }
+            if (syncNotifDateAndTime(existing, authoritativeDate)) {
               changed = true;
             }
           }
@@ -959,14 +997,16 @@ export const PassProvider = ({ children }) => {
         if (app.status === "REJECTED" && app.rejection_reason) {
           const notifId = `notif-rejected-${appRef}`;
           const existing = nextNotifs.find((n) => matchesApp(n, "REGISTRATION_REJECTED"));
+          const authoritativeDate = app.updated_at || app.created_at;
 
           if (!existing) {
             changed = true;
+            const notifDate = authoritativeDate || new Date().toISOString();
             const tempNotif = {
               id: notifId,
               type: "REGISTRATION_REJECTED",
               appId: appRef,
-              date: app.updated_at || new Date().toISOString()
+              date: notifDate,
             };
             const isRead = isNotifMarkedRead(tempNotif, user?.id);
             nextNotifs.unshift({
@@ -974,7 +1014,7 @@ export const PassProvider = ({ children }) => {
               title: "Registration Form Needs Correction",
               message: `PASO returned your application for ${app.vehicle?.make || "Vehicle"} (${app.vehicle?.plateNumber}). Note: "${app.rejection_reason}". Click to correct mistakes and re-submit.`,
               link: "/client/applications",
-              time: "Just now",
+              time: formatNotificationTime(notifDate),
               read: isRead,
             });
           } else {
@@ -983,11 +1023,18 @@ export const PassProvider = ({ children }) => {
               existing.read = shouldBeRead;
               changed = true;
             }
+            if (syncNotifDateAndTime(existing, authoritativeDate)) {
+              changed = true;
+            }
           }
         }
       });
 
-      return changed ? nextNotifs : prev;
+      if (changed) {
+        nextNotifs.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+        return nextNotifs;
+      }
+      return prev;
     });
   }, [applications, systemSettings?.academicYear, user?.id]);
 

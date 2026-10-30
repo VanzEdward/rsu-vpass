@@ -58,7 +58,21 @@ export default function MyVehicle() {
 
   const [showWizard, setShowWizard] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
-  const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
+  const [cameraConfig, setCameraConfig] = useState({
+    isOpen: false,
+    field: 'applicant_photo',
+    title: 'Student / Employee ID Photo',
+    mode: 'selfie',
+  });
+
+  const openCameraFor = (field, mode, title) => {
+    setCameraConfig({
+      isOpen: true,
+      field,
+      mode,
+      title,
+    });
+  };
   const [showDraftPrompt, setShowDraftPrompt] = useState(false);
   const [showStartFreshModal, setShowStartFreshModal] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -337,8 +351,13 @@ export default function MyVehicle() {
   };
 
   const handlePhotoCaptured = async (photoDataUrl) => {
-    const compressed = await compressImage(photoDataUrl, 800, 800, 0.75);
-    handleFieldChange('applicant_photo', compressed || photoDataUrl);
+    const isDoc = cameraConfig.field !== 'applicant_photo';
+    const maxDim = isDoc ? 1400 : 800;
+    const compressed = await compressImage(photoDataUrl, maxDim, maxDim, 0.75);
+    handleFieldChange(cameraConfig.field, compressed || photoDataUrl);
+    setCameraConfig((prev) => ({ ...prev, isOpen: false }));
+    return;
+
   };
 
   // Upload documents with client-side canvas compression
@@ -983,7 +1002,7 @@ export default function MyVehicle() {
                         <div className="flex items-center space-x-2">
                           <button
                             type="button"
-                            onClick={() => setIsCameraModalOpen(true)}
+                            onClick={() => openCameraFor('applicant_photo', 'selfie', 'Take Identification Selfie')}
                             className="px-3.5 py-1.5 rounded-xl border border-slate-300 hover:bg-white text-xs font-semibold text-slate-700 flex items-center space-x-1 cursor-pointer"
                           >
                             <RefreshCw className="w-3.5 h-3.5 text-emerald-600" />
@@ -1006,7 +1025,7 @@ export default function MyVehicle() {
 
                         <button
                           type="button"
-                          onClick={() => setIsCameraModalOpen(true)}
+                          onClick={() => openCameraFor('applicant_photo', 'selfie', 'Take Identification Selfie')}
                           className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center space-x-2 mx-auto cursor-pointer shadow-sm transition-transform active:scale-95"
                         >
                           <Camera className="w-4 h-4 text-emerald-100" />
@@ -1070,11 +1089,19 @@ export default function MyVehicle() {
                             </div>
                           )}
 
-                          {/* Action Buttons: Re-upload / Replace & Remove */}
-                          <div className="flex items-center justify-center gap-2 pt-1">
-                            <label className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold text-xs cursor-pointer shadow-2xs transition-colors">
-                              <RefreshCw className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>Re-upload / Change</span>
+                          {/* Action Buttons: Retake / Change & Remove */}
+                          <div className="flex items-center justify-center gap-1.5 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => openCameraFor('driverLicense', 'id_card', "Scan Driver's License")}
+                              className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] cursor-pointer shadow-2xs transition-colors"
+                            >
+                              <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Retake</span>
+                            </button>
+                            <label className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold text-[11px] cursor-pointer shadow-2xs transition-colors">
+                              <UploadCloud className="w-3.5 h-3.5 text-slate-500" />
+                              <span>Upload</span>
                               <input
                                 type="file"
                                 accept="image/*,.pdf"
@@ -1085,29 +1112,34 @@ export default function MyVehicle() {
                             <button
                               type="button"
                               onClick={() => handleFieldChange('driverLicense', null)}
-                              className="inline-flex items-center justify-center p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors cursor-pointer shadow-2xs"
-                              title="Remove and upload different file"
+                              className="inline-flex items-center justify-center p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors cursor-pointer shadow-2xs"
+                              title="Remove"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>
                       ) : (
-                        <label className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-slate-300 hover:border-emerald-500 bg-white hover:bg-emerald-50/40 transition-all cursor-pointer group">
-                          <div className="w-9 h-9 rounded-xl bg-slate-100 group-hover:bg-emerald-100 text-slate-500 group-hover:text-emerald-700 flex items-center justify-center transition-colors mb-1.5">
-                            <UploadCloud className="w-5 h-5" />
-                          </div>
-                          <span className="font-bold text-slate-800 group-hover:text-emerald-800 text-xs">
-                            Upload License
-                          </span>
-                          <span className="text-[10px] text-slate-400 mt-0.5">Scanned copy or photo</span>
-                          <input
-                            type="file"
-                            accept="image/*,.pdf"
-                            onChange={(e) => handleFileChange('driverLicense', e)}
-                            className="hidden"
-                          />
-                        </label>
+                        <div className="p-3 rounded-2xl border-2 border-dashed border-slate-300 bg-white space-y-2">
+                          <button
+                            type="button"
+                            onClick={() => openCameraFor('driverLicense', 'id_card', "Scan Driver's License")}
+                            className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center space-x-1.5 cursor-pointer shadow-xs transition-transform active:scale-98"
+                          >
+                            <Camera className="w-4 h-4 text-emerald-100" />
+                            <span>Snap with Camera</span>
+                          </button>
+                          <label className="w-full py-2 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-[11px] flex items-center justify-center space-x-1.5 cursor-pointer transition-colors block text-center">
+                            <UploadCloud className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Upload Existing File</span>
+                            <input
+                              type="file"
+                              accept="image/*,.pdf"
+                              onChange={(e) => handleFileChange('driverLicense', e)}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
                       )}
                       {errors.driverLicense && <p className="text-rose-600 font-semibold text-[11px]">{errors.driverLicense}</p>}
                     </div>
@@ -1146,11 +1178,19 @@ export default function MyVehicle() {
                             </div>
                           )}
 
-                          {/* Action Buttons: Re-upload / Replace & Remove */}
-                          <div className="flex items-center justify-center gap-2 pt-1">
-                            <label className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold text-xs cursor-pointer shadow-2xs transition-colors">
-                              <RefreshCw className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>Re-upload / Change</span>
+                          {/* Action Buttons: Retake / Change & Remove */}
+                          <div className="flex items-center justify-center gap-1.5 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => openCameraFor('orCr', 'document', 'Scan Vehicle OR/CR Document')}
+                              className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] cursor-pointer shadow-2xs transition-colors"
+                            >
+                              <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Retake</span>
+                            </button>
+                            <label className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold text-[11px] cursor-pointer shadow-2xs transition-colors">
+                              <UploadCloud className="w-3.5 h-3.5 text-slate-500" />
+                              <span>Upload</span>
                               <input
                                 type="file"
                                 accept="image/*,.pdf"
@@ -1161,29 +1201,34 @@ export default function MyVehicle() {
                             <button
                               type="button"
                               onClick={() => handleFieldChange('orCr', null)}
-                              className="inline-flex items-center justify-center p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors cursor-pointer shadow-2xs"
-                              title="Remove and upload different file"
+                              className="inline-flex items-center justify-center p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors cursor-pointer shadow-2xs"
+                              title="Remove"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>
                       ) : (
-                        <label className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-slate-300 hover:border-emerald-500 bg-white hover:bg-emerald-50/40 transition-all cursor-pointer group">
-                          <div className="w-9 h-9 rounded-xl bg-slate-100 group-hover:bg-emerald-100 text-slate-500 group-hover:text-emerald-700 flex items-center justify-center transition-colors mb-1.5">
-                            <UploadCloud className="w-5 h-5" />
-                          </div>
-                          <span className="font-bold text-slate-800 group-hover:text-emerald-800 text-xs">
-                            Upload OR / CR
-                          </span>
-                          <span className="text-[10px] text-slate-400 mt-0.5">Scanned copy or photo</span>
-                          <input
-                            type="file"
-                            accept="image/*,.pdf"
-                            onChange={(e) => handleFileChange('orCr', e)}
-                            className="hidden"
-                          />
-                        </label>
+                        <div className="p-3 rounded-2xl border-2 border-dashed border-slate-300 bg-white space-y-2">
+                          <button
+                            type="button"
+                            onClick={() => openCameraFor('orCr', 'document', 'Scan Vehicle OR/CR Document')}
+                            className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center space-x-1.5 cursor-pointer shadow-xs transition-transform active:scale-98"
+                          >
+                            <Camera className="w-4 h-4 text-emerald-100" />
+                            <span>Snap with Camera</span>
+                          </button>
+                          <label className="w-full py-2 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-[11px] flex items-center justify-center space-x-1.5 cursor-pointer transition-colors block text-center">
+                            <UploadCloud className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Upload Existing File</span>
+                            <input
+                              type="file"
+                              accept="image/*,.pdf"
+                              onChange={(e) => handleFileChange('orCr', e)}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
                       )}
                       {errors.orCr && <p className="text-rose-600 font-semibold text-[11px]">{errors.orCr}</p>}
                     </div>
@@ -1386,10 +1431,11 @@ export default function MyVehicle() {
 
       {/* Live Camera Capture Modal */}
       <CameraCaptureModal
-        isOpen={isCameraModalOpen}
-        onClose={() => setIsCameraModalOpen(false)}
+        isOpen={cameraConfig.isOpen}
+        onClose={() => setCameraConfig((prev) => ({ ...prev, isOpen: false }))}
         onCapture={handlePhotoCaptured}
-        title="Student / Employee ID Photo"
+        title={cameraConfig.title}
+        mode={cameraConfig.mode}
       />
     </div>
   );

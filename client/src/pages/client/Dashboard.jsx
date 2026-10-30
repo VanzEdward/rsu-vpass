@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { useAuth } from '../../context/AuthContext';
 import { usePass } from '../../context/PassContext';
+import { formatNotificationTime, getFullNotificationTimestamp } from '../../utils/dateUtils';
 import { 
   Car, 
   Clock, 
@@ -535,7 +536,9 @@ export default function Dashboard() {
                       <p className={`text-xs ${!notif.read ? 'font-black text-slate-900' : 'font-bold text-slate-700'}`}>
                         {notif.title}
                       </p>
-                      <span className="text-[10px] font-medium text-slate-400">{notif.time}</span>
+                      <span className="text-[10px] font-medium text-slate-400 shrink-0 ml-2" title={getFullNotificationTimestamp(notif.date)}>
+                        {formatNotificationTime(notif.date, notif.time)}
+                      </span>
                     </div>
                     <p className="text-xs text-slate-600 mt-1 leading-relaxed">{notif.message || notif.desc}</p>
                     {notif.link && (
