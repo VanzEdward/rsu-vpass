@@ -447,7 +447,7 @@ export const PassProvider = ({ children }) => {
           apiRequest("/vehicles/my-vehicles"),
         ]);
         if (appsRes.status === "fulfilled" && Array.isArray(appsRes.value)) {
-          setApplications(appsRes.value);
+          setApplications((appsRes.value || []).map(sanitizeApp));
         }
         if (vehsRes.status === "fulfilled" && Array.isArray(vehsRes.value)) {
           const vList = vehsRes.value.map((v) => ({
@@ -533,6 +533,8 @@ export const PassProvider = ({ children }) => {
         applicant_photo: app.applicant_photo && app.applicant_photo.length > 500 ? "[IN_CLOUD_STORAGE]" : app.applicant_photo,
         documents: {
           driverLicense: app.documents?.driverLicense && app.documents.driverLicense.length > 500 ? "[IN_CLOUD_STORAGE]" : app.documents?.driverLicense,
+          orCopy: app.documents?.orCopy && app.documents.orCopy.length > 500 ? "[IN_CLOUD_STORAGE]" : app.documents?.orCopy,
+          crCopy: app.documents?.crCopy && app.documents.crCopy.length > 500 ? "[IN_CLOUD_STORAGE]" : app.documents?.crCopy,
           orCr: app.documents?.orCr && app.documents.orCr.length > 500 ? "[IN_CLOUD_STORAGE]" : app.documents?.orCr,
         },
         receipt: app.receipt ? {
@@ -730,6 +732,8 @@ export const PassProvider = ({ children }) => {
                     applicant_photo: item.applicant_photo === "[IN_CLOUD_STORAGE]" ? existing.applicant_photo : item.applicant_photo,
                     documents: {
                       driverLicense: item.documents?.driverLicense === "[IN_CLOUD_STORAGE]" ? existing.documents?.driverLicense : item.documents?.driverLicense,
+                      orCopy: item.documents?.orCopy === "[IN_CLOUD_STORAGE]" ? existing.documents?.orCopy : item.documents?.orCopy,
+                      crCopy: item.documents?.crCopy === "[IN_CLOUD_STORAGE]" ? existing.documents?.crCopy : item.documents?.crCopy,
                       orCr: item.documents?.orCr === "[IN_CLOUD_STORAGE]" ? existing.documents?.orCr : item.documents?.orCr,
                     },
                     receipt: item.receipt ? {
@@ -1097,7 +1101,9 @@ export const PassProvider = ({ children }) => {
       },
       documents: {
         driverLicense: formData.driverLicense || "Uploaded Document",
-        orCr: formData.orCr || "Uploaded Document",
+        orCopy: formData.orCopy || formData.orCr || "Uploaded Document",
+        crCopy: formData.crCopy || formData.orCr || "Uploaded Document",
+        orCr: formData.orCr || formData.orCopy || formData.crCopy || "Uploaded Document",
       },
       status: "PENDING",
       rejection_reason: null,
@@ -1140,7 +1146,9 @@ export const PassProvider = ({ children }) => {
         year: formData.year || "2026",
         applicant_photo: formData.applicant_photo,
         driverLicense: formData.driverLicense,
-        orCr: formData.orCr,
+        orCopy: formData.orCopy,
+        crCopy: formData.crCopy,
+        orCr: formData.orCr || formData.orCopy || formData.crCopy,
       }),
     })
       .then(() => {
@@ -1518,7 +1526,9 @@ export const PassProvider = ({ children }) => {
             documents: {
               driverLicense:
                 updatedData.driverLicense || app.documents?.driverLicense,
-              orCr: updatedData.orCr || app.documents?.orCr,
+              orCopy: updatedData.orCopy || app.documents?.orCopy,
+              crCopy: updatedData.crCopy || app.documents?.crCopy,
+              orCr: updatedData.orCr || updatedData.orCopy || app.documents?.orCr,
             },
             status: "PENDING", // Returns back to Milestone 2 queue
             rejection_reason: null,
@@ -1596,7 +1606,9 @@ export const PassProvider = ({ children }) => {
         color: updatedData.color,
         year: updatedData.year,
         driverLicense: updatedData.driverLicense,
-        orCr: updatedData.orCr,
+        orCopy: updatedData.orCopy,
+        crCopy: updatedData.crCopy,
+        orCr: updatedData.orCr || updatedData.orCopy || updatedData.crCopy,
         applicant_photo: updatedData.applicant_photo,
       }),
     })
@@ -1646,7 +1658,9 @@ export const PassProvider = ({ children }) => {
             },
             documents: {
               driverLicense: renewalData.driverLicense || app.documents?.driverLicense,
-              orCr: renewalData.orCr || app.documents?.orCr,
+              orCopy: renewalData.orCopy || app.documents?.orCopy,
+              crCopy: renewalData.crCopy || app.documents?.crCopy,
+              orCr: renewalData.orCr || renewalData.orCopy || app.documents?.orCr,
             },
             assignedPassNumber: preservedPassNumber,
             pass: app.pass
@@ -1705,7 +1719,9 @@ export const PassProvider = ({ children }) => {
         color: renewalData.color,
         year: renewalData.year,
         driverLicense: renewalData.driverLicense,
-        orCr: renewalData.orCr,
+        orCopy: renewalData.orCopy,
+        crCopy: renewalData.crCopy,
+        orCr: renewalData.orCr || renewalData.orCopy || renewalData.crCopy,
         applicant_photo: renewalData.applicant_photo,
       }),
     })

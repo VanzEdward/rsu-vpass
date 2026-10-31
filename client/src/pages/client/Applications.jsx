@@ -34,6 +34,8 @@ export default function Applications() {
       draftApplication.data?.model?.trim() ||
       draftApplication.data?.color?.trim() ||
       draftApplication.data?.driverLicense ||
+      draftApplication.data?.orCopy ||
+      draftApplication.data?.crCopy ||
       draftApplication.data?.orCr
     )
   );

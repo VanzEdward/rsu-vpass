@@ -14,6 +14,8 @@ import {
   CheckCircle2,
   User, 
   FileText, 
+  Receipt,
+  FileCheck, 
   ArrowRight, 
   ArrowLeft, 
   ShieldCheck, 
@@ -117,6 +119,8 @@ export default function MyVehicle() {
 
     // Step 3: Xerox / Upload Documents
     driverLicense: null,
+    orCopy: null,
+    crCopy: null,
     orCr: null,
     pledgeAgreed: true,
   };
@@ -136,6 +140,8 @@ export default function MyVehicle() {
       (data.model && data.model.trim()) ||
       (data.color && data.color.trim()) ||
       data.driverLicense ||
+      data.orCopy ||
+      data.crCopy ||
       data.orCr ||
       (data.applicant_photo && data.applicant_photo !== user?.profile_image)
     );
@@ -190,6 +196,8 @@ export default function MyVehicle() {
           color: appToRenew.vehicle?.color || '',
           type: appToRenew.vehicle?.type || 'Motorcycle',
           driverLicense: appToRenew.documents?.driverLicense || null,
+          orCopy: appToRenew.documents?.orCopy || appToRenew.documents?.orCr || null,
+          crCopy: appToRenew.documents?.crCopy || appToRenew.documents?.orCr || null,
           orCr: appToRenew.documents?.orCr || null,
           pledgeAgreed: true,
         });
@@ -221,6 +229,8 @@ export default function MyVehicle() {
           color: appToEdit.vehicle?.color || '',
           type: appToEdit.vehicle?.type || 'Motorcycle',
           driverLicense: appToEdit.documents?.driverLicense || null,
+          orCopy: appToEdit.documents?.orCopy || appToEdit.documents?.orCr || null,
+          crCopy: appToEdit.documents?.crCopy || appToEdit.documents?.orCr || null,
           orCr: appToEdit.documents?.orCr || null,
           pledgeAgreed: true,
         });
@@ -279,6 +289,8 @@ export default function MyVehicle() {
       color: app.vehicle?.color || '',
       type: app.vehicle?.type || 'Motorcycle',
       driverLicense: app.documents?.driverLicense || null,
+      orCopy: app.documents?.orCopy || app.documents?.orCr || null,
+      crCopy: app.documents?.crCopy || app.documents?.orCr || null,
       orCr: app.documents?.orCr || null,
       pledgeAgreed: true,
     });
@@ -395,7 +407,8 @@ export default function MyVehicle() {
     // Step 3: Required Xerox/Upload Documents
     if (step === 3) {
       if (!formData.driverLicense) newErrors.driverLicense = "Please upload or attach Driver's License";
-      if (!formData.orCr) newErrors.orCr = 'Please upload or attach Official OR/CR';
+      if (!formData.orCopy && !formData.orCr) newErrors.orCopy = 'Please upload or attach Official Receipt (OR)';
+      if (!formData.crCopy && !formData.orCr) newErrors.crCopy = 'Please upload or attach Certificate of Registration (CR)';
     }
 
     setErrors(newErrors);
@@ -1050,57 +1063,55 @@ export default function MyVehicle() {
                   <div>
                     <h4 className="text-sm font-bold text-slate-900">Upload Required Documents</h4>
                     <p className="text-xs text-slate-500">
-                      Upload Xerox copies or clear scans of your Driver's License and Official Vehicle Certificate of Registration (OR/CR).
+                      Upload Xerox copies or clear scans of your Driver's License, Official Receipt (OR), and Certificate of Registration (CR).
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                    {/* Driver's License */}
-                    <div className="p-4 rounded-2xl border-2 border-slate-200 bg-slate-50 text-center space-y-3 flex flex-col justify-between">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
+                    {/* 1. Driver's License */}
+                    <div className="p-3.5 rounded-2xl border-2 border-slate-200 bg-slate-50 text-center space-y-3 flex flex-col justify-between">
                       <div className="space-y-1">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center">
-                          <FileText className="w-5 h-5" />
+                        <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center">
+                          <FileText className="w-4 h-4" />
                         </div>
                         <p className="font-bold text-slate-900">Driver's License</p>
-                        <p className="text-[11px] text-slate-500">Valid Philippine Driver's License</p>
+                        <p className="text-[10px] text-slate-500">Valid Philippine Driver's License</p>
                       </div>
 
                       {formData.driverLicense ? (
                         <div className="space-y-2.5">
-                          {/* Preview container if data URL or image */}
                           {typeof formData.driverLicense === 'string' && (formData.driverLicense.startsWith('data:image') || formData.driverLicense.startsWith('http') || formData.driverLicense.startsWith('/')) ? (
-                            <div className="relative group rounded-xl overflow-hidden border border-emerald-300 bg-white max-h-36 flex items-center justify-center p-1.5 shadow-2xs">
+                            <div className="relative group rounded-xl overflow-hidden border border-emerald-300 bg-white max-h-32 flex items-center justify-center p-1.5 shadow-2xs">
                               <img
                                 src={formData.driverLicense}
                                 alt="Driver's License Preview"
-                                className="max-h-28 w-auto object-contain rounded-lg"
+                                className="max-h-24 w-auto object-contain rounded-lg"
                               />
-                              <div className="absolute top-2 right-2">
-                                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold shadow-xs">
-                                  <Check className="w-3 h-3" />
+                              <div className="absolute top-1.5 right-1.5">
+                                <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] font-bold shadow-xs">
+                                  <Check className="w-2.5 h-2.5" />
                                   <span>Attached</span>
                                 </span>
                               </div>
                             </div>
                           ) : (
-                            <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold flex items-center justify-between">
-                              <span className="truncate">Driver's License Attached</span>
-                              <span className="text-[10px] bg-emerald-200/80 text-emerald-900 px-2 py-0.5 rounded-md font-bold shrink-0">✓ Valid</span>
+                            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-semibold flex items-center justify-between">
+                              <span className="truncate">License Attached</span>
+                              <span className="text-[9px] bg-emerald-200/80 text-emerald-900 px-1.5 py-0.5 rounded-md font-bold shrink-0">✓ Valid</span>
                             </div>
                           )}
 
-                          {/* Action Buttons: Retake / Change & Remove */}
-                          <div className="flex items-center justify-center gap-1.5 pt-1">
+                          <div className="flex items-center justify-center gap-1 pt-1">
                             <button
                               type="button"
-                              onClick={() => openCameraFor('driverLicense', 'id_card', "Scan Driver's License")}
-                              className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] cursor-pointer shadow-2xs transition-colors"
+                              onClick={() => openCameraFor('driverLicense', 'id_card', "Scan Driver's License", "Position your valid Philippine Driver's License within the card frame")}
+                              className="inline-flex items-center space-x-1 px-2 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[10px] cursor-pointer shadow-2xs transition-colors"
                             >
-                              <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                              <Camera className="w-3 h-3 text-emerald-600" />
                               <span>Retake</span>
                             </button>
-                            <label className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold text-[11px] cursor-pointer shadow-2xs transition-colors">
-                              <UploadCloud className="w-3.5 h-3.5 text-slate-500" />
+                            <label className="inline-flex items-center space-x-1 px-2 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold text-[10px] cursor-pointer shadow-2xs transition-colors">
+                              <UploadCloud className="w-3 h-3 text-slate-500" />
                               <span>Upload</span>
                               <input
                                 type="file"
@@ -1115,23 +1126,23 @@ export default function MyVehicle() {
                               className="inline-flex items-center justify-center p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors cursor-pointer shadow-2xs"
                               title="Remove"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-3 h-3" />
                             </button>
                           </div>
                         </div>
                       ) : (
-                        <div className="p-3 rounded-2xl border-2 border-dashed border-slate-300 bg-white space-y-2">
+                        <div className="p-2.5 rounded-2xl border-2 border-dashed border-slate-300 bg-white space-y-2">
                           <button
                             type="button"
-                            onClick={() => openCameraFor('driverLicense', 'id_card', "Scan Driver's License")}
-                            className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center space-x-1.5 cursor-pointer shadow-xs transition-transform active:scale-98"
+                            onClick={() => openCameraFor('driverLicense', 'id_card', "Scan Driver's License", "Position your valid Philippine Driver's License within the card frame")}
+                            className="w-full py-2 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center justify-center space-x-1 cursor-pointer shadow-xs transition-transform active:scale-98"
                           >
-                            <Camera className="w-4 h-4 text-emerald-100" />
-                            <span>Snap with Camera</span>
+                            <Camera className="w-3.5 h-3.5 text-emerald-100" />
+                            <span>Snap Photo</span>
                           </button>
-                          <label className="w-full py-2 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-[11px] flex items-center justify-center space-x-1.5 cursor-pointer transition-colors block text-center">
-                            <UploadCloud className="w-3.5 h-3.5 text-slate-400" />
-                            <span>Upload Existing File</span>
+                          <label className="w-full py-1.5 px-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-[10px] flex items-center justify-center space-x-1 cursor-pointer transition-colors block text-center">
+                            <UploadCloud className="w-3 h-3 text-slate-400" />
+                            <span>Upload File</span>
                             <input
                               type="file"
                               accept="image/*,.pdf"
@@ -1141,96 +1152,181 @@ export default function MyVehicle() {
                           </label>
                         </div>
                       )}
-                      {errors.driverLicense && <p className="text-rose-600 font-semibold text-[11px]">{errors.driverLicense}</p>}
+                      {errors.driverLicense && <p className="text-rose-600 font-semibold text-[10px]">{errors.driverLicense}</p>}
                     </div>
 
-                    {/* Official OR/CR */}
-                    <div className="p-4 rounded-2xl border-2 border-slate-200 bg-slate-50 text-center space-y-3 flex flex-col justify-between">
+                    {/* 2. Official Receipt (OR) */}
+                    <div className="p-3.5 rounded-2xl border-2 border-slate-200 bg-slate-50 text-center space-y-3 flex flex-col justify-between">
                       <div className="space-y-1">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center">
-                          <FileText className="w-5 h-5" />
+                        <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center">
+                          <Receipt className="w-4 h-4" />
                         </div>
-                        <p className="font-bold text-slate-900">Official OR / CR</p>
-                        <p className="text-[11px] text-slate-500">Official Receipt & Cert. of Registration</p>
+                        <p className="font-bold text-slate-900">Official Receipt (OR)</p>
+                        <p className="text-[10px] text-slate-500">Latest annual LTO payment slip</p>
                       </div>
 
-                      {formData.orCr ? (
+                      {formData.orCopy ? (
                         <div className="space-y-2.5">
-                          {/* Preview container if data URL or image */}
-                          {typeof formData.orCr === 'string' && (formData.orCr.startsWith('data:image') || formData.orCr.startsWith('http') || formData.orCr.startsWith('/')) ? (
-                            <div className="relative group rounded-xl overflow-hidden border border-emerald-300 bg-white max-h-36 flex items-center justify-center p-1.5 shadow-2xs">
+                          {typeof formData.orCopy === 'string' && (formData.orCopy.startsWith('data:image') || formData.orCopy.startsWith('http') || formData.orCopy.startsWith('/')) ? (
+                            <div className="relative group rounded-xl overflow-hidden border border-emerald-300 bg-white max-h-32 flex items-center justify-center p-1.5 shadow-2xs">
                               <img
-                                src={formData.orCr}
-                                alt="Official OR/CR Preview"
-                                className="max-h-28 w-auto object-contain rounded-lg"
+                                src={formData.orCopy}
+                                alt="Official Receipt (OR) Preview"
+                                className="max-h-24 w-auto object-contain rounded-lg"
                               />
-                              <div className="absolute top-2 right-2">
-                                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold shadow-xs">
-                                  <Check className="w-3 h-3" />
+                              <div className="absolute top-1.5 right-1.5">
+                                <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] font-bold shadow-xs">
+                                  <Check className="w-2.5 h-2.5" />
                                   <span>Attached</span>
                                 </span>
                               </div>
                             </div>
                           ) : (
-                            <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold flex items-center justify-between">
-                              <span className="truncate">Official OR/CR Attached</span>
-                              <span className="text-[10px] bg-emerald-200/80 text-emerald-900 px-2 py-0.5 rounded-md font-bold shrink-0">✓ Valid</span>
+                            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-semibold flex items-center justify-between">
+                              <span className="truncate">OR Attached</span>
+                              <span className="text-[9px] bg-emerald-200/80 text-emerald-900 px-1.5 py-0.5 rounded-md font-bold shrink-0">✓ Valid</span>
                             </div>
                           )}
 
-                          {/* Action Buttons: Retake / Change & Remove */}
-                          <div className="flex items-center justify-center gap-1.5 pt-1">
+                          <div className="flex items-center justify-center gap-1 pt-1">
                             <button
                               type="button"
-                              onClick={() => openCameraFor('orCr', 'document', 'Scan Vehicle OR/CR Document')}
-                              className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] cursor-pointer shadow-2xs transition-colors"
+                              onClick={() => openCameraFor('orCopy', 'receipt', 'Scan Official Receipt (OR)', 'Position the paper official receipt flat inside the frame')}
+                              className="inline-flex items-center space-x-1 px-2 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[10px] cursor-pointer shadow-2xs transition-colors"
                             >
-                              <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                              <Camera className="w-3 h-3 text-emerald-600" />
                               <span>Retake</span>
                             </button>
-                            <label className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold text-[11px] cursor-pointer shadow-2xs transition-colors">
-                              <UploadCloud className="w-3.5 h-3.5 text-slate-500" />
+                            <label className="inline-flex items-center space-x-1 px-2 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold text-[10px] cursor-pointer shadow-2xs transition-colors">
+                              <UploadCloud className="w-3 h-3 text-slate-500" />
                               <span>Upload</span>
                               <input
                                 type="file"
                                 accept="image/*,.pdf"
-                                onChange={(e) => handleFileChange('orCr', e)}
+                                onChange={(e) => handleFileChange('orCopy', e)}
                                 className="hidden"
                               />
                             </label>
                             <button
                               type="button"
-                              onClick={() => handleFieldChange('orCr', null)}
+                              onClick={() => handleFieldChange('orCopy', null)}
                               className="inline-flex items-center justify-center p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors cursor-pointer shadow-2xs"
                               title="Remove"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-3 h-3" />
                             </button>
                           </div>
                         </div>
                       ) : (
-                        <div className="p-3 rounded-2xl border-2 border-dashed border-slate-300 bg-white space-y-2">
+                        <div className="p-2.5 rounded-2xl border-2 border-dashed border-slate-300 bg-white space-y-2">
                           <button
                             type="button"
-                            onClick={() => openCameraFor('orCr', 'document', 'Scan Vehicle OR/CR Document')}
-                            className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center space-x-1.5 cursor-pointer shadow-xs transition-transform active:scale-98"
+                            onClick={() => openCameraFor('orCopy', 'receipt', 'Scan Official Receipt (OR)', 'Position the paper official receipt flat inside the frame')}
+                            className="w-full py-2 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center justify-center space-x-1 cursor-pointer shadow-xs transition-transform active:scale-98"
                           >
-                            <Camera className="w-4 h-4 text-emerald-100" />
-                            <span>Snap with Camera</span>
+                            <Camera className="w-3.5 h-3.5 text-emerald-100" />
+                            <span>Snap Photo</span>
                           </button>
-                          <label className="w-full py-2 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-[11px] flex items-center justify-center space-x-1.5 cursor-pointer transition-colors block text-center">
-                            <UploadCloud className="w-3.5 h-3.5 text-slate-400" />
-                            <span>Upload Existing File</span>
+                          <label className="w-full py-1.5 px-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-[10px] flex items-center justify-center space-x-1 cursor-pointer transition-colors block text-center">
+                            <UploadCloud className="w-3 h-3 text-slate-400" />
+                            <span>Upload File</span>
                             <input
                               type="file"
                               accept="image/*,.pdf"
-                              onChange={(e) => handleFileChange('orCr', e)}
+                              onChange={(e) => handleFileChange('orCopy', e)}
                               className="hidden"
                             />
                           </label>
                         </div>
                       )}
-                      {errors.orCr && <p className="text-rose-600 font-semibold text-[11px]">{errors.orCr}</p>}
+                      {errors.orCopy && <p className="text-rose-600 font-semibold text-[10px]">{errors.orCopy}</p>}
+                    </div>
+
+                    {/* 3. Certificate of Registration (CR) */}
+                    <div className="p-3.5 rounded-2xl border-2 border-slate-200 bg-slate-50 text-center space-y-3 flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center">
+                          <FileCheck className="w-4 h-4" />
+                        </div>
+                        <p className="font-bold text-slate-900">Cert. of Registration (CR)</p>
+                        <p className="text-[10px] text-slate-500">LTO vehicle ownership certificate</p>
+                      </div>
+
+                      {formData.crCopy ? (
+                        <div className="space-y-2.5">
+                          {typeof formData.crCopy === 'string' && (formData.crCopy.startsWith('data:image') || formData.crCopy.startsWith('http') || formData.crCopy.startsWith('/')) ? (
+                            <div className="relative group rounded-xl overflow-hidden border border-emerald-300 bg-white max-h-32 flex items-center justify-center p-1.5 shadow-2xs">
+                              <img
+                                src={formData.crCopy}
+                                alt="Cert. of Registration (CR) Preview"
+                                className="max-h-24 w-auto object-contain rounded-lg"
+                              />
+                              <div className="absolute top-1.5 right-1.5">
+                                <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] font-bold shadow-xs">
+                                  <Check className="w-2.5 h-2.5" />
+                                  <span>Attached</span>
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-semibold flex items-center justify-between">
+                              <span className="truncate">CR Attached</span>
+                              <span className="text-[9px] bg-emerald-200/80 text-emerald-900 px-1.5 py-0.5 rounded-md font-bold shrink-0">✓ Valid</span>
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-center gap-1 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => openCameraFor('crCopy', 'document', 'Scan Certificate of Registration (CR)', 'Position the Certificate of Registration flat within the frame')}
+                              className="inline-flex items-center space-x-1 px-2 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[10px] cursor-pointer shadow-2xs transition-colors"
+                            >
+                              <Camera className="w-3 h-3 text-emerald-600" />
+                              <span>Retake</span>
+                            </button>
+                            <label className="inline-flex items-center space-x-1 px-2 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold text-[10px] cursor-pointer shadow-2xs transition-colors">
+                              <UploadCloud className="w-3 h-3 text-slate-500" />
+                              <span>Upload</span>
+                              <input
+                                type="file"
+                                accept="image/*,.pdf"
+                                onChange={(e) => handleFileChange('crCopy', e)}
+                                className="hidden"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => handleFieldChange('crCopy', null)}
+                              className="inline-flex items-center justify-center p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors cursor-pointer shadow-2xs"
+                              title="Remove"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-2.5 rounded-2xl border-2 border-dashed border-slate-300 bg-white space-y-2">
+                          <button
+                            type="button"
+                            onClick={() => openCameraFor('crCopy', 'document', 'Scan Certificate of Registration (CR)', 'Position the Certificate of Registration flat within the frame')}
+                            className="w-full py-2 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center justify-center space-x-1 cursor-pointer shadow-xs transition-transform active:scale-98"
+                          >
+                            <Camera className="w-3.5 h-3.5 text-emerald-100" />
+                            <span>Snap Photo</span>
+                          </button>
+                          <label className="w-full py-1.5 px-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-[10px] flex items-center justify-center space-x-1 cursor-pointer transition-colors block text-center">
+                            <UploadCloud className="w-3 h-3 text-slate-400" />
+                            <span>Upload File</span>
+                            <input
+                              type="file"
+                              accept="image/*,.pdf"
+                              onChange={(e) => handleFileChange('crCopy', e)}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+                      )}
+                      {errors.crCopy && <p className="text-rose-600 font-semibold text-[10px]">{errors.crCopy}</p>}
                     </div>
                   </div>
                 </div>
@@ -1284,7 +1380,7 @@ export default function MyVehicle() {
                       </div>
                       <div>
                         <span className="text-slate-400 block font-semibold">Required Xerox Documents:</span>
-                        <span className="text-emerald-700 font-medium">✓ License & OR/CR Attached</span>
+                        <span className="text-emerald-700 font-medium">✓ License, OR & CR Attached</span>
                       </div>
                     </div>
                   </div>
@@ -1435,6 +1531,7 @@ export default function MyVehicle() {
         onClose={() => setCameraConfig((prev) => ({ ...prev, isOpen: false }))}
         onCapture={handlePhotoCaptured}
         title={cameraConfig.title}
+        subTitle={cameraConfig.subTitle}
         mode={cameraConfig.mode}
       />
     </div>

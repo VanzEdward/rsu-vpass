@@ -373,23 +373,8 @@ export default function GuardScanner() {
       setFacingMode(mode);
     } catch (err) {
       setCameraActive(false);
-    setIsTorchOn(false);
-    setHasTorch(false);
-  };
-
-  const toggleTorch = async () => {
-    if (!streamRef.current) return;
-    const track = streamRef.current.getVideoTracks()[0];
-    if (!track) return;
-    try {
-      const nextTorch = !isTorchOn;
-      await track.applyConstraints({
-        advanced: [{ torch: nextTorch }],
-      });
-      setIsTorchOn(nextTorch);
-    } catch (err) {
-      console.warn("Torch toggle error:", err);
-    }
+      setIsTorchOn(false);
+      setHasTorch(false);
       if (err.name === "NotAllowedError") {
         setCameraError(
           "Camera access denied. Please grant permission in your browser.",
@@ -435,6 +420,23 @@ export default function GuardScanner() {
       console.warn("Torch toggle error:", err);
     }
   };
+
+  // Resume or re-attach video stream immediately when returning to scanner tab (prevents black screen on tab switch)
+  useEffect(() => {
+    if (activeTab === "scan" && cameraActive) {
+      if (videoRef.current) {
+        if (streamRef.current && streamRef.current.active) {
+          if (videoRef.current.srcObject !== streamRef.current) {
+            videoRef.current.srcObject = streamRef.current;
+          }
+          videoRef.current.play().catch(() => {});
+        } else {
+          // Stream died or was released while away; cleanly re-initialize
+          startCamera(facingMode);
+        }
+      }
+    }
+  }, [activeTab, cameraActive, facingMode]);
 
   const toggleCamera = () => {
     if (cameraActive) {
@@ -967,6 +969,14 @@ export default function GuardScanner() {
     const scanFrame = async (timestamp) => {
       if (!isMounted) return;
 
+      // Do not consume CPU processing frames if guard is browsing Visitors or Logs
+      if (activeTab !== "scan") {
+        if (isMounted && cameraActive) {
+          scanLoopRef.current = requestAnimationFrame(scanFrame);
+        }
+        return;
+      }
+
       const video = videoRef.current;
       const now = Date.now();
 
@@ -1045,7 +1055,7 @@ export default function GuardScanner() {
         scanLoopRef.current = null;
       }
     };
-  }, [cameraActive, applications, visitors]);
+  }, [cameraActive, activeTab, applications, visitors]);
 
   // Gate presence logging
   const handleLogEvent = (type) => {
@@ -1342,8 +1352,7 @@ export default function GuardScanner() {
       {/* ======================================================== */}
       {/* 1. UNIFIED SCANNER & QUICK LOOKUP HUB                   */}
       {/* ======================================================== */}
-      {activeTab === "scan" && (
-        <div className="space-y-3">
+      <div className={activeTab === "scan" ? "space-y-3" : "hidden"}>
           <div className="bg-slate-900 rounded-3xl border border-slate-800 p-4 shadow-xl space-y-3.5">
             {/* Camera Viewfinder Viewport */}
             <div
@@ -1604,8 +1613,7 @@ export default function GuardScanner() {
               </div>
             )}
           </div>
-        </div>
-      )}
+      </div>
 
       {/* ======================================================== */}
       {/* 2. STREAMLINED VISITOR MANAGEMENT DESK                   */}
@@ -1976,39 +1984,45 @@ export default function GuardScanner() {
           {/* Quick Counter Cards */}
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
             <div className="p-3 sm:p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between">
-              <div>
-                <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
+              <div className="min-w-0 pr-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
                   Entries
                 </span>
-                <span className="text-xl sm:text-2xl font-black text-emerald-400">
+                <span className="text-xl sm:text-2xl font-black text-emerald-400 block mt-0.5">
                   {totalEntries}
                 </span>
               </div>
-              <LogIn className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-400 shrink-0" />
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                <LogIn className="w-4 h-4" />
+              </div>
             </div>
 
             <div className="p-3 sm:p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between">
-              <div>
-                <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
+              <div className="min-w-0 pr-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
                   Exits
                 </span>
-                <span className="text-xl sm:text-2xl font-black text-blue-400">
+                <span className="text-xl sm:text-2xl font-black text-blue-400 block mt-0.5">
                   {totalExits}
                 </span>
               </div>
-              <LogOut className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400 shrink-0" />
+              <div className="w-8 h-8 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
+                <LogOut className="w-4 h-4" />
+              </div>
             </div>
 
             <div className="p-3 sm:p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between">
-              <div>
-                <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
-                  Spot-Checks
+              <div className="min-w-0 pr-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate" title="Spot-Checks">
+                  Checks
                 </span>
-                <span className="text-xl sm:text-2xl font-black text-purple-400">
+                <span className="text-xl sm:text-2xl font-black text-purple-400 block mt-0.5">
                   {totalChecks}
                 </span>
               </div>
-              <Eye className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400 shrink-0" />
+              <div className="w-8 h-8 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
+                <Eye className="w-4 h-4" />
+              </div>
             </div>
           </div>
 

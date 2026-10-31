@@ -59,6 +59,8 @@ CREATE TABLE IF NOT EXISTS applications (
     rejection_reason TEXT NULL,
     applicant_photo LONGTEXT NULL,
     driver_license_url LONGTEXT NULL,
+    or_url LONGTEXT NULL,
+    cr_url LONGTEXT NULL,
     or_cr_url LONGTEXT NULL,
     receipt_or_number VARCHAR(100) NULL,
     receipt_photo_url LONGTEXT NULL,

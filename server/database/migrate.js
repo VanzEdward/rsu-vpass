@@ -22,6 +22,12 @@ async function migrate() {
   if (!existingCols.includes('applicant_photo')) {
     await pool.query('ALTER TABLE applications ADD COLUMN applicant_photo LONGTEXT NULL');
   }
+  if (!existingCols.includes('or_url')) {
+    await pool.query('ALTER TABLE applications ADD COLUMN or_url LONGTEXT NULL AFTER driver_license_url');
+  }
+  if (!existingCols.includes('cr_url')) {
+    await pool.query('ALTER TABLE applications ADD COLUMN cr_url LONGTEXT NULL AFTER or_url');
+  }
   if (!existingCols.includes('receipt_or_number')) {
     await pool.query('ALTER TABLE applications ADD COLUMN receipt_or_number VARCHAR(100) NULL');
   }

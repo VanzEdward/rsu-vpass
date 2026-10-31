@@ -32,6 +32,20 @@ export const testConnection = async () => {
   try {
     const connection = await pool.getConnection();
     logger.db(`Connected to MySQL: database "${dbName}" on ${host}:${port}`);
+        try {
+      const [cols] = await connection.query('DESCRIBE applications');
+      const f = cols.map(col => col.Field);
+      if (!f.includes('or_url')) {
+        await connection.query('ALTER TABLE applications ADD COLUMN or_url LONGTEXT NULL AFTER driver_license_url');
+        logger.db('Added column or_url to applications table.');
+      }
+      if (!f.includes('cr_url')) {
+        await connection.query('ALTER TABLE applications ADD COLUMN cr_url LONGTEXT NULL AFTER or_url');
+        logger.db('Added column cr_url to applications table.');
+      }
+    } catch (e) {
+      // Ignore if table does not exist yet during initial boot
+    }
     connection.release();
     return true;
   } catch (error) {

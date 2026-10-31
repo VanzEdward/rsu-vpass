@@ -22,6 +22,8 @@ export const registerVehicle = async (req, res) => {
       make, model, color, year = '2026', year_model = 2026,
       applicant_photo,
       driverLicense, driver_license_url,
+      orCopy, or_url,
+      crCopy, cr_url,
       orCr, or_cr_url,
       vehicle_photo_url
     } = req.body;
@@ -33,7 +35,9 @@ export const registerVehicle = async (req, res) => {
     const finalColor = (color || '').trim();
     const finalYear = parseInt(year || year_model || 2026, 10);
     const finalLicense = driverLicense || driver_license_url || '';
-    const finalOrCr = orCr || or_cr_url || '';
+    const finalOr = orCopy || or_url || orCr || or_cr_url || '';
+    const finalCr = crCopy || cr_url || orCr || or_cr_url || '';
+    const finalOrCr = finalOr || finalCr || orCr || or_cr_url || '';
     const finalPhoto = applicant_photo || null;
 
     if (!finalPlate || !finalMake || !finalModel || !finalColor) {
@@ -64,12 +68,22 @@ export const registerVehicle = async (req, res) => {
     const [appCountRows] = await pool.query('SELECT COUNT(*) as cnt FROM applications');
     const appRef = `APP-2026-${String((appCountRows[0].cnt || 0) + 1).padStart(4, '0')}`;
 
-    const [appResult] = await pool.query(
-      `INSERT INTO applications (
-        app_ref_number, user_id, vehicle_id, status, applicant_photo, driver_license_url, or_cr_url
-      ) VALUES (?, ?, ?, 'PENDING', ?, ?, ?)`,
-      [appRef, req.user.id, vehicleId, finalPhoto, finalLicense, finalOrCr]
-    );
+    let appResult;
+    try {
+      [appResult] = await pool.query(
+        `INSERT INTO applications (
+          app_ref_number, user_id, vehicle_id, status, applicant_photo, driver_license_url, or_url, cr_url, or_cr_url
+        ) VALUES (?, ?, ?, 'PENDING', ?, ?, ?, ?, ?)`,
+        [appRef, req.user.id, vehicleId, finalPhoto, finalLicense, finalOr, finalCr, finalOrCr]
+      );
+    } catch (insertErr) {
+      [appResult] = await pool.query(
+        `INSERT INTO applications (
+          app_ref_number, user_id, vehicle_id, status, applicant_photo, driver_license_url, or_cr_url
+        ) VALUES (?, ?, ?, 'PENDING', ?, ?, ?)`,
+        [appRef, req.user.id, vehicleId, finalPhoto, finalLicense, finalOrCr]
+      );
+    }
 
     const applicationId = appResult.insertId;
 
@@ -90,10 +104,7 @@ export const getMyApplications = async (req, res) => {
   try {
     const [apps] = await pool.query(`
       SELECT 
-        a.id, a.app_ref_number, a.status, a.rejection_reason, 
-        a.applicant_photo, a.driver_license_url, a.or_cr_url,
-        a.receipt_or_number, a.receipt_photo_url, a.receipt_rejection_remark,
-        a.created_at, a.updated_at,
+        a.*,
         u.full_name as applicant_name, u.school_id, u.classification, u.contact_number,
         u.year_course, u.department_unit,
         v.id as vehicle_id, v.plate_number, v.vehicle_type, v.make, v.model, v.color, v.year_model,
@@ -129,7 +140,9 @@ export const getMyApplications = async (req, res) => {
       },
       documents: {
         driverLicense: app.driver_license_url,
-        orCr: app.or_cr_url,
+        orCopy: app.or_url || app.or_cr_url,
+        crCopy: app.cr_url || app.or_cr_url,
+        orCr: app.or_cr_url || app.or_url || app.cr_url,
       },
       status: app.status,
       rejection_reason: app.rejection_reason,
@@ -213,6 +226,8 @@ export const resubmitApplication = async (req, res) => {
       vehicleType, vehicle_type,
       make, model, color, year, year_model,
       driverLicense, driver_license_url,
+      orCopy, or_url,
+      crCopy, cr_url,
       orCr, or_cr_url,
       applicant_photo 
     } = req.body;
@@ -251,16 +266,35 @@ export const resubmitApplication = async (req, res) => {
     }
 
     // Update application back to PENDING
-    await pool.query(
-      `UPDATE applications 
-       SET status = 'PENDING',
-           rejection_reason = NULL,
-           driver_license_url = COALESCE(?, driver_license_url),
-           or_cr_url = COALESCE(?, or_cr_url),
-           applicant_photo = COALESCE(?, applicant_photo)
-       WHERE id = ?`,
-      [driverLicense || driver_license_url, orCr || or_cr_url, applicant_photo, app.id]
-    );
+    const finalOr = orCopy || or_url || orCr || or_cr_url || null;
+    const finalCr = crCopy || cr_url || orCr || or_cr_url || null;
+    const finalOrCr = finalOr || finalCr || orCr || or_cr_url || null;
+
+    try {
+      await pool.query(
+        `UPDATE applications 
+         SET status = 'PENDING',
+             rejection_reason = NULL,
+             driver_license_url = COALESCE(?, driver_license_url),
+             or_url = COALESCE(?, or_url),
+             cr_url = COALESCE(?, cr_url),
+             or_cr_url = COALESCE(?, or_cr_url),
+             applicant_photo = COALESCE(?, applicant_photo)
+         WHERE id = ?`,
+        [driverLicense || driver_license_url, finalOr, finalCr, finalOrCr, applicant_photo, app.id]
+      );
+    } catch (updErr) {
+      await pool.query(
+        `UPDATE applications 
+         SET status = 'PENDING',
+             rejection_reason = NULL,
+             driver_license_url = COALESCE(?, driver_license_url),
+             or_cr_url = COALESCE(?, or_cr_url),
+             applicant_photo = COALESCE(?, applicant_photo)
+         WHERE id = ?`,
+        [driverLicense || driver_license_url, finalOrCr, applicant_photo, app.id]
+      );
+    }
 
     res.json({ message: 'Application corrected and resubmitted to PASO queue!' });
   } catch (error) {

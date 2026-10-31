@@ -284,10 +284,12 @@ export default function CameraCaptureModal({
       case 'document':
         return {
           icon: <FileText className="w-4 h-4 text-emerald-400" />,
-          displayTitle: title || 'Scan Vehicle OR/CR Document',
-          subtitle: subTitle || 'Position the Certificate of Registration flat within the frame',
+          displayTitle: title || 'Scan Vehicle Document',
+          subtitle: subTitle || 'Position the document flat within the frame',
           badge: 'Document Scanner Mode',
-          guideText: 'Align OR/CR document inside the frame • Avoid glare & shadows',
+          guideText: (title || '').toLowerCase().includes('cr') || (title || '').toLowerCase().includes('registration')
+            ? 'Align Certificate of Registration inside frame • Keep vehicle specs sharp'
+            : 'Align document inside the frame • Avoid glare & shadows',
         };
       case 'selfie':
       default:
@@ -395,11 +397,7 @@ export default function CameraCaptureModal({
                         <div className="h-full w-[1px] bg-emerald-400/20 absolute" />
                       </div>
 
-                      {/* Floating prompt pill */}
-                      <span className="absolute bottom-3 z-10 text-[11px] text-emerald-200 bg-slate-950/80 border border-emerald-500/30 px-3.5 py-1 rounded-full backdrop-blur-xs font-semibold flex items-center space-x-1.5 shadow-md">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                        <span>{guideText}</span>
-                      </span>
+
                     </div>
                   ) : (
                     /* Document / Card / Receipt Framing Guide */
@@ -431,11 +429,7 @@ export default function CameraCaptureModal({
                         </span>
                       </div>
 
-                      {/* Floating prompt pill */}
-                      <span className="absolute bottom-3 z-10 text-[11px] text-emerald-200 bg-slate-950/85 border border-emerald-500/30 px-3.5 py-1 rounded-full backdrop-blur-xs font-semibold flex items-center space-x-1.5 shadow-md">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                        <span>{guideText}</span>
-                      </span>
+
                     </div>
                   )}
 
@@ -479,6 +473,14 @@ export default function CameraCaptureModal({
           {/* Hidden Canvas for High-Resolution Snapshot Processing */}
           <canvas ref={canvasRef} className="hidden" />
         </div>
+
+        {/* Guidance Prompt Bar (Positioned outside viewport to never block face or document) */}
+        {!capturedImage && !cameraError && (
+          <div className="flex items-center justify-center px-3.5 py-1.5 rounded-xl bg-slate-950/80 border border-slate-800 text-xs font-semibold text-emerald-300 space-x-2 text-center shadow-xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <span>{guideText}</span>
+          </div>
+        )}
 
         {/* Controls Bar */}
         <div className="pt-1">

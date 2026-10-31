@@ -544,11 +544,18 @@ export default function AdminApplications() {
 
             {/* Uploaded Documents */}
             <div className="text-xs space-y-2">
-              <h4 className="font-bold text-slate-900">Uploaded Official Documents</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <h4 className="font-bold text-slate-900 flex items-center space-x-1.5">
+                <FileCheck className="w-4 h-4 text-emerald-600" />
+                <span>Uploaded Institutional Documents</span>
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* 1. Driver's License */}
                 <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 text-center flex flex-col justify-between">
                   <div className="flex items-center justify-between mb-2">
-                    <p className="font-bold text-slate-800 text-xs">Driver's License</p>
+                    <div className="text-left">
+                      <p className="font-bold text-slate-800 text-xs">Driver's License</p>
+                      <p className="text-[10px] text-slate-500">Valid Phil. License</p>
+                    </div>
                     {selectedApp.documents?.driverLicense && (
                       <button
                         type="button"
@@ -576,65 +583,128 @@ export default function AdminApplications() {
                       <img
                         src={selectedApp.documents.driverLicense}
                         alt="License"
-                        className="w-full h-32 object-cover group-hover:scale-105 transition-transform"
+                        className="w-full h-28 object-cover group-hover:scale-105 transition-transform"
                       />
-                      <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold space-x-1.5 backdrop-blur-[1px]">
-                        <Eye className="w-4 h-4" />
-                        <span>Click to Inspect Full Photo</span>
+                      <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-bold space-x-1 backdrop-blur-[1px]">
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Inspect</span>
                       </div>
                     </div>
                   ) : (
-                    <div className="h-32 rounded-xl bg-emerald-50 text-emerald-700 flex flex-col items-center justify-center font-semibold text-[11px] border border-dashed border-emerald-300">
-                      <FileText className="w-6 h-6 mb-1" />
-                      <span>Valid Driver's License Attached</span>
+                    <div className="h-28 rounded-xl bg-emerald-50 text-emerald-700 flex flex-col items-center justify-center font-semibold text-[11px] border border-dashed border-emerald-300">
+                      <FileText className="w-5 h-5 mb-1" />
+                      <span>Valid License Attached</span>
                     </div>
                   )}
                 </div>
 
-                <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 text-center flex flex-col justify-between">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="font-bold text-slate-800 text-xs">Official OR / CR</p>
-                    {selectedApp.documents?.orCr && (
-                      <button
-                        type="button"
-                        onClick={() => setPreviewDocument({
-                          title: "Official Vehicle OR / CR",
-                          subtitle: `${selectedApp.vehicle?.make} ${selectedApp.vehicle?.model} (${selectedApp.vehicle?.plateNumber})`,
-                          src: selectedApp.documents.orCr
-                        })}
-                        className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center space-x-1 cursor-pointer"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>Inspect</span>
-                      </button>
-                    )}
-                  </div>
-                  {selectedApp.documents?.orCr ? (
-                    <div
-                      onClick={() => setPreviewDocument({
-                        title: "Official Vehicle OR / CR",
-                        subtitle: `${selectedApp.vehicle?.make} ${selectedApp.vehicle?.model} (${selectedApp.vehicle?.plateNumber})`,
-                        src: selectedApp.documents.orCr
-                      })}
-                      className="rounded-xl overflow-hidden border border-slate-200 cursor-pointer group relative bg-white shadow-xs"
-                    >
-                      <img
-                        src={selectedApp.documents.orCr}
-                        alt="OR/CR"
-                        className="w-full h-32 object-cover group-hover:scale-105 transition-transform"
-                      />
-                      <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold space-x-1.5 backdrop-blur-[1px]">
-                        <Eye className="w-4 h-4" />
-                        <span>Click to Inspect Full Photo</span>
+                {/* 2. Official Receipt (OR) */}
+                {(() => {
+                  const orDoc = selectedApp.documents?.orCopy || selectedApp.documents?.orCr;
+                  return (
+                    <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 text-center flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-left">
+                          <p className="font-bold text-slate-800 text-xs">Official Receipt (OR)</p>
+                          <p className="text-[10px] text-slate-500">Annual LTO Payment</p>
+                        </div>
+                        {orDoc && (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewDocument({
+                              title: "Vehicle Official Receipt (OR)",
+                              subtitle: `${selectedApp.vehicle?.make} ${selectedApp.vehicle?.model} (${selectedApp.vehicle?.plateNumber})`,
+                              src: orDoc
+                            })}
+                            className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center space-x-1 cursor-pointer"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Inspect</span>
+                          </button>
+                        )}
                       </div>
+                      {orDoc ? (
+                        <div
+                          onClick={() => setPreviewDocument({
+                            title: "Vehicle Official Receipt (OR)",
+                            subtitle: `${selectedApp.vehicle?.make} ${selectedApp.vehicle?.model} (${selectedApp.vehicle?.plateNumber})`,
+                            src: orDoc
+                          })}
+                          className="rounded-xl overflow-hidden border border-slate-200 cursor-pointer group relative bg-white shadow-xs"
+                        >
+                          <img
+                            src={orDoc}
+                            alt="Official Receipt (OR)"
+                            className="w-full h-28 object-cover group-hover:scale-105 transition-transform"
+                          />
+                          <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-bold space-x-1 backdrop-blur-[1px]">
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Inspect</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="h-28 rounded-xl bg-emerald-50 text-emerald-700 flex flex-col items-center justify-center font-semibold text-[11px] border border-dashed border-emerald-300">
+                          <Receipt className="w-5 h-5 mb-1" />
+                          <span>Official Receipt Attached</span>
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    <div className="h-32 rounded-xl bg-emerald-50 text-emerald-700 flex flex-col items-center justify-center font-semibold text-[11px] border border-dashed border-emerald-300">
-                      <FileText className="w-6 h-6 mb-1" />
-                      <span>Official OR/CR Attached</span>
+                  );
+                })()}
+
+                {/* 3. Certificate of Registration (CR) */}
+                {(() => {
+                  const crDoc = selectedApp.documents?.crCopy || selectedApp.documents?.orCr;
+                  return (
+                    <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 text-center flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-left">
+                          <p className="font-bold text-slate-800 text-xs">Cert. of Registration (CR)</p>
+                          <p className="text-[10px] text-slate-500">LTO Ownership Specs</p>
+                        </div>
+                        {crDoc && (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewDocument({
+                              title: "Vehicle Certificate of Registration (CR)",
+                              subtitle: `${selectedApp.vehicle?.make} ${selectedApp.vehicle?.model} (${selectedApp.vehicle?.plateNumber})`,
+                              src: crDoc
+                            })}
+                            className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center space-x-1 cursor-pointer"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Inspect</span>
+                          </button>
+                        )}
+                      </div>
+                      {crDoc ? (
+                        <div
+                          onClick={() => setPreviewDocument({
+                            title: "Vehicle Certificate of Registration (CR)",
+                            subtitle: `${selectedApp.vehicle?.make} ${selectedApp.vehicle?.model} (${selectedApp.vehicle?.plateNumber})`,
+                            src: crDoc
+                          })}
+                          className="rounded-xl overflow-hidden border border-slate-200 cursor-pointer group relative bg-white shadow-xs"
+                        >
+                          <img
+                            src={crDoc}
+                            alt="Cert. of Registration (CR)"
+                            className="w-full h-28 object-cover group-hover:scale-105 transition-transform"
+                          />
+                          <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-bold space-x-1 backdrop-blur-[1px]">
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Inspect</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="h-28 rounded-xl bg-emerald-50 text-emerald-700 flex flex-col items-center justify-center font-semibold text-[11px] border border-dashed border-emerald-300">
+                          <FileCheck className="w-5 h-5 mb-1" />
+                          <span>CR Attached</span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  );
+                })()}
               </div>
             </div>
 

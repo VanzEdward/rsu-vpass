@@ -41,10 +41,7 @@ export const getAllApplications = async (req, res) => {
   try {
     const [apps] = await pool.query(`
       SELECT 
-        a.id, a.app_ref_number, a.status, a.rejection_reason, 
-        a.applicant_photo, a.driver_license_url, a.or_cr_url,
-        a.receipt_or_number, a.receipt_photo_url, a.receipt_rejection_remark,
-        a.created_at, a.updated_at,
+        a.*,
         u.id as user_id, u.school_id, u.full_name, u.email, u.contact_number,
         u.classification, u.year_course, u.department_unit,
         v.id as vehicle_id, v.plate_number, v.vehicle_type, v.make, v.model, v.color, v.year_model,
@@ -79,7 +76,9 @@ export const getAllApplications = async (req, res) => {
       },
       documents: {
         driverLicense: app.driver_license_url,
-        orCr: app.or_cr_url,
+        orCopy: app.or_url || app.or_cr_url,
+        crCopy: app.cr_url || app.or_cr_url,
+        orCr: app.or_cr_url || app.or_url || app.cr_url,
       },
       status: app.status,
       rejection_reason: app.rejection_reason,
