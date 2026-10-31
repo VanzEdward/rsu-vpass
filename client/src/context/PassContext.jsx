@@ -82,6 +82,19 @@ export const calculateOneYearExpiry = (startDate = new Date(), academicYear = "2
 const INITIAL_NOTIFICATIONS = [];
 const INITIAL_VISITORS = [];
 const INITIAL_LOGS = [];
+const sanitizeGateLog = (log) => {
+  if (!log) return log;
+  let cleanTime = log.time || "";
+  if (typeof cleanTime === "string") {
+    cleanTime = cleanTime.replace(/\s*Today\s*/gi, "").trim();
+  }
+  return {
+    ...log,
+    time: cleanTime,
+    timestamp: log.timestamp || log.created_at || (log.id && typeof log.id === "number" ? new Date(log.id).toISOString() : new Date().toISOString()),
+  };
+};
+
 
 /**
  * Determines the consistent, database-backed sequential pass number (e.g. S-001, S-002, E-001, E-002).
@@ -375,7 +388,7 @@ export const PassProvider = ({ children }) => {
   const [gateLogs, setGateLogs] = useState(() => {
     try {
       const saved = localStorage.getItem("vpass_gate_logs");
-      return saved ? JSON.parse(saved) : INITIAL_LOGS;
+      return saved ? (JSON.parse(saved) || []).map(sanitizeGateLog) : INITIAL_LOGS;
     } catch (e) {
       return INITIAL_LOGS;
     }
@@ -423,7 +436,7 @@ export const PassProvider = ({ children }) => {
           setApplications((appsRes.value || []).map(sanitizeApp));
         }
         if (logsRes.status === "fulfilled" && Array.isArray(logsRes.value)) {
-          setGateLogs(logsRes.value);
+          setGateLogs((logsRes.value || []).map(sanitizeGateLog));
         }
         if (visRes.status === "fulfilled" && Array.isArray(visRes.value)) {
           setVisitorPasses(visRes.value);
@@ -461,7 +474,7 @@ export const PassProvider = ({ children }) => {
           setApplications(appsRes.value);
         }
         if (logsRes.status === "fulfilled" && Array.isArray(logsRes.value)) {
-          setGateLogs(logsRes.value);
+          setGateLogs((logsRes.value || []).map(sanitizeGateLog));
         }
         if (visRes.status === "fulfilled" && Array.isArray(visRes.value)) {
           setVisitorPasses(visRes.value);
@@ -1725,7 +1738,8 @@ export const PassProvider = ({ children }) => {
       classification: logData.classification || "EMPLOYEE",
       type: logData.type || "ENTRY",
       gate: gateStation,
-      time: `${timeStr} Today`,
+      time: timeStr,
+      timestamp: new Date().toISOString(),
       date: dateStr,
       status: logData.status || "VALID",
     };
@@ -1785,7 +1799,8 @@ export const PassProvider = ({ children }) => {
       validDays: days,
       validUntil: expiryStr,
       entryGate: currentPost,
-      entryTime: `${timeStr} Today`,
+      entryTime: timeStr,
+      timestamp: new Date().toISOString(),
       entryDate: dateStr,
       status: "INSIDE",
       exitGate: null,
@@ -1806,7 +1821,8 @@ export const PassProvider = ({ children }) => {
       classification: "VISITOR",
       type: "ENTRY",
       gate: currentPost,
-      time: `${timeStr} Today`,
+      time: timeStr,
+      timestamp: new Date().toISOString(),
       date: dateStr,
       status: "VALID",
     };
@@ -1862,7 +1878,8 @@ export const PassProvider = ({ children }) => {
             ...v,
             status: "EXITED",
             exitGate: currentPost,
-            exitTime: `${timeStr} Today`,
+            exitTime: timeStr,
+            exitTimestamp: new Date().toISOString(),
             exitDate: dateStr,
           };
         }
@@ -1879,7 +1896,8 @@ export const PassProvider = ({ children }) => {
         classification: "VISITOR",
         type: "EXIT",
         gate: currentPost,
-        time: `${timeStr} Today`,
+        time: timeStr,
+      timestamp: new Date().toISOString(),
         date: dateStr,
         status: "VALID",
       };

@@ -17,6 +17,7 @@ import {
   MapPin
 } from 'lucide-react';
 import { CAMPUS_GATES } from '../../context/PassContext';
+import { formatLogTimestamp, formatExactDateTime } from '../../utils/dateUtils';
 
 export default function AdminReports() {
   const { gateLogs, visitorPasses } = usePass();
@@ -235,8 +236,14 @@ export default function AdminReports() {
                       <td className="py-3 px-3 font-mono text-slate-500">
                         {log.passNumber}
                       </td>
-                      <td className="py-3 px-3 text-slate-500 font-medium">
-                        {log.time}
+                      <td className="py-3 px-3 text-slate-500 font-medium whitespace-nowrap">
+                        <div 
+                          className="flex items-center space-x-1.5 font-mono text-xs text-slate-800"
+                          title={formatExactDateTime(log.timestamp, log.date, log.time)}
+                        >
+                          <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span>{formatLogTimestamp(log.timestamp, log.date, log.time)}</span>
+                        </div>
                       </td>
                       <td className="py-3 px-3">
                         <span className="text-[10px] font-bold text-emerald-700 flex items-center space-x-1">
@@ -303,9 +310,12 @@ export default function AdminReports() {
                         <MapPin className="w-3 h-3 text-emerald-600" />
                         <span>{v.entryGate || 'Gate 1'}</span>
                       </div>
-                      <div className="text-[10px] text-slate-400 mt-0.5 flex items-center space-x-1">
-                        <Clock className="w-3 h-3 text-slate-400" />
-                        <span>{v.entryTime}</span>
+                      <div 
+                        className="text-[10px] text-slate-500 mt-0.5 flex items-center space-x-1 font-mono"
+                        title={formatExactDateTime(v.timestamp || v.created_at, v.entryDate, v.entryTime)}
+                      >
+                        <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span>{formatLogTimestamp(v.timestamp || v.created_at, v.entryDate, v.entryTime)}</span>
                       </div>
                     </td>
                     {/* Exit Gate & Time */}
@@ -316,9 +326,12 @@ export default function AdminReports() {
                             <MapPin className="w-3 h-3 text-rose-500" />
                             <span>{v.exitGate}</span>
                           </div>
-                          <div className="text-[10px] text-slate-400 mt-0.5 flex items-center space-x-1">
-                            <Clock className="w-3 h-3 text-slate-400" />
-                            <span>{v.exitTime}</span>
+                          <div 
+                            className="text-[10px] text-slate-500 mt-0.5 flex items-center space-x-1 font-mono"
+                            title={formatExactDateTime(v.exitTimestamp, v.exitDate, v.exitTime)}
+                          >
+                            <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>{formatLogTimestamp(v.exitTimestamp, v.exitDate, v.exitTime)}</span>
                           </div>
                         </>
                       ) : (

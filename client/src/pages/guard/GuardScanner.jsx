@@ -2,9 +2,11 @@ import React, { useState, useRef, useEffect } from "react";
 import jsQR from "jsqr";
 import QRCode from "qrcode";
 import { usePass, isPassExpired } from "../../context/PassContext";
+import { formatLogTimestamp, formatExactDateTime } from "../../utils/dateUtils";
 import { apiRequest } from "../../api/client";
 import {
   Camera,
+  Eye,
   Search,
   CheckCircle2,
   XCircle,
@@ -761,7 +763,25 @@ export default function GuardScanner() {
       const isStudent =
         (matchApp.classification || "").toLowerCase().includes("student");
       const isEmployee = !isStudent;
+
+      if (isStudent) {
+        addGateLog({
+          passNumber: matchApp.pass.passNumber,
+          plateNumber: matchApp.vehicle?.plateNumber || matchApp.plate_number || "N/A",
+          owner: matchApp.applicant_name,
+          classification: "STUDENT",
+          type: "CHECK",
+          gate: activeGate || "Gate 1",
+          status: isExpired ? "EXPIRED" : "VALID",
+        });
+        setLogSuccessMessage(
+          `Student Spot-Check automatically recorded at ${activeGate || "Gate 1"} for ${matchApp.vehicle?.plateNumber || matchApp.pass.passNumber}!`
+        );
+        setTimeout(() => setLogSuccessMessage(""), 3500);
+      }
+
       setVerifiedPass({
+        isSpotCheckLogged: isStudent,
         passNumber: matchApp.pass.passNumber,
         client: matchApp.applicant_name,
         schoolId: matchApp.school_id,
@@ -849,7 +869,25 @@ export default function GuardScanner() {
         const isStudent = (p.classification || "").toUpperCase() === "STUDENT";
         const isVisitor = verifyRes.type === "TEMPORARY" || (p.classification || "").toUpperCase() === "VISITOR";
         const isEmployee = !isStudent && !isVisitor;
+
+        if (isStudent) {
+          addGateLog({
+            passNumber: p.pass_number,
+            plateNumber: p.plate_number,
+            owner: p.full_name || "Registered Student",
+            classification: "STUDENT",
+            type: "CHECK",
+            gate: activeGate || "Gate 1",
+            status: isExpired ? "EXPIRED" : "VALID",
+          });
+          setLogSuccessMessage(
+            `Student Spot-Check automatically recorded at ${activeGate || "Gate 1"} for ${p.plate_number || p.pass_number}!`
+          );
+          setTimeout(() => setLogSuccessMessage(""), 3500);
+        }
+
         setVerifiedPass({
+          isSpotCheckLogged: isStudent,
           passNumber: p.pass_number,
           client: p.full_name || p.visitor_name,
           schoolId: p.school_id || `VISITOR (${p.id_presented || "ID"})`,
@@ -1015,6 +1053,11 @@ export default function GuardScanner() {
     triggerHaptic(true);
     playBeep(true);
 
+    if (type === "CHECK" && verifiedPass.isSpotCheckLogged) {
+      setVerifiedPass(null);
+      return;
+    }
+
     if (verifiedPass.classification === "VISITOR" && type === "EXIT") {
       logVisitorExit(verifiedPass.passNumber || verifiedPass.plateNumber);
     } else {
@@ -1029,8 +1072,9 @@ export default function GuardScanner() {
       });
     }
 
+    const actionLabel = type === "CHECK" ? "Spot-Check" : type;
     setLogSuccessMessage(
-      `${type} recorded at ${activeGate || "Gate 1"} for ${verifiedPass.plateNumber}!`,
+      `${actionLabel} recorded at ${activeGate || "Gate 1"} for ${verifiedPass.plateNumber || verifiedPass.passNumber}!`,
     );
     setTimeout(() => setLogSuccessMessage(""), 3500);
     setVerifiedPass(null);
@@ -1186,6 +1230,7 @@ export default function GuardScanner() {
   // Metrics
   const totalEntries = logs.filter((l) => l.type === "ENTRY").length;
   const totalExits = logs.filter((l) => l.type === "EXIT").length;
+  const totalChecks = logs.filter((l) => l.type === "CHECK").length;
   const activeVisitorsInside = visitors.filter((v) => v.status === "INSIDE");
 
   const pastVisitorMatch =
@@ -1300,60 +1345,56 @@ export default function GuardScanner() {
       {activeTab === "scan" && (
         <div className="space-y-3">
           <div className="bg-slate-900 rounded-3xl border border-slate-800 p-4 shadow-xl space-y-3.5">
-            {/* Camera Viewfinder */}
+            {/* Camera Viewfinder Viewport */}
             <div
-              className={`w-full max-w-[390px] aspect-4/3 sm:aspect-square mx-auto rounded-3xl bg-slate-950 flex flex-col items-center justify-center relative overflow-hidden border-2 transition-all duration-300 shadow-2xl ${
+              className={`relative w-full max-w-[350px] aspect-square mx-auto rounded-3xl bg-slate-950 overflow-hidden border-2 transition-all duration-300 shadow-2xl ${
                 scanSuccessFlash
-                  ? "border-emerald-400 ring-4 ring-emerald-400/60 shadow-[0_0_35px_rgba(52,211,153,0.5)]"
+                  ? "border-emerald-400 ring-4 ring-emerald-400/50 shadow-[0_0_35px_rgba(52,211,153,0.5)]"
                   : cameraActive
-                    ? "border-emerald-500/60 shadow-[0_0_25px_rgba(16,185,129,0.25)]"
+                    ? "border-emerald-500/50 shadow-[0_0_25px_rgba(16,185,129,0.25)]"
                     : "border-slate-800"
               }`}
             >
+              {/* Camera Video Stream */}
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
-                className={
-                  cameraActive
-                    ? `w-full h-full object-cover transition-transform duration-200 ${
-                        facingMode === "user" ? "-scale-x-100" : "scale-x-100"
-                      }`
-                    : "hidden"
-                }
+                className={`absolute inset-0 w-full h-full object-cover transition-transform duration-200 ${
+                  cameraActive ? "block" : "hidden"
+                } ${facingMode === "user" ? "-scale-x-100" : "scale-x-100"}`}
               />
 
-              {/* Inactive State: Modern Scanner Graphic */}
+              {/* Inactive State: Clean, friendly guidance graphic */}
               {!cameraActive && (
-                <div className="text-center p-6 space-y-3 z-10">
-                  <div className="w-16 h-16 rounded-3xl bg-slate-900 border border-slate-700/80 flex items-center justify-center mx-auto text-emerald-400 shadow-lg shadow-emerald-950/40 relative">
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center space-y-3.5 z-10 bg-slate-950">
+                  <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shadow-inner">
                     <QrCode className="w-8 h-8" />
-                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-slate-500 rounded-full border-2 border-slate-950" />
                   </div>
-                  <div>
-                    <p className="text-sm text-white font-extrabold">
-                      Gate QR Scanner Inactive
+                  <div className="space-y-1">
+                    <p className="text-sm text-white font-extrabold tracking-tight">
+                      Gate QR Scanner Ready
                     </p>
-                    <p className="text-[11px] text-slate-400 max-w-[220px] mx-auto mt-1 leading-relaxed">
-                      Tap the green button below to start real-time QR camera scanning for vehicle passes
+                    <p className="text-xs text-slate-400 max-w-[240px] mx-auto leading-relaxed">
+                      Tap below to start live QR code scanning for vehicle passes.
                     </p>
                   </div>
                 </div>
               )}
 
-              {/* Active Scanner Mode: Authentic Scanner App UI */}
+              {/* Active Scanner Mode: Clean, Focused Overlay */}
               {cameraActive && (
                 <>
-                  {/* Surrounding Darkened Mask */}
-                  <div className="absolute inset-0 bg-slate-950/40 pointer-events-none" />
+                  {/* Subtle Darkened Mask outside viewfinder */}
+                  <div className="absolute inset-0 bg-slate-950/25 pointer-events-none" />
 
                   {/* Top Floating Glassmorphic Toolbar */}
                   <div className="absolute top-3 inset-x-3 z-20 flex items-center justify-between pointer-events-auto">
                     {/* Status Badge */}
-                    <div className="px-2.5 py-1 rounded-full bg-slate-950/85 backdrop-blur-md border border-emerald-500/40 text-[10px] font-extrabold text-emerald-300 flex items-center space-x-1.5 shadow-md">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                      <span>SCANNER READY</span>
+                    <div className="px-2.5 py-1 rounded-full bg-slate-950/80 backdrop-blur-md border border-emerald-500/30 text-[10px] font-black text-emerald-300 flex items-center space-x-1.5 shadow-md">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="tracking-wide uppercase">Scanning</span>
                     </div>
 
                     {/* Quick Action Icons */}
@@ -1367,69 +1408,57 @@ export default function GuardScanner() {
                           className={`p-2 rounded-xl backdrop-blur-md border transition-all cursor-pointer shadow-md ${
                             isTorchOn
                               ? "bg-amber-400 text-slate-950 border-amber-300 ring-2 ring-amber-400/60"
-                              : "bg-slate-950/80 text-slate-300 border-slate-700 hover:bg-slate-800"
+                              : "bg-slate-950/80 text-slate-300 border-slate-700/80 hover:bg-slate-800"
                           }`}
                         >
                           {isTorchOn ? <Zap className="w-4 h-4 fill-current" /> : <ZapOff className="w-4 h-4" />}
                         </button>
                       )}
 
-                      {/* Sound Toggle */}
-                      <button
-                        type="button"
-                        onClick={() => setSoundEnabled((prev) => !prev)}
-                        title={soundEnabled ? "Mute scan sound" : "Unmute scan sound"}
-                        className="p-2 rounded-xl bg-slate-950/80 hover:bg-slate-800 backdrop-blur-md border border-slate-700 text-slate-300 shadow-md cursor-pointer transition-colors"
-                      >
-                        {soundEnabled ? (
-                          <Volume2 className="w-4 h-4 text-emerald-400" />
-                        ) : (
-                          <VolumeX className="w-4 h-4 text-slate-500" />
-                        )}
-                      </button>
-
                       {/* Switch Camera */}
                       <button
                         type="button"
                         onClick={flipCamera}
                         title="Switch Camera (Rear / Front)"
-                        className="p-2 rounded-xl bg-slate-950/80 hover:bg-slate-800 backdrop-blur-md border border-slate-700 text-slate-300 shadow-md cursor-pointer transition-colors"
+                        className="p-2 rounded-xl bg-slate-950/80 hover:bg-slate-800 backdrop-blur-md border border-slate-700/80 text-slate-300 shadow-md cursor-pointer transition-colors"
                       >
                         <SwitchCamera className="w-4 h-4 text-emerald-400" />
                       </button>
                     </div>
                   </div>
 
-                  {/* High-Precision Central Viewfinder Target Box */}
-                  <div className="relative z-10 w-52 h-52 sm:w-60 sm:h-60 rounded-3xl border border-emerald-400/40 pointer-events-none shadow-[0_0_25px_rgba(52,211,153,0.3)] flex items-center justify-center">
-                    {/* 4 Precision Glowing Corner Brackets */}
-                    <div className="absolute -top-1 -left-1 w-7 h-7 border-t-3 border-l-3 border-emerald-400 rounded-tl-2xl shadow-[0_0_10px_#34d399]" />
-                    <div className="absolute -top-1 -right-1 w-7 h-7 border-t-3 border-r-3 border-emerald-400 rounded-tr-2xl shadow-[0_0_10px_#34d399]" />
-                    <div className="absolute -bottom-1 -left-1 w-7 h-7 border-b-3 border-l-3 border-emerald-400 rounded-bl-2xl shadow-[0_0_10px_#34d399]" />
-                    <div className="absolute -bottom-1 -right-1 w-7 h-7 border-b-3 border-r-3 border-emerald-400 rounded-br-2xl shadow-[0_0_10px_#34d399]" />
+                  {/* Dead-Center Precision Viewfinder Target Box */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                    <div className="relative w-52 h-52 sm:w-56 sm:h-56 rounded-3xl border border-emerald-400/30 flex items-center justify-center shadow-[0_0_20px_rgba(52,211,153,0.15)]">
+                      {/* 4 Precision Glowing Corner Brackets */}
+                      <div className="absolute -top-0.5 -left-0.5 w-7 h-7 border-t-[3px] border-l-[3px] border-emerald-400 rounded-tl-2xl shadow-[0_0_10px_#34d399]" />
+                      <div className="absolute -top-0.5 -right-0.5 w-7 h-7 border-t-[3px] border-r-[3px] border-emerald-400 rounded-tr-2xl shadow-[0_0_10px_#34d399]" />
+                      <div className="absolute -bottom-0.5 -left-0.5 w-7 h-7 border-b-[3px] border-l-[3px] border-emerald-400 rounded-bl-2xl shadow-[0_0_10px_#34d399]" />
+                      <div className="absolute -bottom-0.5 -right-0.5 w-7 h-7 border-b-[3px] border-r-[3px] border-emerald-400 rounded-br-2xl shadow-[0_0_10px_#34d399]" />
 
-                    {/* Subtle Crosshair Reticle */}
-                    <div className="w-5 h-[1px] bg-emerald-400/40 absolute" />
-                    <div className="h-5 w-[1px] bg-emerald-400/40 absolute" />
+                      {/* Subtle Crosshair Reticle */}
+                      <div className="w-4 h-[1.5px] bg-emerald-400/30 absolute" />
+                      <div className="h-4 w-[1.5px] bg-emerald-400/30 absolute" />
 
-                    {/* Animated Scanning Laser Line */}
-                    <div className="qr-laser-line" />
+                      {/* Animated Scanning Laser Line */}
+                      <div className="qr-laser-line" />
 
-                    {/* Verified Detection Burst */}
-                    {scanSuccessFlash && (
-                      <div className="absolute inset-0 bg-emerald-500/25 rounded-3xl flex items-center justify-center backdrop-blur-2xs animate-in zoom-in-75 duration-150">
-                        <div className="w-12 h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg">
-                          <Check className="w-7 h-7 stroke-[3]" />
+                      {/* Verified Detection Burst */}
+                      {scanSuccessFlash && (
+                        <div className="absolute inset-0 bg-emerald-500/25 rounded-3xl flex items-center justify-center backdrop-blur-2xs animate-in zoom-in-75 duration-150">
+                          <div className="w-12 h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg">
+                            <Check className="w-7 h-7 stroke-[3]" />
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
 
                   {/* Bottom Guidance Pill */}
                   <div className="absolute bottom-3 inset-x-3 flex justify-center z-20 pointer-events-none">
-                    <span className="px-3.5 py-1 rounded-full bg-slate-950/85 backdrop-blur-md text-[11px] font-bold text-emerald-200 border border-emerald-500/30 shadow-lg flex items-center space-x-1.5">
+                    <span className="px-3.5 py-1.5 rounded-full bg-slate-950/80 backdrop-blur-md text-[11px] font-semibold text-slate-300 border border-slate-700/80 shadow-md flex items-center space-x-1.5">
                       <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Point camera at Vehicle Gate Pass QR</span>
+                      <span>Align QR code inside frame</span>
                     </span>
                   </div>
                 </>
@@ -1453,20 +1482,20 @@ export default function GuardScanner() {
               )}
             </div>
 
-            {/* Main Scanner Toggle Power Button */}
+            {/* Main Scanner Control Button */}
             <button
               type="button"
               onClick={toggleCamera}
-              className={`w-full py-3.5 rounded-2xl font-black text-xs flex items-center justify-center space-x-2.5 transition-all cursor-pointer shadow-xl active:scale-98 ${
+              className={`w-full transition-all cursor-pointer shadow-lg active:scale-98 ${
                 cameraActive
-                  ? "bg-rose-500/15 text-rose-300 border border-rose-500/40 hover:bg-rose-500/25"
-                  : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/50"
+                  ? "py-3 rounded-2xl font-bold text-xs bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/80 flex items-center justify-center space-x-2"
+                  : "py-3.5 rounded-2xl font-black text-xs bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center space-x-2 shadow-emerald-950/40"
               }`}
             >
               {cameraActive ? (
                 <>
-                  <VideoOff className="w-4 h-4 text-rose-400" />
-                  <span>Stop Camera Scanner</span>
+                  <VideoOff className="w-4 h-4 text-slate-400" />
+                  <span>Pause Camera Scanner</span>
                 </>
               ) : (
                 <>
@@ -1476,27 +1505,39 @@ export default function GuardScanner() {
               )}
             </button>
 
-            {/* Integrated Direct Plate / ID Lookup (No tab switching needed) */}
-            <div className="pt-2 border-t border-slate-800/80">
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Manual License Plate / ID Verification
-              </label>
+            {/* Integrated Direct Plate / ID Lookup */}
+            <div className="pt-3 border-t border-slate-800/70">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                  <Search className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Manual Plate / ID Verification</span>
+                </span>
+                {quickSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setQuickSearchQuery("")}
+                    className="text-[10px] text-slate-500 hover:text-slate-300 font-semibold cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
               <div className="flex space-x-2">
                 <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+                  <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-3 pointer-events-none" />
                   <input
                     type="text"
                     value={quickSearchQuery}
                     onChange={(e) => setQuickSearchQuery(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleManualSearch()}
                     placeholder="e.g. XYZ 5678, NBM 9012, or Student ID"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-semibold placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-semibold placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
                   />
                 </div>
                 <button
                   type="button"
                   onClick={() => handleManualSearch()}
-                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-400 font-bold text-xs flex items-center space-x-1 cursor-pointer transition-colors shrink-0"
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-400 font-bold text-xs flex items-center space-x-1.5 cursor-pointer transition-colors shrink-0 shadow-sm"
                 >
                   <span>Verify</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -1933,34 +1974,46 @@ export default function GuardScanner() {
       {activeTab === "logs" && (
         <div className="bg-slate-900 rounded-3xl border border-slate-800 p-4 sm:p-5 shadow-xl space-y-4">
           {/* Quick Counter Cards */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            <div className="p-3 sm:p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                  Total Entries
+                <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
+                  Entries
                 </span>
-                <span className="text-2xl font-black text-emerald-400">
+                <span className="text-xl sm:text-2xl font-black text-emerald-400">
                   {totalEntries}
                 </span>
               </div>
-              <LogIn className="w-6 h-6 text-emerald-400" />
+              <LogIn className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-400 shrink-0" />
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+            <div className="p-3 sm:p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                  Total Exits
+                <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
+                  Exits
                 </span>
-                <span className="text-2xl font-black text-blue-400">
+                <span className="text-xl sm:text-2xl font-black text-blue-400">
                   {totalExits}
                 </span>
               </div>
-              <LogOut className="w-6 h-6 text-blue-400" />
+              <LogOut className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400 shrink-0" />
+            </div>
+
+            <div className="p-3 sm:p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+              <div>
+                <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
+                  Spot-Checks
+                </span>
+                <span className="text-xl sm:text-2xl font-black text-purple-400">
+                  {totalChecks}
+                </span>
+              </div>
+              <Eye className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400 shrink-0" />
             </div>
           </div>
 
           {/* Filter Pills */}
-          <div className="grid grid-cols-3 gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
+          <div className="grid grid-cols-4 gap-1 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
             <button
               type="button"
               onClick={() => setLogFilter("ALL")}
@@ -1982,7 +2035,7 @@ export default function GuardScanner() {
                   : "text-slate-400 hover:text-white hover:bg-slate-900/60"
               }`}
             >
-              <LogIn className="w-3.5 h-3.5 mr-0.5" />
+              <LogIn className="w-3.5 h-3.5 mr-0.5 hidden xs:inline" />
               <span>ENTRY</span>
               <span className="text-[10px] opacity-75 font-mono font-normal">({totalEntries})</span>
             </button>
@@ -1995,9 +2048,22 @@ export default function GuardScanner() {
                   : "text-slate-400 hover:text-white hover:bg-slate-900/60"
               }`}
             >
-              <LogOut className="w-3.5 h-3.5 mr-0.5" />
+              <LogOut className="w-3.5 h-3.5 mr-0.5 hidden xs:inline" />
               <span>EXIT</span>
               <span className="text-[10px] opacity-75 font-mono font-normal">({totalExits})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setLogFilter("CHECK")}
+              className={`py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center space-x-1 ${
+                logFilter === "CHECK"
+                  ? "bg-purple-600 text-white shadow-md shadow-purple-950/40"
+                  : "text-slate-400 hover:text-white hover:bg-slate-900/60"
+              }`}
+            >
+              <Eye className="w-3.5 h-3.5 mr-0.5 hidden xs:inline" />
+              <span>CHECK</span>
+              <span className="text-[10px] opacity-75 font-mono font-normal">({totalChecks})</span>
             </button>
           </div>
 
@@ -2027,7 +2093,7 @@ export default function GuardScanner() {
                       <span className="text-slate-600">•</span>
                       <span className="shrink-0">{log.gate || "Gate 1"}</span>
                       <span className="text-slate-600">•</span>
-                      <span className="text-slate-400 truncate">{log.time}</span>
+                      <span className="text-slate-400 truncate" title={formatExactDateTime(log.timestamp, log.date, log.time)}>{formatLogTimestamp(log.timestamp, log.date, log.time)}</span>
                     </div>
                   </div>
 
@@ -2050,15 +2116,19 @@ export default function GuardScanner() {
                       className={`px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider shrink-0 flex items-center space-x-1 ${
                         log.type === "ENTRY"
                           ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                          : "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                          : log.type === "EXIT"
+                            ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                            : "bg-purple-500/20 text-purple-400 border border-purple-500/30"
                       }`}
                     >
                       {log.type === "ENTRY" ? (
                         <LogIn className="w-3 h-3 mr-0.5" />
-                      ) : (
+                      ) : log.type === "EXIT" ? (
                         <LogOut className="w-3 h-3 mr-0.5" />
+                      ) : (
+                        <Eye className="w-3 h-3 mr-0.5" />
                       )}
-                      <span>{log.type}</span>
+                      <span>{log.type === "CHECK" ? "CHECK" : log.type}</span>
                     </span>
                   </div>
                 </div>
@@ -2317,10 +2387,27 @@ export default function GuardScanner() {
               </div>
             ) : (
               <div className="space-y-2.5 pt-1">
-                {/* Student: Verification clearance confirmation only (No Entry/Exit) */}
+                {/* Visual confirmation badge that spot check is logged */}
+                <div className="p-3 rounded-2xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-between text-purple-300">
+                  <div className="flex items-center space-x-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center shrink-0">
+                      <Eye className="w-4 h-4 text-purple-300" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-black block text-purple-200">Student Spot-Check Recorded</span>
+                      <span className="text-[10px] text-purple-300/80">Logged at {activeGate || "Gate 1"} • PASO Reports Synced</span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-md bg-purple-500/25 text-purple-200 border border-purple-500/40">
+                    CHECK
+                  </span>
+                </div>
+
+                {/* Student: Verification clearance confirmation */}
                 <button
                   type="button"
                   onClick={() => {
+                    handleLogEvent("CHECK");
                     setVerifiedPass(null);
                     setIsPhotoExpanded(false);
                   }}

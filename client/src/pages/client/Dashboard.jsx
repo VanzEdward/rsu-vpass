@@ -459,7 +459,7 @@ export default function Dashboard() {
               <span>
                 {recentGateLog ? (
                   <>
-                    Last Gate Scan: <strong className="text-slate-800">{recentGateLog.gate}</strong> ({recentGateLog.type}) • {recentGateLog.time}
+                    Last Gate Scan: <strong className="text-slate-800">{recentGateLog.gate}</strong> ({recentGateLog.type}) • {formatLogTimestamp(recentGateLog.timestamp, recentGateLog.date, recentGateLog.time)}
                   </>
                 ) : (
                   <>Security checkpoint verification active across all university gates.</>

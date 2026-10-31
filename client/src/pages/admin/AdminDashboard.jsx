@@ -227,8 +227,8 @@ export default function AdminDashboard() {
                       {log.classification}
                     </span>
                   </td>
-                  <td className="py-3 px-3 text-slate-500 font-medium">
-                    {log.time}
+                  <td className="py-3 px-3 text-slate-500 font-medium whitespace-nowrap" title={formatExactDateTime(log.timestamp, log.date, log.time)}>
+                    {formatLogTimestamp(log.timestamp, log.date, log.time)}
                   </td>
                   <td className="py-3 px-3">
                     <span className="text-[10px] font-bold text-emerald-700 flex items-center space-x-1">
