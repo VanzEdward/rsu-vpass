@@ -81,6 +81,22 @@ async function migrate() {
   await pool.query('ALTER TABLE vehicle_passes MODIFY COLUMN qr_code_data LONGTEXT NOT NULL');
   console.log('vehicle_passes modified.');
 
+    // 6. Ensure password_resets table exists
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS password_resets (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      school_id VARCHAR(50) NOT NULL,
+      email VARCHAR(120) NOT NULL,
+      otp_code VARCHAR(10) NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      used_at TIMESTAMP NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_user_otp (school_id, email, otp_code)
+    ) ENGINE=InnoDB
+  `);
+  console.log('password_resets table verified.');
+
   console.log('Schema migration complete!');
   process.exit(0);
 }

@@ -137,6 +137,21 @@ CREATE TABLE IF NOT EXISTS verification_logs (
     FOREIGN KEY (guard_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+
+-- 8. Password Reset OTPs (One-Time PINs for Students & Employees)
+CREATE TABLE IF NOT EXISTS password_resets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    school_id VARCHAR(50) NOT NULL,
+    email VARCHAR(120) NOT NULL,
+    otp_code VARCHAR(10) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    used_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_otp (school_id, email, otp_code),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- ==========================================================
 -- System Seed Data (Essential Administrative Accounts)
 -- ==========================================================

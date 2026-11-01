@@ -4,6 +4,7 @@ import QRCode from "qrcode";
 import { usePass, isPassExpired } from "../../context/PassContext";
 import { formatLogTimestamp, formatExactDateTime } from "../../utils/dateUtils";
 import { apiRequest } from "../../api/client";
+import { isValidImageUrl } from "../../utils/imageCompressor";
 import {
   Camera,
   Eye,
@@ -480,7 +481,22 @@ export default function GuardScanner() {
       });
     } else if (passType === "VALID_STUDENT") {
       triggerHaptic(true);
+      addGateLog({
+        passNumber: "S-396",
+        plateNumber: "RSU 2026",
+        owner: "Althea Marie Cuenco",
+        classification: "STUDENT",
+        type: "CHECK",
+        gate: activeGate || "Gate 1",
+        status: "VALID",
+      });
+      setLogSuccessMessage(
+        `Student Spot-Check automatically recorded at ${activeGate || "Gate 1"} for RSU 2026!`
+      );
+      setTimeout(() => setLogSuccessMessage(""), 3500);
+
       setVerifiedPass({
+        isSpotCheckLogged: true,
         passNumber: "S-396",
         client: "Althea Marie Cuenco",
         schoolId: "2023-10492",
@@ -581,7 +597,25 @@ export default function GuardScanner() {
       }
       const isStudent = (matchingApp.classification || "").toLowerCase().includes("student");
       const isEmployee = !isStudent;
+
+      if (isStudent) {
+        addGateLog({
+          passNumber: matchingApp.pass.passNumber,
+          plateNumber: matchingApp.vehicle?.plateNumber || matchingApp.plate_number || "N/A",
+          owner: matchingApp.applicant_name,
+          classification: "STUDENT",
+          type: "CHECK",
+          gate: activeGate || "Gate 1",
+          status: isExpired ? "EXPIRED" : "VALID",
+        });
+        setLogSuccessMessage(
+          `Student Spot-Check automatically recorded at ${activeGate || "Gate 1"} for ${matchingApp.vehicle?.plateNumber || matchingApp.pass.passNumber}!`
+        );
+        setTimeout(() => setLogSuccessMessage(""), 3500);
+      }
+
       setVerifiedPass({
+        isSpotCheckLogged: isStudent,
         passNumber: matchingApp.pass.passNumber,
         client: matchingApp.applicant_name,
         schoolId: matchingApp.school_id,
@@ -657,7 +691,25 @@ export default function GuardScanner() {
         const isStudent = (found.classification || "").toUpperCase() === "STUDENT";
         const isVisitor = (found.classification || "").toUpperCase() === "VISITOR";
         const isEmployee = !isStudent && !isVisitor;
+
+        if (isStudent) {
+          addGateLog({
+            passNumber: found.pass_number,
+            plateNumber: found.plate_number,
+            owner: found.full_name || "Registered Student",
+            classification: "STUDENT",
+            type: "CHECK",
+            gate: activeGate || "Gate 1",
+            status: isExpired ? "EXPIRED" : "VALID",
+          });
+          setLogSuccessMessage(
+            `Student Spot-Check automatically recorded at ${activeGate || "Gate 1"} for ${found.plate_number || found.pass_number}!`
+          );
+          setTimeout(() => setLogSuccessMessage(""), 3500);
+        }
+
         setVerifiedPass({
+          isSpotCheckLogged: isStudent,
           passNumber: found.pass_number,
           client: found.full_name,
           schoolId: found.school_id,
@@ -2208,7 +2260,7 @@ export default function GuardScanner() {
             <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 flex items-center gap-3.5">
               <button
                 type="button"
-                onClick={() => verifiedPass.photo && setIsPhotoExpanded(true)}
+                onClick={() => isValidImageUrl(verifiedPass.photo) && setIsPhotoExpanded(true)}
                 title={
                   verifiedPass.photo
                     ? "Tap to expand driver selfie"
@@ -2220,7 +2272,7 @@ export default function GuardScanner() {
                     : "border-slate-700 cursor-default"
                 }`}
               >
-                {verifiedPass.photo ? (
+                {isValidImageUrl(verifiedPass.photo) ? (
                   <>
                     <img
                       src={verifiedPass.photo}
@@ -2512,7 +2564,7 @@ export default function GuardScanner() {
       {/* ======================================================== */}
       {/* 5. DRIVER PHOTO EXPANDED LIGHTBOX                        */}
       {/* ======================================================== */}
-      {isPhotoExpanded && verifiedPass?.photo && (
+      {isPhotoExpanded && isValidImageUrl(verifiedPass?.photo) && (
         <div
           onClick={() => setIsPhotoExpanded(false)}
           className="fixed inset-0 z-60 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"

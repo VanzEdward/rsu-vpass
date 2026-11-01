@@ -41,13 +41,21 @@ function ProtectedRoute({ children, allowedRoles }) {
   return children;
 }
 
+function RootRedirect() {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role === 'PASO_ADMIN') return <Navigate to="/admin/dashboard" replace />;
+  if (user.role === 'GUARD') return <Navigate to="/guard/scanner" replace />;
+  return <Navigate to="/client/dashboard" replace />;
+}
+
 function AppRoutes() {
   return (
     <Routes>
       {/* Public / Auth */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<RootRedirect />} />
 
       {/* Client Portal */}
       <Route

@@ -1,15 +1,21 @@
-import React, { useState } from 'react';
-import { usePass, getSequentialPassNumber, calculateOneYearExpiry, calculateAcademicYearExpiry } from '../../context/PassContext';
-import { 
-  FileCheck, 
-  Clock, 
-  CheckCircle, 
-  XCircle, 
-  Search, 
-  Eye, 
-  User, 
-  Car, 
-  FileText, 
+import React, { useState } from "react";
+import { isValidImageUrl } from "../../utils/imageCompressor";
+import {
+  usePass,
+  getSequentialPassNumber,
+  calculateOneYearExpiry,
+  calculateAcademicYearExpiry,
+} from "../../context/PassContext";
+import {
+  FileCheck,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Search,
+  Eye,
+  User,
+  Car,
+  FileText,
   AlertCircle,
   Filter,
   QrCode,
@@ -21,31 +27,37 @@ import {
   Check,
   ArrowRight,
   X,
-  ExternalLink
-} from 'lucide-react';
-import RsuStickerPass from '../../components/RsuStickerPass';
+  ExternalLink,
+} from "lucide-react";
+import RsuStickerPass from "../../components/RsuStickerPass";
 
 export default function AdminApplications() {
-  const { applications, reviewApplication, verifyReceiptAndIssuePass, rejectReceipt, systemSettings } = usePass();
+  const {
+    applications,
+    reviewApplication,
+    verifyReceiptAndIssuePass,
+    rejectReceipt,
+    systemSettings,
+  } = usePass();
 
-  const [filterStatus, setFilterStatus] = useState('ALL'); // 'ALL' | 'RECEIPT_SUBMITTED' | 'PENDING' | 'APPROVED' | 'PASS_ISSUED' | 'REJECTED'
-  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState("ALL"); // 'ALL' | 'RECEIPT_SUBMITTED' | 'PENDING' | 'APPROVED' | 'PASS_ISSUED' | 'REJECTED'
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedApp, setSelectedApp] = useState(null);
-  
+
   // Registration Form Rejection State
   const [rejectModalApp, setRejectModalApp] = useState(null);
-  const [rejectionReason, setRejectionReason] = useState('');
-  const [rejectError, setRejectError] = useState('');
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [rejectError, setRejectError] = useState("");
 
   // Receipt Verification & QR Generation Modal State
   const [qrModalApp, setQrModalApp] = useState(null);
-  const [generatedPassNum, setGeneratedPassNum] = useState('');
+  const [generatedPassNum, setGeneratedPassNum] = useState("");
   const [copiedPayload, setCopiedPayload] = useState(false);
 
   // Receipt Rejection State
   const [receiptRejectModalApp, setReceiptRejectModalApp] = useState(null);
-  const [receiptRejectReason, setReceiptRejectReason] = useState('');
-  const [receiptRejectError, setReceiptRejectError] = useState('');
+  const [receiptRejectReason, setReceiptRejectReason] = useState("");
+  const [receiptRejectError, setReceiptRejectError] = useState("");
 
   // Full-size Document & Receipt Inspector Modal State
   const [previewDocument, setPreviewDocument] = useState(null); // { title: string, subtitle?: string, src: string }
@@ -59,12 +71,19 @@ export default function AdminApplications() {
 
   const filteredApps = (applications || []).filter((app) => {
     // Status filter
-    if (filterStatus !== 'ALL') {
-      if (filterStatus === 'RECEIPT_SUBMITTED' && app.status !== 'RECEIPT_SUBMITTED') return false;
-      if (filterStatus === 'PENDING' && app.status !== 'PENDING') return false;
-      if (filterStatus === 'APPROVED' && app.status !== 'APPROVED') return false;
-      if (filterStatus === 'PASS_ISSUED' && app.status !== 'PASS_ISSUED') return false;
-      if (filterStatus === 'REJECTED' && app.status !== 'REJECTED') return false;
+    if (filterStatus !== "ALL") {
+      if (
+        filterStatus === "RECEIPT_SUBMITTED" &&
+        app.status !== "RECEIPT_SUBMITTED"
+      )
+        return false;
+      if (filterStatus === "PENDING" && app.status !== "PENDING") return false;
+      if (filterStatus === "APPROVED" && app.status !== "APPROVED")
+        return false;
+      if (filterStatus === "PASS_ISSUED" && app.status !== "PASS_ISSUED")
+        return false;
+      if (filterStatus === "REJECTED" && app.status !== "REJECTED")
+        return false;
     }
 
     // Search query filter
@@ -88,13 +107,14 @@ export default function AdminApplications() {
   const handleConfirmApprove = () => {
     if (!approveConfirmApp) return;
     const appId = approveConfirmApp.id;
-    reviewApplication(appId, 'APPROVED');
+    reviewApplication(appId, "APPROVED");
     setApproveConfirmApp(null);
     setSelectedApp(null);
     setInAppConfirmModal({
-      title: 'Application Approved!',
-      message: 'The applicant can now proceed to Milestone 3 (Cashier Payment & Official Receipt Upload).',
-      type: 'success'
+      title: "Application Approved!",
+      message:
+        "The applicant can now proceed to Milestone 3 (Cashier Payment & Official Receipt Upload).",
+      type: "success",
     });
   };
 
@@ -103,30 +123,32 @@ export default function AdminApplications() {
     if (target) {
       setApproveConfirmApp(target);
     } else {
-      reviewApplication(appId, 'APPROVED');
+      reviewApplication(appId, "APPROVED");
       setSelectedApp(null);
       setInAppConfirmModal({
-        title: 'Application Approved!',
-        message: 'The applicant can now proceed to Milestone 3 (Cashier Payment & Official Receipt Upload).',
-        type: 'success'
+        title: "Application Approved!",
+        message:
+          "The applicant can now proceed to Milestone 3 (Cashier Payment & Official Receipt Upload).",
+        type: "success",
       });
     }
   };
 
   const handleReject = () => {
     if (!rejectionReason.trim()) {
-      setRejectError('Please provide a specific reason for rejection.');
+      setRejectError("Please provide a specific reason for rejection.");
       return;
     }
-    reviewApplication(rejectModalApp.id, 'REJECTED', rejectionReason.trim());
+    reviewApplication(rejectModalApp.id, "REJECTED", rejectionReason.trim());
     setRejectModalApp(null);
     setSelectedApp(null);
-    setRejectionReason('');
-    setRejectError('');
+    setRejectionReason("");
+    setRejectError("");
     setInAppConfirmModal({
-      title: 'Application Returned for Correction',
-      message: 'The application was returned with the stated remark and the applicant has been notified.',
-      type: 'warning'
+      title: "Application Returned for Correction",
+      message:
+        "The application was returned with the stated remark and the applicant has been notified.",
+      type: "warning",
     });
   };
 
@@ -144,14 +166,16 @@ export default function AdminApplications() {
   // Confirm and Release the Generated QR Code to Client (Exactly 1-Year Expiration)
   const handleConfirmIssuePass = () => {
     if (!qrModalApp) return;
-    const expiry = calculateAcademicYearExpiry(systemSettings?.academicYear || '2026-2027');
-    const qrData = `RSU-VPASS:${generatedPassNum}:${qrModalApp.vehicle?.plateNumber || ''}:${qrModalApp.school_id || ''}`;
+    const expiry = calculateAcademicYearExpiry(
+      systemSettings?.academicYear || "2026-2027",
+    );
+    const qrData = `RSU-VPASS:${generatedPassNum}:${qrModalApp.vehicle?.plateNumber || ""}:${qrModalApp.school_id || ""}`;
 
     verifyReceiptAndIssuePass(qrModalApp.id, {
       passNumber: generatedPassNum,
       qrData,
       validUntil: expiry.validUntil,
-      expiresAt: expiry.expiresAt
+      expiresAt: expiry.expiresAt,
     });
 
     const issuedName = qrModalApp.applicant_name;
@@ -161,44 +185,50 @@ export default function AdminApplications() {
       setSelectedApp(null);
     }
     setInAppConfirmModal({
-      title: 'Official Gate QR Pass Issued!',
+      title: "Official Gate QR Pass Issued!",
       message: `Pass ${issuedPass} successfully generated and granted to ${issuedName}! The QR code is now live and active on the client side.`,
-      type: 'success'
+      type: "success",
     });
   };
 
   // Reject Receipt (returns application back to APPROVED so applicant can re-upload)
   const handleRejectReceipt = () => {
     if (!receiptRejectReason.trim()) {
-      setReceiptRejectError('Please state why the receipt was rejected (e.g. blurry photo, unreadable OR number).');
+      setReceiptRejectError(
+        "Please state why the receipt was rejected (e.g. blurry photo, unreadable OR number).",
+      );
       return;
     }
     rejectReceipt(receiptRejectModalApp.id, receiptRejectReason.trim());
     setReceiptRejectModalApp(null);
     setSelectedApp(null);
-    setReceiptRejectReason('');
-    setReceiptRejectError('');
+    setReceiptRejectReason("");
+    setReceiptRejectError("");
     setInAppConfirmModal({
-      title: 'Receipt Returned',
-      message: 'The cashier receipt was declined and returned to the applicant to re-upload a valid photo.',
-      type: 'warning'
+      title: "Receipt Returned",
+      message:
+        "The cashier receipt was declined and returned to the applicant to re-upload a valid photo.",
+      type: "warning",
     });
   };
 
   const countByStatus = (status) => {
-    if (status === 'ALL') return (applications || []).length;
-    return (applications || []).filter(a => a.status === status).length;
+    if (status === "ALL") return (applications || []).length;
+    return (applications || []).filter((a) => a.status === status).length;
   };
 
-  const pendingReceiptsCount = countByStatus('RECEIPT_SUBMITTED');
+  const pendingReceiptsCount = countByStatus("RECEIPT_SUBMITTED");
 
   return (
     <div className="space-y-6 w-full pb-16">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-black text-slate-900 tracking-tight">Application & Receipt Verifications</h1>
+        <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+          Application & Receipt Verifications
+        </h1>
         <p className="text-xs text-slate-500 mt-0.5">
-          Examine submitted registrations, verify cashier official receipts, and generate active Gate QR Code passes.
+          Examine submitted registrations, verify cashier official receipts, and
+          generate active Gate QR Code passes.
         </p>
       </div>
 
@@ -207,32 +237,55 @@ export default function AdminApplications() {
         {/* Status Filter Tabs */}
         <div className="flex items-center space-x-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
           {[
-            { id: 'ALL', label: 'All Records', count: countByStatus('ALL') },
-            { id: 'RECEIPT_SUBMITTED', label: 'Receipt Verification', count: pendingReceiptsCount, isHighlight: pendingReceiptsCount > 0 },
-            { id: 'PENDING', label: 'Pending Forms', count: countByStatus('PENDING') },
-            { id: 'APPROVED', label: 'Awaiting Payment', count: countByStatus('APPROVED') },
-            { id: 'PASS_ISSUED', label: 'Pass Issued', count: countByStatus('PASS_ISSUED') },
-            { id: 'REJECTED', label: 'Rejected', count: countByStatus('REJECTED') },
+            { id: "ALL", label: "All Records", count: countByStatus("ALL") },
+            {
+              id: "RECEIPT_SUBMITTED",
+              label: "Receipt Verification",
+              count: pendingReceiptsCount,
+              isHighlight: pendingReceiptsCount > 0,
+            },
+            {
+              id: "PENDING",
+              label: "Pending Forms",
+              count: countByStatus("PENDING"),
+            },
+            {
+              id: "APPROVED",
+              label: "Awaiting Payment",
+              count: countByStatus("APPROVED"),
+            },
+            {
+              id: "PASS_ISSUED",
+              label: "Pass Issued",
+              count: countByStatus("PASS_ISSUED"),
+            },
+            {
+              id: "REJECTED",
+              label: "Rejected",
+              count: countByStatus("REJECTED"),
+            },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setFilterStatus(tab.id)}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center space-x-1.5 ${
                 filterStatus === tab.id
-                  ? 'bg-emerald-600 text-white shadow-xs'
+                  ? "bg-emerald-600 text-white shadow-xs"
                   : tab.isHighlight
-                  ? 'bg-amber-100/90 text-amber-900 border border-amber-300 hover:bg-amber-200'
-                  : 'text-slate-600 hover:bg-slate-100'
+                    ? "bg-amber-100/90 text-amber-900 border border-amber-300 hover:bg-amber-200"
+                    : "text-slate-600 hover:bg-slate-100"
               }`}
             >
               <span>{tab.label}</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                filterStatus === tab.id
-                  ? 'bg-emerald-700/60 text-white'
-                  : tab.isHighlight
-                  ? 'bg-amber-500 text-white'
-                  : 'bg-slate-200 text-slate-700'
-              }`}>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                  filterStatus === tab.id
+                    ? "bg-emerald-700/60 text-white"
+                    : tab.isHighlight
+                      ? "bg-amber-500 text-white"
+                      : "bg-slate-200 text-slate-700"
+                }`}
+              >
                 {tab.count}
               </span>
             </button>
@@ -256,7 +309,9 @@ export default function AdminApplications() {
       <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div className="flex items-center space-x-2">
-            <h2 className="text-base font-bold text-slate-900">Registration & Verification Records</h2>
+            <h2 className="text-base font-bold text-slate-900">
+              Registration & Verification Records
+            </h2>
             <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
               {filteredApps.length} Results
             </span>
@@ -266,7 +321,9 @@ export default function AdminApplications() {
         {filteredApps.length === 0 ? (
           <div className="p-12 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
             <CheckCircle className="w-10 h-10 text-emerald-600 mx-auto" />
-            <p className="text-sm font-bold text-slate-800">No applications match your filter.</p>
+            <p className="text-sm font-bold text-slate-800">
+              No applications match your filter.
+            </p>
             <p className="text-xs text-slate-500">
               Try switching your status filter or clearing your search term.
             </p>
@@ -274,74 +331,126 @@ export default function AdminApplications() {
         ) : (
           <div className="divide-y divide-slate-100">
             {filteredApps.map((app) => (
-              <div key={app.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div
+                key={app.id}
+                className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+              >
                 <div className="flex items-start space-x-3.5 min-w-0 flex-1">
                   {/* Photo Preview */}
-                  {app.applicant_photo ? (
+                  {isValidImageUrl(app.applicant_photo) ? (
                     <img
                       src={app.applicant_photo}
                       alt={app.applicant_name}
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                        if (e.currentTarget.nextElementSibling) {
+                          e.currentTarget.nextElementSibling.classList.remove(
+                            "hidden",
+                          );
+                        }
+                      }}
                       className="w-12 h-16 rounded-xl object-cover border border-emerald-300 shadow-xs shrink-0"
                     />
-                  ) : (
-                    <div className="w-12 h-16 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
-                      <User className="w-6 h-6" />
-                    </div>
-                  )}
+                  ) : null}
+                  <div
+                    className={`w-12 h-16 rounded-xl bg-gradient-to-br from-emerald-50 to-slate-100 border border-slate-200 flex flex-col items-center justify-center text-slate-400 shrink-0 ${
+                      isValidImageUrl(app.applicant_photo) ? "hidden" : ""
+                    }`}
+                  >
+                    <User className="w-5 h-5 text-emerald-700/60" />
+                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter mt-0.5">
+                      {app.applicant_name
+                        ? app.applicant_name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .filter(Boolean)
+                            .slice(0, 2)
+                            .join("")
+                        : "ID"}
+                    </span>
+                  </div>
 
                   <div className="space-y-1 min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-mono font-bold text-xs text-emerald-700">{app.id}</span>
+                      <span className="font-mono font-bold text-xs text-emerald-700">
+                        {app.id}
+                      </span>
                       <span className="text-xs text-slate-400">•</span>
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${
-                        (app.classification || '').toLowerCase() === 'employee'
-                          ? 'bg-blue-50 text-blue-800 border-blue-200'
-                          : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                      }`}>
-                        {app.classification || 'Student'}
+                      <span
+                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${
+                          (app.classification || "").toLowerCase() ===
+                          "employee"
+                            ? "bg-blue-50 text-blue-800 border-blue-200"
+                            : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                        }`}
+                      >
+                        {app.classification || "Student"}
                       </span>
                       {app.isRenewal && (
                         <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border bg-purple-50 text-purple-800 border-purple-200">
-                          Renewal ({app.pass?.passNumber || app.assignedPassNumber || 'Existing'})
+                          Renewal (
+                          {app.pass?.passNumber ||
+                            app.assignedPassNumber ||
+                            "Existing"}
+                          )
                         </span>
                       )}
                       <span className="text-xs text-slate-400">•</span>
-                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                        app.status === 'PASS_ISSUED'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : app.status === 'RECEIPT_SUBMITTED'
-                          ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                          : app.receiptRejectionRemark && app.status === 'APPROVED'
-                          ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                          : app.status === 'APPROVED'
-                          ? 'bg-blue-100 text-blue-800'
-                          : app.status === 'REJECTED'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-slate-100 text-slate-800'
-                      }`}>
-                        {app.status === 'PASS_ISSUED' 
-                          ? 'PASS ISSUED' 
-                          : app.status === 'RECEIPT_SUBMITTED' 
-                          ? 'RECEIPT SUBMITTED' 
-                          : app.receiptRejectionRemark && app.status === 'APPROVED'
-                          ? 'RECEIPT DECLINED'
-                          : app.status}
+                      <span
+                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                          app.status === "PASS_ISSUED"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : app.status === "RECEIPT_SUBMITTED"
+                              ? "bg-amber-100 text-amber-900 border border-amber-300"
+                              : app.receiptRejectionRemark &&
+                                  app.status === "APPROVED"
+                                ? "bg-rose-100 text-rose-800 border border-rose-300"
+                                : app.status === "APPROVED"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : app.status === "REJECTED"
+                                    ? "bg-red-100 text-red-800"
+                                    : "bg-slate-100 text-slate-800"
+                        }`}
+                      >
+                        {app.status === "PASS_ISSUED"
+                          ? "PASS ISSUED"
+                          : app.status === "RECEIPT_SUBMITTED"
+                            ? "RECEIPT SUBMITTED"
+                            : app.receiptRejectionRemark &&
+                                app.status === "APPROVED"
+                              ? "RECEIPT DECLINED"
+                              : app.status}
                       </span>
                     </div>
 
-                    <p className="text-sm font-bold text-slate-900 truncate" title={app.applicant_name}>
-                      {app.applicant_name} <span className="font-normal text-xs text-slate-500">({app.school_id})</span>
+                    <p
+                      className="text-sm font-bold text-slate-900 truncate"
+                      title={app.applicant_name}
+                    >
+                      {app.applicant_name}{" "}
+                      <span className="font-normal text-xs text-slate-500">
+                        ({app.school_id})
+                      </span>
                     </p>
                     <p className="text-xs text-slate-600 truncate">
-                      {app.vehicle?.make} {app.vehicle?.model} ({app.vehicle?.year}) • Plate:{' '}
-                      <span className="font-mono font-bold text-slate-900">{app.vehicle?.plateNumber}</span>
+                      {app.vehicle?.make} {app.vehicle?.model} (
+                      {app.vehicle?.year}) • Plate:{" "}
+                      <span className="font-mono font-bold text-slate-900">
+                        {app.vehicle?.plateNumber}
+                      </span>
                     </p>
 
                     {/* Receipt Indicator if submitted */}
-                    {app.status === 'RECEIPT_SUBMITTED' && app.receipt && (
+                    {app.status === "RECEIPT_SUBMITTED" && app.receipt && (
                       <p className="text-[11px] font-semibold text-amber-800 flex items-center space-x-1.5 mt-0.5">
                         <Receipt className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                        <span>Cashier OR: <strong className="font-mono text-slate-900 font-bold">#{app.receipt.orNumber}</strong> • Submitted {app.receipt.submittedAt || 'Today'}</span>
+                        <span>
+                          Cashier OR:{" "}
+                          <strong className="font-mono text-slate-900 font-bold">
+                            #{app.receipt.orNumber}
+                          </strong>{" "}
+                          • Submitted {app.receipt.submittedAt || "Today"}
+                        </span>
                       </p>
                     )}
 
@@ -351,13 +460,17 @@ export default function AdminApplications() {
                         <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                         <div className="min-w-0 flex-1 space-y-1">
                           <div className="flex items-center space-x-2 flex-wrap">
-                            <span className="font-bold text-amber-950">Cashier Payment Proof Rejected</span>
+                            <span className="font-bold text-amber-950">
+                              Cashier Payment Proof Rejected
+                            </span>
                             <span className="text-[10px] font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full border border-rose-200">
                               Awaiting Re-upload
                             </span>
                           </div>
                           <p className="text-[11px] text-amber-900 leading-snug">
-                            <span className="font-semibold text-amber-800">Rejection Note:</span>{' '}
+                            <span className="font-semibold text-amber-800">
+                              Rejection Note:
+                            </span>{" "}
                             <span className="italic font-medium text-slate-900 bg-white/80 px-1.5 py-0.5 rounded border border-amber-200 inline-block">
                               "{app.receiptRejectionRemark}"
                             </span>
@@ -384,7 +497,7 @@ export default function AdminApplications() {
                   </button>
 
                   {/* Quick Action: Receipt Submitted -> Verify & Generate QR or Reject Receipt */}
-                  {app.status === 'RECEIPT_SUBMITTED' && (
+                  {app.status === "RECEIPT_SUBMITTED" && (
                     <>
                       <button
                         type="button"
@@ -405,7 +518,7 @@ export default function AdminApplications() {
                   )}
 
                   {/* Quick Action: Initial Pending -> Approve or Reject */}
-                  {app.status === 'PENDING' && (
+                  {app.status === "PENDING" && (
                     <>
                       <button
                         type="button"
@@ -463,10 +576,21 @@ export default function AdminApplications() {
               <div className="p-3.5 rounded-2xl bg-purple-50 border border-purple-200 text-purple-950 text-xs flex items-start space-x-2.5">
                 <RefreshCw className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-bold text-purple-950 block">Annual Vehicle Pass Renewal Application</span>
+                  <span className="font-bold text-purple-950 block">
+                    Annual Vehicle Pass Renewal Application
+                  </span>
                   <p className="text-[11px] text-purple-900 mt-0.5 leading-relaxed">
-                    This applicant is renewing their pass for Academic Year <strong>{systemSettings?.academicYear || '2026-2027'}</strong> with an updated live selfie. 
-                    Their assigned Pass Number (<strong>{selectedApp.pass?.passNumber || selectedApp.assignedPassNumber || 'Existing'}</strong>) and physical QR sticker remain active upon verification.
+                    This applicant is renewing their pass for Academic Year{" "}
+                    <strong>
+                      {systemSettings?.academicYear || "2026-2027"}
+                    </strong>{" "}
+                    with an updated live selfie. Their assigned Pass Number (
+                    <strong>
+                      {selectedApp.pass?.passNumber ||
+                        selectedApp.assignedPassNumber ||
+                        "Existing"}
+                    </strong>
+                    ) and physical QR sticker remain active upon verification.
                   </p>
                 </div>
               </div>
@@ -474,26 +598,40 @@ export default function AdminApplications() {
 
             {/* Applicant & Live ID Photo */}
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-5">
-              <div 
+              <div
                 onClick={() => {
-                  if (selectedApp.applicant_photo) {
+                  if (isValidImageUrl(selectedApp.applicant_photo)) {
                     setPreviewDocument({
                       title: `${selectedApp.classification} ID Photo`,
                       subtitle: `${selectedApp.applicant_name} • ID: ${selectedApp.school_id}`,
-                      src: selectedApp.applicant_photo
+                      src: selectedApp.applicant_photo,
                     });
                   }
                 }}
                 className={`w-28 h-36 rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-sm shrink-0 relative bg-slate-100 ${
-                  selectedApp.applicant_photo ? 'cursor-pointer group hover:ring-4 hover:ring-emerald-400/40 transition-all' : ''
+                  isValidImageUrl(selectedApp.applicant_photo)
+                    ? "cursor-pointer group hover:ring-4 hover:ring-emerald-400/40 transition-all"
+                    : ""
                 }`}
-                title={selectedApp.applicant_photo ? 'Click to inspect full photo' : ''}
+                title={
+                  isValidImageUrl(selectedApp.applicant_photo)
+                    ? "Click to inspect full photo"
+                    : ""
+                }
               >
-                {selectedApp.applicant_photo ? (
+                {isValidImageUrl(selectedApp.applicant_photo) ? (
                   <>
                     <img
                       src={selectedApp.applicant_photo}
                       alt="Live ID"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                        if (e.currentTarget.nextElementSibling) {
+                          e.currentTarget.nextElementSibling.classList.remove(
+                            "hidden",
+                          );
+                        }
+                      }}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                     />
                     <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white p-1 text-center">
@@ -501,43 +639,83 @@ export default function AdminApplications() {
                       <span className="text-[10px] font-bold">Inspect</span>
                     </div>
                   </>
-                ) : (
-                  <div className="w-full h-full bg-slate-200 flex items-center justify-center text-slate-400">
-                    <User className="w-8 h-8" />
-                  </div>
-                )}
+                ) : null}
+                <div
+                  className={`w-full h-full bg-gradient-to-br from-emerald-50 to-slate-100 flex flex-col items-center justify-center text-slate-400 p-2 text-center ${isValidImageUrl(selectedApp.applicant_photo) ? "hidden" : ""}`}
+                >
+                  <User className="w-10 h-10 text-emerald-600 mb-1" />
+                  <span className="text-[10px] font-bold text-slate-600 uppercase">
+                    {selectedApp.applicant_name
+                      ? selectedApp.applicant_name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .filter(Boolean)
+                          .slice(0, 2)
+                          .join("")
+                      : "ID"}
+                  </span>
+                  <span className="text-[8px] text-slate-400 mt-1">
+                    Live Camera ID
+                  </span>
+                </div>
               </div>
 
               <div className="text-xs space-y-1 w-full">
                 <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
                   {selectedApp.classification} ID Photo Verified
                 </span>
-                <h4 className="text-base font-bold text-slate-900 mt-1">{selectedApp.applicant_name}</h4>
-                <p className="text-slate-600 font-mono">ID Number: {selectedApp.school_id}</p>
-                <p className="text-slate-600">Department: {selectedApp.department || 'N/A'}</p>
-                <p className="text-slate-600">Contact: {selectedApp.contact_number}</p>
+                <h4 className="text-base font-bold text-slate-900 mt-1">
+                  {selectedApp.applicant_name}
+                </h4>
+                <p className="text-slate-600 font-mono">
+                  ID Number: {selectedApp.school_id}
+                </p>
+                <p className="text-slate-600">
+                  Department: {selectedApp.department || "N/A"}
+                </p>
+                <p className="text-slate-600">
+                  Contact: {selectedApp.contact_number}
+                </p>
               </div>
             </div>
 
             {/* Vehicle Details */}
             <div className="text-xs space-y-2">
-              <h4 className="font-bold text-slate-900">Vehicle Specifications</h4>
+              <h4 className="font-bold text-slate-900">
+                Vehicle Specifications
+              </h4>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                 <div>
-                  <span className="text-slate-400 block font-semibold">Plate Number</span>
-                  <span className="font-mono font-black text-emerald-700 text-sm">{selectedApp.vehicle?.plateNumber}</span>
+                  <span className="text-slate-400 block font-semibold">
+                    Plate Number
+                  </span>
+                  <span className="font-mono font-black text-emerald-700 text-sm">
+                    {selectedApp.vehicle?.plateNumber}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block font-semibold">Make & Model</span>
-                  <span className="font-bold text-slate-800">{selectedApp.vehicle?.make} {selectedApp.vehicle?.model}</span>
+                  <span className="text-slate-400 block font-semibold">
+                    Make & Model
+                  </span>
+                  <span className="font-bold text-slate-800">
+                    {selectedApp.vehicle?.make} {selectedApp.vehicle?.model}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block font-semibold">Vehicle Type</span>
-                  <span className="font-semibold text-slate-700">{selectedApp.vehicle?.type}</span>
+                  <span className="text-slate-400 block font-semibold">
+                    Vehicle Type
+                  </span>
+                  <span className="font-semibold text-slate-700">
+                    {selectedApp.vehicle?.type}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block font-semibold">Color & Year</span>
-                  <span className="text-slate-700">{selectedApp.vehicle?.color} / {selectedApp.vehicle?.year}</span>
+                  <span className="text-slate-400 block font-semibold">
+                    Color & Year
+                  </span>
+                  <span className="text-slate-700">
+                    {selectedApp.vehicle?.color} / {selectedApp.vehicle?.year}
+                  </span>
                 </div>
               </div>
             </div>
@@ -553,17 +731,23 @@ export default function AdminApplications() {
                 <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 text-center flex flex-col justify-between">
                   <div className="flex items-center justify-between mb-2">
                     <div className="text-left">
-                      <p className="font-bold text-slate-800 text-xs">Driver's License</p>
-                      <p className="text-[10px] text-slate-500">Valid Phil. License</p>
+                      <p className="font-bold text-slate-800 text-xs">
+                        Driver's License
+                      </p>
+                      <p className="text-[10px] text-slate-500">
+                        Valid Phil. License
+                      </p>
                     </div>
-                    {selectedApp.documents?.driverLicense && (
+                    {isValidImageUrl(selectedApp.documents?.driverLicense) && (
                       <button
                         type="button"
-                        onClick={() => setPreviewDocument({
-                          title: "Driver's License",
-                          subtitle: `${selectedApp.applicant_name} • ID: ${selectedApp.school_id}`,
-                          src: selectedApp.documents.driverLicense
-                        })}
+                        onClick={() =>
+                          setPreviewDocument({
+                            title: "Driver's License",
+                            subtitle: `${selectedApp.applicant_name} • ID: ${selectedApp.school_id}`,
+                            src: selectedApp.documents.driverLicense,
+                          })
+                        }
                         className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center space-x-1 cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5" />
@@ -571,13 +755,15 @@ export default function AdminApplications() {
                       </button>
                     )}
                   </div>
-                  {selectedApp.documents?.driverLicense ? (
+                  {isValidImageUrl(selectedApp.documents?.driverLicense) ? (
                     <div
-                      onClick={() => setPreviewDocument({
-                        title: "Driver's License",
-                        subtitle: `${selectedApp.applicant_name} • ID: ${selectedApp.school_id}`,
-                        src: selectedApp.documents.driverLicense
-                      })}
+                      onClick={() =>
+                        setPreviewDocument({
+                          title: "Driver's License",
+                          subtitle: `${selectedApp.applicant_name} • ID: ${selectedApp.school_id}`,
+                          src: selectedApp.documents.driverLicense,
+                        })
+                      }
                       className="rounded-xl overflow-hidden border border-slate-200 cursor-pointer group relative bg-white shadow-xs"
                     >
                       <img
@@ -600,22 +786,30 @@ export default function AdminApplications() {
 
                 {/* 2. Official Receipt (OR) */}
                 {(() => {
-                  const orDoc = selectedApp.documents?.orCopy || selectedApp.documents?.orCr;
+                  const orDoc =
+                    selectedApp.documents?.orCopy ||
+                    selectedApp.documents?.orCr;
                   return (
                     <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 text-center flex flex-col justify-between">
                       <div className="flex items-center justify-between mb-2">
                         <div className="text-left">
-                          <p className="font-bold text-slate-800 text-xs">Official Receipt (OR)</p>
-                          <p className="text-[10px] text-slate-500">Annual LTO Payment</p>
+                          <p className="font-bold text-slate-800 text-xs">
+                            Official Receipt (OR)
+                          </p>
+                          <p className="text-[10px] text-slate-500">
+                            Annual LTO Payment
+                          </p>
                         </div>
-                        {orDoc && (
+                        {isValidImageUrl(orDoc) && (
                           <button
                             type="button"
-                            onClick={() => setPreviewDocument({
-                              title: "Vehicle Official Receipt (OR)",
-                              subtitle: `${selectedApp.vehicle?.make} ${selectedApp.vehicle?.model} (${selectedApp.vehicle?.plateNumber})`,
-                              src: orDoc
-                            })}
+                            onClick={() =>
+                              setPreviewDocument({
+                                title: "Vehicle Official Receipt (OR)",
+                                subtitle: `${selectedApp.vehicle?.make} ${selectedApp.vehicle?.model} (${selectedApp.vehicle?.plateNumber})`,
+                                src: orDoc,
+                              })
+                            }
                             className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center space-x-1 cursor-pointer"
                           >
                             <Eye className="w-3.5 h-3.5" />
@@ -623,13 +817,15 @@ export default function AdminApplications() {
                           </button>
                         )}
                       </div>
-                      {orDoc ? (
+                      {isValidImageUrl(orDoc) ? (
                         <div
-                          onClick={() => setPreviewDocument({
-                            title: "Vehicle Official Receipt (OR)",
-                            subtitle: `${selectedApp.vehicle?.make} ${selectedApp.vehicle?.model} (${selectedApp.vehicle?.plateNumber})`,
-                            src: orDoc
-                          })}
+                          onClick={() =>
+                            setPreviewDocument({
+                              title: "Vehicle Official Receipt (OR)",
+                              subtitle: `${selectedApp.vehicle?.make} ${selectedApp.vehicle?.model} (${selectedApp.vehicle?.plateNumber})`,
+                              src: orDoc,
+                            })
+                          }
                           className="rounded-xl overflow-hidden border border-slate-200 cursor-pointer group relative bg-white shadow-xs"
                         >
                           <img
@@ -654,22 +850,31 @@ export default function AdminApplications() {
 
                 {/* 3. Certificate of Registration (CR) */}
                 {(() => {
-                  const crDoc = selectedApp.documents?.crCopy || selectedApp.documents?.orCr;
+                  const crDoc =
+                    selectedApp.documents?.crCopy ||
+                    selectedApp.documents?.orCr;
                   return (
                     <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 text-center flex flex-col justify-between">
                       <div className="flex items-center justify-between mb-2">
                         <div className="text-left">
-                          <p className="font-bold text-slate-800 text-xs">Cert. of Registration (CR)</p>
-                          <p className="text-[10px] text-slate-500">LTO Ownership Specs</p>
+                          <p className="font-bold text-slate-800 text-xs">
+                            Cert. of Registration (CR)
+                          </p>
+                          <p className="text-[10px] text-slate-500">
+                            LTO Ownership Specs
+                          </p>
                         </div>
-                        {crDoc && (
+                        {isValidImageUrl(crDoc) && (
                           <button
                             type="button"
-                            onClick={() => setPreviewDocument({
-                              title: "Vehicle Certificate of Registration (CR)",
-                              subtitle: `${selectedApp.vehicle?.make} ${selectedApp.vehicle?.model} (${selectedApp.vehicle?.plateNumber})`,
-                              src: crDoc
-                            })}
+                            onClick={() =>
+                              setPreviewDocument({
+                                title:
+                                  "Vehicle Certificate of Registration (CR)",
+                                subtitle: `${selectedApp.vehicle?.make} ${selectedApp.vehicle?.model} (${selectedApp.vehicle?.plateNumber})`,
+                                src: crDoc,
+                              })
+                            }
                             className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center space-x-1 cursor-pointer"
                           >
                             <Eye className="w-3.5 h-3.5" />
@@ -677,13 +882,15 @@ export default function AdminApplications() {
                           </button>
                         )}
                       </div>
-                      {crDoc ? (
+                      {isValidImageUrl(crDoc) ? (
                         <div
-                          onClick={() => setPreviewDocument({
-                            title: "Vehicle Certificate of Registration (CR)",
-                            subtitle: `${selectedApp.vehicle?.make} ${selectedApp.vehicle?.model} (${selectedApp.vehicle?.plateNumber})`,
-                            src: crDoc
-                          })}
+                          onClick={() =>
+                            setPreviewDocument({
+                              title: "Vehicle Certificate of Registration (CR)",
+                              subtitle: `${selectedApp.vehicle?.make} ${selectedApp.vehicle?.model} (${selectedApp.vehicle?.plateNumber})`,
+                              src: crDoc,
+                            })
+                          }
                           className="rounded-xl overflow-hidden border border-slate-200 cursor-pointer group relative bg-white shadow-xs"
                         >
                           <img
@@ -709,56 +916,76 @@ export default function AdminApplications() {
             </div>
 
             {/* Uploaded Cashier Official Receipt (Milestone 3 Proof) */}
-            {(selectedApp.receipt || selectedApp.status === 'RECEIPT_SUBMITTED' || selectedApp.receiptRejectionRemark) && (
+            {(selectedApp.receipt ||
+              selectedApp.status === "RECEIPT_SUBMITTED" ||
+              selectedApp.receiptRejectionRemark) && (
               <div className="text-xs space-y-2">
                 <div className="flex items-center justify-between">
                   <h4 className="font-bold text-slate-900 flex items-center space-x-1.5">
                     <Receipt className="w-4 h-4 text-emerald-600" />
                     <span>Cashier Official Receipt (Payment Proof)</span>
                   </h4>
-                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                    selectedApp.status === 'PASS_ISSUED' 
-                      ? 'bg-emerald-100 text-emerald-800' 
+                  <span
+                    className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                      selectedApp.status === "PASS_ISSUED"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : selectedApp.receiptRejectionRemark
+                          ? "bg-rose-100 text-rose-800 border border-rose-300"
+                          : "bg-amber-100 text-amber-800 border border-amber-300"
+                    }`}
+                  >
+                    {selectedApp.status === "PASS_ISSUED"
+                      ? "Verified by PASO"
                       : selectedApp.receiptRejectionRemark
-                      ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                      : 'bg-amber-100 text-amber-800 border border-amber-300'
-                  }`}>
-                    {selectedApp.status === 'PASS_ISSUED' 
-                      ? 'Verified by PASO' 
-                      : selectedApp.receiptRejectionRemark
-                      ? 'Receipt Declined by PASO'
-                      : 'Awaiting PASO Verification'}
+                        ? "Receipt Declined by PASO"
+                        : "Awaiting PASO Verification"}
                   </span>
                 </div>
 
-                <div className={`p-4 rounded-2xl ${
-                  selectedApp.receiptRejectionRemark 
-                    ? 'bg-rose-50/70 border border-rose-200' 
-                    : 'bg-amber-50/60 border border-amber-200'
-                } space-y-3`}>
+                <div
+                  className={`p-4 rounded-2xl ${
+                    selectedApp.receiptRejectionRemark
+                      ? "bg-rose-50/70 border border-rose-200"
+                      : "bg-amber-50/60 border border-amber-200"
+                  } space-y-3`}
+                >
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     <div>
-                      <span className="text-slate-400 block font-semibold text-[11px]">Official Receipt (OR) #</span>
-                      <span className="font-mono font-black text-slate-900 text-sm">{selectedApp.receipt?.orNumber || 'N/A'}</span>
+                      <span className="text-slate-400 block font-semibold text-[11px]">
+                        Official Receipt (OR) #
+                      </span>
+                      <span className="font-mono font-black text-slate-900 text-sm">
+                        {selectedApp.receipt?.orNumber || "N/A"}
+                      </span>
                     </div>
                     <div>
-                      <span className="text-slate-400 block font-semibold text-[11px]">Payment Submission Date</span>
-                      <span className="font-bold text-slate-800">{selectedApp.receipt?.submittedAt || selectedApp.receipt?.paidAt || 'Today'}</span>
+                      <span className="text-slate-400 block font-semibold text-[11px]">
+                        Payment Submission Date
+                      </span>
+                      <span className="font-bold text-slate-800">
+                        {selectedApp.receipt?.submittedAt ||
+                          selectedApp.receipt?.paidAt ||
+                          "Today"}
+                      </span>
                     </div>
                     <div>
-                      <span className="text-slate-400 block font-semibold text-[11px]">Verification Status</span>
-                      <span className={`font-bold ${
-                        selectedApp.status === 'PASS_ISSUED' 
-                          ? 'text-emerald-700' 
-                          : selectedApp.receiptRejectionRemark 
-                          ? 'text-rose-700' 
-                          : 'text-amber-700'
-                      }`}>
-                        {selectedApp.status === 'PASS_ISSUED' 
-                          ? 'Payment Verified' 
-                          : selectedApp.receiptRejectionRemark 
-                          ? 'Declined / Needs Re-upload' 
-                          : 'Needs Verification'}
+                      <span className="text-slate-400 block font-semibold text-[11px]">
+                        Verification Status
+                      </span>
+                      <span
+                        className={`font-bold ${
+                          selectedApp.status === "PASS_ISSUED"
+                            ? "text-emerald-700"
+                            : selectedApp.receiptRejectionRemark
+                              ? "text-rose-700"
+                              : "text-amber-700"
+                        }`}
+                      >
+                        {selectedApp.status === "PASS_ISSUED"
+                          ? "Payment Verified"
+                          : selectedApp.receiptRejectionRemark
+                            ? "Declined / Needs Re-upload"
+                            : "Needs Verification"}
                       </span>
                     </div>
                   </div>
@@ -768,13 +995,20 @@ export default function AdminApplications() {
                     <div className="p-3 bg-white rounded-xl border border-rose-200 text-rose-900 flex items-start space-x-2 text-xs shadow-2xs">
                       <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                       <div className="min-w-0 flex-1">
-                        <p className="font-bold text-rose-900">Cashier Payment Proof Declined</p>
+                        <p className="font-bold text-rose-900">
+                          Cashier Payment Proof Declined
+                        </p>
                         <p className="text-[11px] text-rose-800 mt-0.5">
-                          <span className="font-semibold text-rose-900">Rejection Note:</span>{' '}
-                          <span className="italic font-medium">"{selectedApp.receiptRejectionRemark}"</span>
+                          <span className="font-semibold text-rose-900">
+                            Rejection Note:
+                          </span>{" "}
+                          <span className="italic font-medium">
+                            "{selectedApp.receiptRejectionRemark}"
+                          </span>
                         </p>
                         <p className="text-[10px] text-slate-500 mt-1">
-                          Applicant was notified and instructed to re-upload a clear photograph of their receipt.
+                          Applicant was notified and instructed to re-upload a
+                          clear photograph of their receipt.
                         </p>
                       </div>
                     </div>
@@ -783,26 +1017,32 @@ export default function AdminApplications() {
                   {selectedApp.receipt?.receiptPhoto ? (
                     <div className="pt-2 border-t border-amber-200">
                       <div className="flex items-center justify-between mb-1.5">
-                        <p className="text-[11px] font-bold text-slate-700">Attached Cashier Receipt Photo:</p>
+                        <p className="text-[11px] font-bold text-slate-700">
+                          Attached Cashier Receipt Photo:
+                        </p>
                         <button
                           type="button"
-                          onClick={() => setPreviewDocument({
-                            title: `Official Cashier Receipt — OR #${selectedApp.receipt?.orNumber || 'N/A'}`,
-                            subtitle: `${selectedApp.applicant_name} • Paid: ${selectedApp.receipt?.paidAt || 'Recently'}`,
-                            src: selectedApp.receipt.receiptPhoto
-                          })}
+                          onClick={() =>
+                            setPreviewDocument({
+                              title: `Official Cashier Receipt — OR #${selectedApp.receipt?.orNumber || "N/A"}`,
+                              subtitle: `${selectedApp.applicant_name} • Paid: ${selectedApp.receipt?.paidAt || "Recently"}`,
+                              src: selectedApp.receipt.receiptPhoto,
+                            })
+                          }
                           className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center space-x-1 cursor-pointer"
                         >
                           <Eye className="w-3.5 h-3.5" />
                           <span>Inspect Full Receipt</span>
                         </button>
                       </div>
-                      <div 
-                        onClick={() => setPreviewDocument({
-                          title: `Official Cashier Receipt — OR #${selectedApp.receipt?.orNumber || 'N/A'}`,
-                          subtitle: `${selectedApp.applicant_name} • Paid: ${selectedApp.receipt?.paidAt || 'Recently'}`,
-                          src: selectedApp.receipt.receiptPhoto
-                        })}
+                      <div
+                        onClick={() =>
+                          setPreviewDocument({
+                            title: `Official Cashier Receipt — OR #${selectedApp.receipt?.orNumber || "N/A"}`,
+                            subtitle: `${selectedApp.applicant_name} • Paid: ${selectedApp.receipt?.paidAt || "Recently"}`,
+                            src: selectedApp.receipt.receiptPhoto,
+                          })
+                        }
                         className="max-w-md mx-auto rounded-xl overflow-hidden border-2 border-amber-300 shadow-sm bg-white cursor-pointer group relative"
                       >
                         <img
@@ -828,7 +1068,7 @@ export default function AdminApplications() {
             {/* Decision Footer */}
             <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100">
               {/* If Receipt was submitted: Verify & Generate QR */}
-              {selectedApp.status === 'RECEIPT_SUBMITTED' && (
+              {selectedApp.status === "RECEIPT_SUBMITTED" && (
                 <div className="flex items-center space-x-2">
                   <button
                     type="button"
@@ -849,7 +1089,7 @@ export default function AdminApplications() {
               )}
 
               {/* If Initial Pending Form */}
-              {selectedApp.status === 'PENDING' && (
+              {selectedApp.status === "PENDING" && (
                 <>
                   <button
                     type="button"
@@ -863,20 +1103,23 @@ export default function AdminApplications() {
                     onClick={() => handleOpenApproveConfirm(selectedApp)}
                     className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer shadow-sm"
                   >
-                    {selectedApp.isRenewal ? 'Approve Renewal & Unlock Payment' : 'Approve & Unlock Payment Milestone'}
+                    {selectedApp.isRenewal
+                      ? "Approve Renewal & Unlock Payment"
+                      : "Approve & Unlock Payment Milestone"}
                   </button>
                 </>
               )}
 
-              {selectedApp.status !== 'PENDING' && selectedApp.status !== 'RECEIPT_SUBMITTED' && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedApp(null)}
-                  className="px-5 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 cursor-pointer"
-                >
-                  Close Viewer
-                </button>
-              )}
+              {selectedApp.status !== "PENDING" &&
+                selectedApp.status !== "RECEIPT_SUBMITTED" && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedApp(null)}
+                    className="px-5 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 cursor-pointer"
+                  >
+                    Close Viewer
+                  </button>
+                )}
             </div>
           </div>
         </div>
@@ -902,9 +1145,14 @@ export default function AdminApplications() {
                 <QrCode className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-lg font-black text-slate-900">Generate & Confirm QR Pass</h3>
+                <h3 className="text-lg font-black text-slate-900">
+                  Generate & Confirm QR Pass
+                </h3>
                 <p className="text-xs text-slate-500">
-                  Officer verification for <strong className="text-slate-800">{qrModalApp.applicant_name}</strong>
+                  Officer verification for{" "}
+                  <strong className="text-slate-800">
+                    {qrModalApp.applicant_name}
+                  </strong>
                 </p>
               </div>
             </div>
@@ -914,9 +1162,12 @@ export default function AdminApplications() {
               <div className="flex items-center space-x-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <div>
-                  <span className="font-bold text-emerald-950 block">Cashier Receipt Validated</span>
+                  <span className="font-bold text-emerald-950 block">
+                    Cashier Receipt Validated
+                  </span>
                   <span className="text-[11px] text-emerald-800 font-mono">
-                    OR #{qrModalApp.receipt?.orNumber || '2026-98123'} • Date: {qrModalApp.receipt?.submittedAt || 'Today'}
+                    OR #{qrModalApp.receipt?.orNumber || "2026-98123"} • Date:{" "}
+                    {qrModalApp.receipt?.submittedAt || "Today"}
                   </span>
                 </div>
               </div>
@@ -929,15 +1180,21 @@ export default function AdminApplications() {
             <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col items-center">
               {/* Template Category Header */}
               <div className="w-full max-w-[340px] flex items-center justify-between gap-2 mb-3.5 px-0.5">
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border shrink-0 shadow-2xs whitespace-nowrap ${
-                  (qrModalApp.classification || '').toLowerCase().includes('employee')
-                    ? 'bg-red-100 text-red-900 border-red-200'
-                    : 'bg-pink-100 text-pink-900 border-pink-200'
-                }`}>
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border shrink-0 shadow-2xs whitespace-nowrap ${
+                    (qrModalApp.classification || "")
+                      .toLowerCase()
+                      .includes("employee")
+                      ? "bg-red-100 text-red-900 border-red-200"
+                      : "bg-pink-100 text-pink-900 border-pink-200"
+                  }`}
+                >
                   <span>
-                    {(qrModalApp.classification || '').toLowerCase().includes('employee')
-                      ? '💼 Official Employee Vehicle Pass'
-                      : '🎓 Official Student Vehicle Pass'}
+                    {(qrModalApp.classification || "")
+                      .toLowerCase()
+                      .includes("employee")
+                      ? "💼 Official Employee Vehicle Pass"
+                      : "🎓 Official Student Vehicle Pass"}
                   </span>
                 </span>
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-white text-slate-700 border border-slate-200 shrink-0 whitespace-nowrap shadow-2xs">
@@ -948,10 +1205,10 @@ export default function AdminApplications() {
 
               {/* RSU Sticker Pass Rendering with Actual Template & Live Stamped QR */}
               <RsuStickerPass
-                classification={qrModalApp.classification || 'STUDENT'}
+                classification={qrModalApp.classification || "STUDENT"}
                 passNumber={generatedPassNum}
-                plateNumber={qrModalApp.vehicle?.plateNumber || 'RSU 2026'}
-                qrPayload={`RSU-VPASS:${generatedPassNum}:${qrModalApp.vehicle?.plateNumber || ''}:${qrModalApp.school_id || ''}`}
+                plateNumber={qrModalApp.vehicle?.plateNumber || "RSU 2026"}
+                qrPayload={`RSU-VPASS:${generatedPassNum}:${qrModalApp.vehicle?.plateNumber || ""}:${qrModalApp.school_id || ""}`}
                 showDownloadButton={false}
               />
 
@@ -959,23 +1216,46 @@ export default function AdminApplications() {
               <div className="mt-4 w-full max-w-[340px] p-3 rounded-2xl bg-white border border-slate-200 text-xs space-y-1">
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500 font-medium">Vehicle:</span>
-                  <span className="font-bold text-slate-900">{qrModalApp.vehicle?.make} {qrModalApp.vehicle?.model} ({qrModalApp.vehicle?.year})</span>
+                  <span className="font-bold text-slate-900">
+                    {qrModalApp.vehicle?.make} {qrModalApp.vehicle?.model} (
+                    {qrModalApp.vehicle?.year})
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-500 font-medium">Plate Number:</span>
-                  <span className="font-mono font-black text-emerald-700">{qrModalApp.vehicle?.plateNumber}</span>
+                  <span className="text-slate-500 font-medium">
+                    Plate Number:
+                  </span>
+                  <span className="font-mono font-black text-emerald-700">
+                    {qrModalApp.vehicle?.plateNumber}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-500 font-medium">Assigned Pass No:</span>
-                  <span className="font-mono font-bold text-slate-800">{generatedPassNum}</span>
+                  <span className="text-slate-500 font-medium">
+                    Assigned Pass No:
+                  </span>
+                  <span className="font-mono font-bold text-slate-800">
+                    {generatedPassNum}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-500 font-medium">Validity Period:</span>
-                  <span className="font-bold text-slate-800">Until {calculateAcademicYearExpiry(systemSettings?.academicYear).validUntil}</span>
+                  <span className="text-slate-500 font-medium">
+                    Validity Period:
+                  </span>
+                  <span className="font-bold text-slate-800">
+                    Until{" "}
+                    {
+                      calculateAcademicYearExpiry(systemSettings?.academicYear)
+                        .validUntil
+                    }
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-500 font-medium">Academic Year:</span>
-                  <span className="font-bold text-emerald-700">A.Y. {systemSettings?.academicYear || '2026-2027'}</span>
+                  <span className="text-slate-500 font-medium">
+                    Academic Year:
+                  </span>
+                  <span className="font-bold text-emerald-700">
+                    A.Y. {systemSettings?.academicYear || "2026-2027"}
+                  </span>
                 </div>
               </div>
             </div>
@@ -984,9 +1264,14 @@ export default function AdminApplications() {
             <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 flex items-start space-x-2">
               <Sparkles className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
               <div>
-                <span className="font-bold text-slate-800">Automatic Client-Side Release:</span>
+                <span className="font-bold text-slate-800">
+                  Automatic Client-Side Release:
+                </span>
                 <p className="mt-0.5 leading-relaxed">
-                  Upon confirmation, this official QR Pass will automatically appear in <strong>{qrModalApp.applicant_name}'s</strong> account under <em>My Pass</em> and <em>Vehicle Pass</em>. Gate security guards can scan it immediately.
+                  Upon confirmation, this official QR Pass will automatically
+                  appear in <strong>{qrModalApp.applicant_name}'s</strong>{" "}
+                  account under <em>My Pass</em> and <em>Vehicle Pass</em>. Gate
+                  security guards can scan it immediately.
                 </p>
               </div>
             </div>
@@ -1017,28 +1302,37 @@ export default function AdminApplications() {
       {receiptRejectModalApp && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <h3 className="text-base font-bold text-slate-900">Reject Cashier Receipt</h3>
+            <h3 className="text-base font-bold text-slate-900">
+              Reject Cashier Receipt
+            </h3>
             <p className="text-xs text-slate-500">
-              Explain why the receipt for <strong>{receiptRejectModalApp.applicant_name}</strong> ({receiptRejectModalApp.id}) is being rejected. The applicant will be instructed to re-upload.
+              Explain why the receipt for{" "}
+              <strong>{receiptRejectModalApp.applicant_name}</strong> (
+              {receiptRejectModalApp.id}) is being rejected. The applicant will
+              be instructed to re-upload.
             </p>
             <textarea
               required
               rows={3}
               maxLength={300}
               value={receiptRejectReason}
-              onChange={(e) => setReceiptRejectReason(e.target.value.slice(0, 300))}
+              onChange={(e) =>
+                setReceiptRejectReason(e.target.value.slice(0, 300))
+              }
               placeholder="e.g. Unreadable receipt photo, missing official seal, or incorrect payment amount..."
               className="w-full p-3 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
             />
             {receiptRejectError && (
-              <p className="text-rose-600 text-xs font-semibold mt-1">{receiptRejectError}</p>
+              <p className="text-rose-600 text-xs font-semibold mt-1">
+                {receiptRejectError}
+              </p>
             )}
             <div className="flex justify-end space-x-2 pt-2">
               <button
                 type="button"
                 onClick={() => {
                   setReceiptRejectModalApp(null);
-                  setReceiptRejectError('');
+                  setReceiptRejectError("");
                 }}
                 className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
@@ -1060,9 +1354,13 @@ export default function AdminApplications() {
       {rejectModalApp && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <h3 className="text-base font-bold text-slate-900">Provide Rejection Reason</h3>
+            <h3 className="text-base font-bold text-slate-900">
+              Provide Rejection Reason
+            </h3>
             <p className="text-xs text-slate-500">
-              Per university policy, a specific remark must be provided to <strong>{rejectModalApp.applicant_name}</strong> ({rejectModalApp.id}).
+              Per university policy, a specific remark must be provided to{" "}
+              <strong>{rejectModalApp.applicant_name}</strong> (
+              {rejectModalApp.id}).
             </p>
             <textarea
               required
@@ -1071,20 +1369,22 @@ export default function AdminApplications() {
               value={rejectionReason}
               onChange={(e) => {
                 setRejectionReason(e.target.value.slice(0, 300));
-                if (rejectError) setRejectError('');
+                if (rejectError) setRejectError("");
               }}
               placeholder="e.g. Expired Driver's License or unreadable OR/CR photo..."
               className="w-full p-3 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
             />
             {rejectError && (
-              <p className="text-rose-600 text-xs font-semibold mt-1">{rejectError}</p>
+              <p className="text-rose-600 text-xs font-semibold mt-1">
+                {rejectError}
+              </p>
             )}
             <div className="flex justify-end space-x-2 pt-2">
               <button
                 type="button"
                 onClick={() => {
                   setRejectModalApp(null);
-                  setRejectError('');
+                  setRejectError("");
                 }}
                 className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
@@ -1104,14 +1404,14 @@ export default function AdminApplications() {
 
       {/* Dynamic Document & Receipt Full-Size Inspector Modal */}
       {(previewDocument || zoomReceiptPhoto) && (
-        <div 
+        <div
           onClick={() => {
             setPreviewDocument(null);
             setZoomReceiptPhoto(null);
           }}
           className="fixed inset-0 z-[80] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-150 cursor-pointer"
         >
-          <div 
+          <div
             onClick={(e) => e.stopPropagation()}
             className="bg-white rounded-3xl max-w-4xl max-h-[92vh] w-full p-5 sm:p-6 shadow-2xl relative flex flex-col cursor-default border border-slate-100 animate-in zoom-in-95 duration-150 overflow-hidden"
           >
@@ -1123,7 +1423,7 @@ export default function AdminApplications() {
                 </div>
                 <div>
                   <h3 className="text-sm sm:text-base font-black text-slate-900 leading-tight">
-                    {previewDocument?.title || 'Official Cashier Receipt'}
+                    {previewDocument?.title || "Official Cashier Receipt"}
                   </h3>
                   {previewDocument?.subtitle && (
                     <p className="text-xs text-slate-500 font-medium">
@@ -1147,17 +1447,31 @@ export default function AdminApplications() {
 
             {/* Dynamic Sized Image Viewer */}
             <div className="my-3 rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center p-2 flex-1 min-h-[220px] max-h-[70vh]">
-              <img
-                src={previewDocument?.src || zoomReceiptPhoto}
-                alt={previewDocument?.title || 'Document Inspection Preview'}
-                className="max-h-[66vh] max-w-full w-auto h-auto object-contain rounded-lg shadow-xl select-none"
-              />
+              {isValidImageUrl(previewDocument?.src || zoomReceiptPhoto) ? (
+                <img
+                  src={previewDocument?.src || zoomReceiptPhoto}
+                  alt={previewDocument?.title || "Document Inspection Preview"}
+                  className="max-h-[66vh] max-w-full w-auto h-auto object-contain rounded-lg shadow-xl select-none"
+                />
+              ) : (
+                <div className="p-8 text-center text-slate-400 space-y-2">
+                  <FileText className="w-12 h-12 text-slate-500 mx-auto" />
+                  <p className="text-sm font-bold text-slate-200">
+                    {previewDocument?.title || "Document Record"}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    This document has been verified and stored in the secure
+                    university cloud database.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Modal Footer */}
             <div className="flex items-center justify-between pt-2 border-t border-slate-100 shrink-0">
               <span className="text-[11px] text-slate-400 font-medium">
-                High-resolution snapshot verification • Click outside or Esc to close
+                High-resolution snapshot verification • Click outside or Esc to
+                close
               </span>
               <button
                 type="button"
@@ -1195,24 +1509,40 @@ export default function AdminApplications() {
                 <span className="font-mono text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                   {approveConfirmApp.id}
                 </span>
-                <h3 className="text-base font-black text-slate-900 mt-0.5">Approve Vehicle Registration?</h3>
+                <h3 className="text-base font-black text-slate-900 mt-0.5">
+                  Approve Vehicle Registration?
+                </h3>
               </div>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs space-y-1.5">
               <p className="text-slate-700">
-                <span className="font-semibold text-slate-500">Applicant:</span>{' '}
-                <strong className="text-slate-900">{approveConfirmApp.applicant_name}</strong> ({approveConfirmApp.school_id})
+                <span className="font-semibold text-slate-500">Applicant:</span>{" "}
+                <strong className="text-slate-900">
+                  {approveConfirmApp.applicant_name}
+                </strong>{" "}
+                ({approveConfirmApp.school_id})
               </p>
               <p className="text-slate-700">
-                <span className="font-semibold text-slate-500">Vehicle:</span>{' '}
-                <strong className="text-slate-900">{approveConfirmApp.vehicle?.make} {approveConfirmApp.vehicle?.model}</strong> • Plate:{' '}
-                <span className="font-mono font-bold text-slate-900">{approveConfirmApp.vehicle?.plateNumber}</span>
+                <span className="font-semibold text-slate-500">Vehicle:</span>{" "}
+                <strong className="text-slate-900">
+                  {approveConfirmApp.vehicle?.make}{" "}
+                  {approveConfirmApp.vehicle?.model}
+                </strong>{" "}
+                • Plate:{" "}
+                <span className="font-mono font-bold text-slate-900">
+                  {approveConfirmApp.vehicle?.plateNumber}
+                </span>
               </p>
             </div>
 
             <p className="text-xs text-slate-500 leading-relaxed">
-              Approving this application completes Milestone 2 (PASO Review). The applicant will be notified to proceed to <strong>Milestone 3 (Cashier Payment & Official Receipt Upload)</strong>.
+              Approving this application completes Milestone 2 (PASO Review).
+              The applicant will be notified to proceed to{" "}
+              <strong>
+                Milestone 3 (Cashier Payment & Official Receipt Upload)
+              </strong>
+              .
             </p>
 
             <div className="flex items-center justify-end space-x-2.5 pt-2 border-t border-slate-100">
@@ -1242,16 +1572,18 @@ export default function AdminApplications() {
       {inAppConfirmModal && (
         <div className="fixed inset-0 z-[100] bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl space-y-4 border border-slate-100 animate-in zoom-in-95 duration-150 relative">
-            <div className={`w-14 h-14 rounded-2xl mx-auto flex items-center justify-center shadow-xs ${
-              inAppConfirmModal.type === 'warning'
-                ? 'bg-amber-100 text-amber-700 ring-8 ring-amber-50'
-                : inAppConfirmModal.type === 'error'
-                ? 'bg-rose-100 text-rose-700 ring-8 ring-rose-50'
-                : 'bg-emerald-100 text-emerald-700 ring-8 ring-emerald-50'
-            }`}>
-              {inAppConfirmModal.type === 'warning' ? (
+            <div
+              className={`w-14 h-14 rounded-2xl mx-auto flex items-center justify-center shadow-xs ${
+                inAppConfirmModal.type === "warning"
+                  ? "bg-amber-100 text-amber-700 ring-8 ring-amber-50"
+                  : inAppConfirmModal.type === "error"
+                    ? "bg-rose-100 text-rose-700 ring-8 ring-rose-50"
+                    : "bg-emerald-100 text-emerald-700 ring-8 ring-emerald-50"
+              }`}
+            >
+              {inAppConfirmModal.type === "warning" ? (
                 <AlertCircle className="w-7 h-7" />
-              ) : inAppConfirmModal.type === 'error' ? (
+              ) : inAppConfirmModal.type === "error" ? (
                 <XCircle className="w-7 h-7" />
               ) : (
                 <CheckCircle2 className="w-7 h-7" />
@@ -1272,11 +1604,11 @@ export default function AdminApplications() {
                 type="button"
                 onClick={() => setInAppConfirmModal(null)}
                 className={`w-full py-2.5 px-4 rounded-xl text-white font-bold text-xs shadow-sm cursor-pointer transition-colors ${
-                  inAppConfirmModal.type === 'warning'
-                    ? 'bg-amber-600 hover:bg-amber-700'
-                    : inAppConfirmModal.type === 'error'
-                    ? 'bg-rose-600 hover:bg-rose-700'
-                    : 'bg-emerald-600 hover:bg-emerald-700'
+                  inAppConfirmModal.type === "warning"
+                    ? "bg-amber-600 hover:bg-amber-700"
+                    : inAppConfirmModal.type === "error"
+                      ? "bg-rose-600 hover:bg-rose-700"
+                      : "bg-emerald-600 hover:bg-emerald-700"
                 }`}
               >
                 OK

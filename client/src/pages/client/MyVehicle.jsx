@@ -168,8 +168,28 @@ export default function MyVehicle() {
     }
   }, [draftApplication, applications, clearDraft]);
 
-  // Check for editAppId (Correcting a rejected application), renewAppId (Option A Renewal), or resume draft
+  // Check for editAppId (Correcting a rejected application), renewAppId (Option A Renewal), resume draft, or shortcut action=register
   useEffect(() => {
+    const action = searchParams.get('action');
+    const isRegisterShortcut = action === 'register' || searchParams.get('register') === 'true';
+
+    if (isRegisterShortcut) {
+      const cleanDraftPlate = draftApplication?.data?.plateNumber?.replace(/\s+/g, '')?.toUpperCase();
+      const isDuplicate = cleanDraftPlate && (applications || []).some(
+        a => a.vehicle?.plateNumber?.replace(/\s+/g, '')?.toUpperCase() === cleanDraftPlate
+      );
+      if (draftApplication && !isDuplicate) {
+        setShowResumeModal(true);
+      } else {
+        if (isDuplicate) clearDraft();
+        setFormData(initialFormState);
+        setCurrentStep(1);
+        setShowWizard(true);
+      }
+      setSearchParams({}, { replace: true });
+      return;
+    }
+
     const editId = searchParams.get('editAppId');
     const renewId = searchParams.get('renewAppId');
     const from = searchParams.get('from');

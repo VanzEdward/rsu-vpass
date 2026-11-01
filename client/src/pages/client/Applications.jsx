@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { usePass } from '../../context/PassContext';
+import { isValidImageUrl } from '../../utils/imageCompressor';
 import ConfirmModal from '../../components/ConfirmModal';
 import { 
   Clock, 
@@ -246,17 +247,29 @@ export default function Applications() {
               {/* Top Bar: App ID & Current Status */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
                 <div className="flex items-center space-x-3">
-                  {app.applicant_photo ? (
+                  {isValidImageUrl(app.applicant_photo) ? (
                     <img
                       src={app.applicant_photo}
                       alt={app.applicant_name}
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        if (e.currentTarget.nextElementSibling) {
+                          e.currentTarget.nextElementSibling.classList.remove('hidden');
+                        }
+                      }}
                       className="w-11 h-14 rounded-xl object-cover border border-slate-200 shadow-xs"
                     />
-                  ) : (
-                    <div className="w-11 h-14 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400">
-                      <User className="w-5 h-5" />
-                    </div>
-                  )}
+                  ) : null}
+                  <div
+                    className={`w-11 h-14 rounded-xl bg-gradient-to-br from-emerald-50 to-slate-100 flex flex-col items-center justify-center text-slate-400 border border-slate-200 ${
+                      isValidImageUrl(app.applicant_photo) ? 'hidden' : ''
+                    }`}
+                  >
+                    <User className="w-5 h-5 text-emerald-700/60" />
+                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter mt-0.5">
+                      {app.applicant_name ? app.applicant_name.split(' ').map((n) => n[0]).filter(Boolean).slice(0, 2).join('') : 'ID'}
+                    </span>
+                  </div>
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-mono font-bold text-sm text-emerald-700">{app.id}</span>

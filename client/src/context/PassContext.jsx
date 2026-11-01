@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import { isValidImageUrl } from "../utils/imageCompressor";
 import { apiRequest } from "../api/client";
 import { useAuth } from "./AuthContext";
 import { formatNotificationTime, getFullNotificationTimestamp } from "../utils/dateUtils";
@@ -324,12 +325,68 @@ const persistAllReadNotifIds = (ids, userId) => {
   } catch (e) {}
 };
 
+// Global in-memory cache for high-resolution images so they persist seamlessly across React state updates
+const memoryImageCache = new Map();
+
 export const PassProvider = ({ children }) => {
   const sanitizeApp = (app) => {
     if (!app || typeof app !== "object") return app;
-    if (!app.vehicle || typeof app.vehicle !== "object") {
-      return {
-        ...app,
+
+    // Rehydrate from in-memory cache if field was sanitized with placeholder
+    const cachedPhoto = memoryImageCache.get(`${app.id}_photo`);
+    const cachedLicense = memoryImageCache.get(`${app.id}_driverLicense`);
+    const cachedOr = memoryImageCache.get(`${app.id}_orCopy`);
+    const cachedCr = memoryImageCache.get(`${app.id}_crCopy`);
+    const cachedOrCr = memoryImageCache.get(`${app.id}_orCr`);
+    const cachedReceipt = memoryImageCache.get(`${app.id}_receiptPhoto`);
+
+    const applicant_photo = isValidImageUrl(app.applicant_photo) 
+      ? app.applicant_photo 
+      : (cachedPhoto || app.applicant_photo);
+
+    if (isValidImageUrl(applicant_photo)) {
+      memoryImageCache.set(`${app.id}_photo`, applicant_photo);
+    }
+
+    const docLicense = isValidImageUrl(app.documents?.driverLicense) ? app.documents.driverLicense : (cachedLicense || app.documents?.driverLicense);
+    if (isValidImageUrl(docLicense)) memoryImageCache.set(`${app.id}_driverLicense`, docLicense);
+
+    const docOr = isValidImageUrl(app.documents?.orCopy) ? app.documents.orCopy : (cachedOr || app.documents?.orCopy);
+    if (isValidImageUrl(docOr)) memoryImageCache.set(`${app.id}_orCopy`, docOr);
+
+    const docCr = isValidImageUrl(app.documents?.crCopy) ? app.documents.crCopy : (cachedCr || app.documents?.crCopy);
+    if (isValidImageUrl(docCr)) memoryImageCache.set(`${app.id}_crCopy`, docCr);
+
+    const docOrCr = isValidImageUrl(app.documents?.orCr) ? app.documents.orCr : (cachedOrCr || app.documents?.orCr);
+    if (isValidImageUrl(docOrCr)) memoryImageCache.set(`${app.id}_orCr`, docOrCr);
+
+    const rehydratedDocs = {
+      driverLicense: docLicense,
+      orCopy: docOr,
+      crCopy: docCr,
+      orCr: docOrCr,
+    };
+
+    let rehydratedReceipt = app.receipt;
+    if (app.receipt) {
+      const recPhoto = isValidImageUrl(app.receipt.receiptPhoto) ? app.receipt.receiptPhoto : (cachedReceipt || app.receipt.receiptPhoto);
+      if (isValidImageUrl(recPhoto)) memoryImageCache.set(`${app.id}_receiptPhoto`, recPhoto);
+      rehydratedReceipt = {
+        ...app.receipt,
+        receiptPhoto: recPhoto,
+      };
+    }
+
+    let res = {
+      ...app,
+      applicant_photo,
+      documents: rehydratedDocs,
+      receipt: rehydratedReceipt,
+    };
+
+    if (!res.vehicle || typeof res.vehicle !== "object") {
+      res = {
+        ...res,
         vehicle: {
           id: app.vehicle_id || app.vehicleId || null,
           make: app.make || "Registered",
@@ -341,7 +398,7 @@ export const PassProvider = ({ children }) => {
         },
       };
     }
-    return app;
+    return res;
   };
 
   const [applications, setApplications] = useState(() => {
@@ -420,11 +477,13 @@ export const PassProvider = ({ children }) => {
 
   const { user, token } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
+  const isFetchingRef = useRef(false);
 
   // Real-time synchronization with Aiven Cloud Database
   const fetchCloudData = useCallback(async () => {
-    if (!token || !user) return;
+    if (!token || !user || isFetchingRef.current) return;
     try {
+      isFetchingRef.current = true;
       setIsSyncing(true);
       if (user.role === "PASO_ADMIN") {
         const [appsRes, logsRes, visRes] = await Promise.allSettled([
@@ -483,6 +542,7 @@ export const PassProvider = ({ children }) => {
     } catch (err) {
       console.warn("[PassContext Cloud Sync Warning]:", err);
     } finally {
+      isFetchingRef.current = false;
       setIsSyncing(false);
     }
   }, [user, token]);

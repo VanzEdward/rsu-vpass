@@ -391,3 +391,48 @@ export const sendGuardAccountCreatedEmail = async ({
 
   return sendEmail({ toEmail, recipientName: guardName, subject, htmlContent });
 };
+
+
+/**
+ * Trigger 6: Student & Employee One-Time Password (OTP) for Password Reset
+ */
+export const sendPasswordResetOtpEmail = async ({
+  toEmail,
+  recipientName,
+  schoolId,
+  otpCode,
+  classification = 'STUDENT'
+}) => {
+  const isEmployee = classification === 'EMPLOYEE';
+  const roleLabel = isEmployee ? 'University Personnel / Employee' : 'Student Motorist';
+  const title = 'Your One-Time PIN for Password Reset';
+  const subject = `[RSU VPASS] One-Time PIN: ${otpCode} (Password Reset)`;
+
+  const contentHtml = `
+    <p>Hello <strong>${recipientName || 'Motorist'}</strong>,</p>
+    <p>We received a request to reset the password for your RSU VPASS account (<strong>${schoolId}</strong> • ${roleLabel}).</p>
+    
+    <div style="background-color: #f0fdf4; border: 2px dashed #10b981; border-radius: 16px; padding: 24px; text-align: center; margin: 24px 0;">
+      <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; color: #047857; display: block; margin-bottom: 6px;">Your Single-Use One-Time PIN</span>
+      <span style="font-family: monospace, Courier, monospace; font-size: 36px; font-weight: 900; letter-spacing: 8px; color: #065f46; display: inline-block;">${otpCode}</span>
+      <span style="font-size: 11px; color: #059669; display: block; margin-top: 8px; font-weight: 600;">Valid for 15 minutes • Single-use only</span>
+    </div>
+
+    <p style="font-size: 13px; color: #475569; line-height: 1.6;">
+      Enter this 6-digit PIN on the password reset window to choose your new password. This PIN can only be used once and will expire after 15 minutes.
+    </p>
+
+    <div class="remark-box" style="margin-top: 20px;">
+      <strong>Security Notice:</strong> If you did not make this request, someone may have entered your School ID. Your password has not been changed. Never share this PIN with anyone.
+    </div>
+  `;
+
+  const htmlContent = renderEmailHtml({
+    title,
+    badgeText: 'One-Time PIN • Security',
+    badgeColor: '#059669',
+    contentHtml,
+  });
+
+  return sendEmail({ toEmail, recipientName, subject, htmlContent });
+};

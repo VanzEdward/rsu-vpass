@@ -20,7 +20,7 @@ import {
 import SignOutConfirmModal from './SignOutConfirmModal';
 import { formatNotificationTime, getFullNotificationTimestamp } from '../utils/dateUtils';
 
-export default function Navbar() {
+export default function Navbar({ hideLogout = false }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { 
@@ -90,9 +90,9 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-xs w-full">
       <div className="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        {/* Brand */}
-        <Link to="/" className="flex items-center space-x-3 group">
-          <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-sm ring-2 ring-emerald-100 group-hover:scale-105 transition-transform">
+        {/* Brand (Static display - clicking does nothing) */}
+        <div className="flex items-center space-x-3 cursor-default select-none">
+          <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-sm ring-2 ring-emerald-100">
             <ShieldCheck className="w-6 h-6 text-white" />
           </div>
           <div>
@@ -106,7 +106,7 @@ export default function Navbar() {
             </div>
             <p className="text-[11px] text-slate-500 hidden sm:block">Romblon State University • Vehicle Pass System</p>
           </div>
-        </Link>
+        </div>
 
         {/* User Info & Actions */}
         <div className="flex items-center space-x-3 sm:space-x-4">
@@ -268,15 +268,17 @@ export default function Navbar() {
                 )}
               </Link>
 
-              {/* Logout Button */}
-              <button
-                type="button"
-                onClick={() => setIsSignOutModalOpen(true)}
-                title="Sign Out"
-                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
+              {/* Logout Button (Hidden for PASO Admin to avoid duplication with sidebar Sign Out) */}
+              {!hideLogout && user?.role !== 'PASO_ADMIN' && (
+                <button
+                  type="button"
+                  onClick={() => setIsSignOutModalOpen(true)}
+                  title="Sign Out"
+                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
+                >
+                  <LogOut className="w-5 h-5" />
+                </button>
+              )}
             </div>
           ) : (
             <Link

@@ -5,6 +5,31 @@
  * Prevents mobile device crashes and LocalStorage quota exhaustion (5MB Safari limit).
  */
 
+/**
+ * Checks whether a value is a valid renderable image URL or Base64 data URI.
+ * Rejects placeholder strings like "[IN_CLOUD_STORAGE]", "Uploaded Document", or non-image text.
+ */
+export const isValidImageUrl = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (
+    !trimmed ||
+    trimmed === '[IN_CLOUD_STORAGE]' ||
+    trimmed.includes('[IN_CLOUD_STORAGE]') ||
+    trimmed === 'Uploaded Document' ||
+    trimmed.startsWith('[')
+  ) {
+    return false;
+  }
+  return (
+    trimmed.startsWith('data:image/') ||
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('/') ||
+    trimmed.startsWith('blob:')
+  );
+};
+
 export const compressImage = (fileOrDataUrl, maxWidth = 1200, maxHeight = 1200, quality = 0.75) => {
   return new Promise((resolve) => {
     if (!fileOrDataUrl) {

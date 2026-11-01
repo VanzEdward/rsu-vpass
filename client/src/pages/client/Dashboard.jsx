@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { useAuth } from '../../context/AuthContext';
@@ -14,6 +14,7 @@ import {
   ShieldCheck, 
   ExternalLink,
   ChevronRight,
+  ChevronLeft,
   ChevronDown,
   ChevronUp,
   GraduationCap,
@@ -45,6 +46,66 @@ export default function Dashboard() {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
   const [showQRModal, setShowQRModal] = useState(false);
   const [showAllNotifications, setShowAllNotifications] = useState(false);
+  const [selectedPass, setSelectedPass] = useState(null);
+  const [qrModalView, setQrModalView] = useState('qr'); // 'qr' | 'select' | 'empty'
+
+  // Collect all registered vehicles with passes or registrations for gate presentation
+  const registeredVehiclePasses = useMemo(() => {
+    const list = [];
+    const seenPlates = new Set();
+
+    // 1. Applications with issued passes or active passes
+    (applications || []).forEach((app) => {
+      const plate = (app.vehicle?.plateNumber || '').trim();
+      const cleanPlate = plate.replace(/\s+/g, '').toUpperCase();
+      if (!cleanPlate || seenPlates.has(cleanPlate)) return;
+
+      const vehicleName = `${app.vehicle?.make || ''} ${app.vehicle?.model || ''}`.trim() || 'Motor Vehicle';
+      const passNum = app.pass?.passNumber || app.passNumber || `VP-${cleanPlate.slice(0, 4)}`;
+      const qrData = app.pass?.qrData || `RSU-VPASS:${passNum}:${cleanPlate}:${app.school_id || user?.school_id || ''}`;
+
+      list.push({
+        id: app.id || cleanPlate,
+        vehicleName,
+        plateNumber: plate,
+        vehicleType: app.vehicle?.type || 'Motorcycle',
+        color: app.vehicle?.color || '',
+        passNumber: passNum,
+        validUntil: app.pass?.validUntil || 'December 31, 2026',
+        status: app.pass?.status || (app.status === 'PASS_ISSUED' ? 'ACTIVE' : 'Active Pass'),
+        qrData,
+        hasIssuedPass: Boolean(app.pass || app.status === 'PASS_ISSUED')
+      });
+      seenPlates.add(cleanPlate);
+    });
+
+    // 2. Also check vehicles array
+    (vehicles || []).forEach((v) => {
+      const plate = (v.plateNumber || '').trim();
+      const cleanPlate = plate.replace(/\s+/g, '').toUpperCase();
+      if (!cleanPlate || seenPlates.has(cleanPlate)) return;
+
+      const vehicleName = `${v.make || ''} ${v.model || ''}`.trim() || 'Motor Vehicle';
+      const passNum = v.passNumber || `VP-${cleanPlate.slice(0, 4)}`;
+      const qrData = v.qrData || `RSU-VPASS:${passNum}:${cleanPlate}:${user?.school_id || ''}`;
+
+      list.push({
+        id: v.id || cleanPlate,
+        vehicleName,
+        plateNumber: plate,
+        vehicleType: v.type || 'Motorcycle',
+        color: v.color || '',
+        passNumber: passNum,
+        validUntil: 'December 31, 2026',
+        status: v.status || 'Active Pass',
+        qrData,
+        hasIssuedPass: v.status === 'Active Pass' || Boolean(v.passNumber)
+      });
+      seenPlates.add(cleanPlate);
+    });
+
+    return list;
+  }, [applications, vehicles, user]);
 
   // Active or approved application with an issued pass
   const activeApp = applications.find(a => a.status === 'PASS_ISSUED' && a.pass) || 
@@ -74,11 +135,12 @@ export default function Dashboard() {
 
   // Generate high-resolution scannable QR Code
   useEffect(() => {
-    if (!activePass?.qrData) {
+    const targetPass = selectedPass || activePass;
+    if (!targetPass?.qrData) {
       setQrCodeDataUrl('');
       return;
     }
-    const payload = activePass.qrData;
+    const payload = targetPass.qrData;
     QRCode.toDataURL(payload, {
       width: 480,
       margin: 1,
@@ -90,7 +152,41 @@ export default function Dashboard() {
     })
       .then(url => setQrCodeDataUrl(url))
       .catch(err => console.error('Failed to generate dashboard QR:', err));
-  }, [activePass]);
+  }, [selectedPass, activePass]);
+
+  // Handle "Current Gate Pass" enlarge click
+  const handleOpenCurrentPassQR = () => {
+    if (activePass) {
+      setSelectedPass(activePass);
+      setQrModalView('qr');
+      setShowQRModal(true);
+    } else {
+      handlePresentGatePass();
+    }
+  };
+
+  // Handle "Present Gate Pass" shortcut click
+  const handlePresentGatePass = () => {
+    if (registeredVehiclePasses.length === 0) {
+      setSelectedPass(null);
+      setQrModalView('empty');
+      setShowQRModal(true);
+    } else if (registeredVehiclePasses.length === 1) {
+      // Exactly 1 registered vehicle: directly show QR
+      setSelectedPass(registeredVehiclePasses[0]);
+      setQrModalView('qr');
+      setShowQRModal(true);
+    } else {
+      // More than 1 registered vehicle: show vehicle choices list
+      setQrModalView('select');
+      setShowQRModal(true);
+    }
+  };
+
+  const handleSelectVehicleForQR = (chosenVehicle) => {
+    setSelectedPass(chosenVehicle);
+    setQrModalView('qr');
+  };
 
   // Compute live dynamic stats
   const stats = {
@@ -246,7 +342,7 @@ export default function Dashboard() {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <Link
-            to="/client/my-vehicle"
+            to="/client/my-vehicle?action=register"
             className="group p-4 bg-white hover:bg-emerald-50/40 rounded-2xl border border-slate-200 hover:border-emerald-300 shadow-xs transition-all flex flex-col items-start justify-between min-h-[92px]"
           >
             <div className="w-9 h-9 rounded-xl bg-emerald-100/70 text-emerald-700 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -260,15 +356,17 @@ export default function Dashboard() {
 
           <button
             type="button"
-            onClick={() => setShowQRModal(true)}
-            className="group p-4 bg-white hover:bg-emerald-50/40 rounded-2xl border border-slate-200 hover:border-emerald-300 shadow-xs transition-all flex flex-col items-start justify-between min-h-[92px] text-left"
+            onClick={handlePresentGatePass}
+            className="group p-4 bg-white hover:bg-emerald-50/40 rounded-2xl border border-slate-200 hover:border-emerald-300 shadow-xs transition-all flex flex-col items-start justify-between min-h-[92px] text-left cursor-pointer"
           >
             <div className="w-9 h-9 rounded-xl bg-teal-100/70 text-teal-700 flex items-center justify-center group-hover:scale-110 transition-transform">
               <QrCode className="w-5 h-5" />
             </div>
             <div className="mt-3">
               <p className="text-xs font-bold text-slate-900 group-hover:text-teal-800">Present Gate Pass</p>
-              <p className="text-[11px] text-slate-500">Instant guard scan</p>
+              <p className="text-[11px] text-slate-500">
+                {registeredVehiclePasses.length > 1 ? `${registeredVehiclePasses.length} Vehicles • Tap to choose` : 'Instant guard scan'}
+              </p>
             </div>
           </button>
 
@@ -399,7 +497,7 @@ export default function Dashboard() {
                   <div className="text-center bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center shrink-0 self-center sm:self-auto">
                     <button
                       type="button"
-                      onClick={() => setShowQRModal(true)}
+                      onClick={handleOpenCurrentPassQR}
                       className="relative group block rounded-xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       title="Tap to enlarge for guard scanner"
                     >
@@ -421,7 +519,7 @@ export default function Dashboard() {
 
                     <button
                       type="button"
-                      onClick={() => setShowQRModal(true)}
+                      onClick={handleOpenCurrentPassQR}
                       className="mt-2 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center space-x-1"
                     >
                       <span>Enlarge QR Code</span>
@@ -442,7 +540,7 @@ export default function Dashboard() {
                   </p>
                 </div>
                 <Link
-                  to="/client/my-vehicle"
+                  to="/client/my-vehicle?action=register"
                   className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -469,7 +567,7 @@ export default function Dashboard() {
             {activePass ? (
               <button
                 type="button"
-                onClick={() => setShowQRModal(true)}
+                onClick={handlePresentGatePass}
                 className="text-xs font-bold text-emerald-600 hover:text-emerald-700 inline-flex items-center space-x-1 cursor-pointer"
               >
                 <span>Present to Guard</span>
@@ -477,7 +575,7 @@ export default function Dashboard() {
               </button>
             ) : (
               <Link
-                to="/client/my-vehicle"
+                to="/client/my-vehicle?action=register"
                 className="text-xs font-bold text-emerald-600 hover:text-emerald-700 inline-flex items-center space-x-1"
               >
                 <span>Register Vehicle</span>
@@ -575,27 +673,99 @@ export default function Dashboard() {
       {/* Interactive Full-Screen Gate Presentation QR Modal */}
       {showQRModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border border-slate-100 relative">
+          <div className="bg-white rounded-3xl max-w-sm sm:max-w-md w-full p-6 text-center shadow-2xl border border-slate-100 relative">
             <button
               onClick={() => setShowQRModal(false)}
-              className="absolute right-4 top-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors"
+              className="absolute right-4 top-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors cursor-pointer"
               title="Close modal"
             >
               <X className="w-4 h-4" />
             </button>
 
-            {activePass ? (
+            {/* VIEW 1: Multiple Vehicles Selection Choices */}
+            {qrModalView === 'select' && (
               <>
+                <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold mb-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>SELECT GATE PASS</span>
+                </div>
+
+                <h3 className="text-lg font-black text-slate-900">
+                  Choose Registered Vehicle
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  You have {registeredVehiclePasses.length} registered vehicles. Select which pass to display:
+                </p>
+
+                <div className="space-y-2.5 my-5 max-h-[55vh] overflow-y-auto pr-1">
+                  {registeredVehiclePasses.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleSelectVehicleForQR(item)}
+                      className="w-full p-3.5 rounded-2xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/60 transition-all flex items-center justify-between text-left group cursor-pointer shadow-2xs"
+                    >
+                      <div className="flex items-center space-x-3 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-100/70 text-emerald-800 flex items-center justify-center shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                          <Car className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-900 group-hover:text-emerald-900 truncate">
+                            {item.vehicleName}
+                          </p>
+                          <div className="flex items-center space-x-2 text-[11px] text-slate-500 mt-0.5">
+                            <span className="font-mono font-bold text-slate-700">{item.plateNumber}</span>
+                            <span>•</span>
+                            <span>{item.vehicleType}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2 shrink-0 ml-2">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                          Show QR
+                        </span>
+                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowQRModal(false)}
+                  className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </>
+            )}
+
+            {/* VIEW 2: QR Code Display for Chosen / Single Vehicle */}
+            {qrModalView === 'qr' && (selectedPass || activePass) && (
+              <>
+                {registeredVehiclePasses.length > 1 && (
+                  <div className="mb-2">
+                    <button
+                      type="button"
+                      onClick={() => setQrModalView('select')}
+                      className="inline-flex items-center space-x-1 px-3 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                      <span>Switch Vehicle ({registeredVehiclePasses.length})</span>
+                    </button>
+                  </div>
+                )}
+
                 <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold mb-3">
                   <ShieldCheck className="w-4 h-4 text-emerald-600" />
                   <span>RSU OFFICIAL GATE PASS</span>
                 </div>
 
                 <h3 className="text-lg font-black text-slate-900">
-                  {activePass.vehicle || 'Registered Vehicle'}
+                  {(selectedPass || activePass).vehicleName || (selectedPass || activePass).vehicle || 'Registered Vehicle'}
                 </h3>
                 <p className="text-xs text-slate-500 font-mono mt-0.5 font-bold">
-                  Plate: {activePass.plateNumber || 'N/A'}
+                  Plate: {(selectedPass || activePass).plateNumber || 'N/A'}
                 </p>
 
                 <div className="mt-4 p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100 inline-block shadow-inner">
@@ -614,7 +784,7 @@ export default function Dashboard() {
 
                 <div className="mt-3 space-y-1">
                   <p className="text-xs font-mono font-bold text-emerald-800">
-                    {activePass.passNumber || 'GATE PASS'}
+                    {(selectedPass || activePass).passNumber || 'GATE PASS'}
                   </p>
                   <p className="text-[11px] text-slate-500">
                     Hold phone screen near the scanner at Campus Gates 1, 2, 3, or 4.
@@ -639,7 +809,10 @@ export default function Dashboard() {
                   </Link>
                 </div>
               </>
-            ) : (
+            )}
+
+            {/* VIEW 3: Empty state when no vehicles/passes */}
+            {(qrModalView === 'empty' || (!selectedPass && !activePass && qrModalView !== 'select')) && (
               <>
                 <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 mx-auto flex items-center justify-center mb-3">
                   <QrCode className="w-7 h-7" />
@@ -654,7 +827,7 @@ export default function Dashboard() {
 
                 <div className="mt-6 flex flex-col gap-2">
                   <Link
-                    to="/client/my-vehicle"
+                    to="/client/my-vehicle?action=register"
                     onClick={() => setShowQRModal(false)}
                     className="w-full py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors flex items-center justify-center space-x-1 shadow-xs cursor-pointer"
                   >

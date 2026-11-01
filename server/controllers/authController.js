@@ -1,3 +1,5 @@
+import { sendPasswordResetOtpEmail } from '../services/emailService.js';
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import pool from '../config/db.js';
@@ -287,5 +289,226 @@ export const resetAdminProfile = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Failed to reset admin profile', error: error.message });
+  }
+};
+
+
+// Request One-Time PIN for Password Reset (Students and Employees ONLY)
+export const requestPasswordReset = async (req, res) => {
+  try {
+    const { identifier, school_id, email } = req.body;
+    const cleanId = (school_id || identifier || '').trim();
+    const cleanEmail = (email || '').trim().toLowerCase();
+
+    if (!cleanId || !cleanEmail) {
+      return res.status(400).json({ 
+        message: 'Both School ID and registered Email address are required.' 
+      });
+    }
+
+    // Lookup user by school_id and email
+    const [users] = await pool.query(
+      `SELECT id, school_id, email, full_name, role, classification 
+       FROM users 
+       WHERE LOWER(school_id) = LOWER(?) AND LOWER(email) = LOWER(?)`,
+      [cleanId, cleanEmail]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ 
+        message: 'No account found matching the provided School ID and Email address. Please check your spelling.' 
+      });
+    }
+
+    const user = users[0];
+
+    // STRICT ROLE PROTECTION: ONLY STUDENTS AND EMPLOYEES! NOT ADMIN AND NOT GUARD!
+    if (user.role === 'PASO_ADMIN' || user.role === 'GUARD') {
+      return res.status(403).json({
+        message: 'Self-service password recovery is available for Student and Employee motorist accounts only. Administrative and security personnel must contact the PASO Chief.'
+      });
+    }
+
+    // Invalidate any previous unused OTPs for this user
+    await pool.query(
+      'UPDATE password_resets SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL',
+      [user.id]
+    );
+
+    // Generate secure 6-digit numeric OTP
+    const otpCode = String(crypto.randomInt(100000, 1000000));
+
+    // Save single-use OTP with 15-minute expiration
+    await pool.query(
+      `INSERT INTO password_resets (user_id, school_id, email, otp_code, expires_at)
+       VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 15 MINUTE))`,
+      [user.id, user.school_id, user.email, otpCode]
+    );
+
+    // Send email via Brevo
+    let emailResult = { success: false };
+    try {
+      emailResult = await sendPasswordResetOtpEmail({
+        toEmail: user.email,
+        recipientName: user.full_name,
+        schoolId: user.school_id,
+        otpCode,
+        classification: user.classification || 'STUDENT'
+      });
+    } catch (mailErr) {
+      console.warn('[Password Reset Email Warning]:', mailErr.message);
+    }
+
+    // Mask email for security display (e.g. j***n@rsu.edu.ph)
+    const [namePart, domainPart] = user.email.split('@');
+    const maskedEmail = namePart.length <= 2 
+      ? `${namePart[0]}*@${domainPart}` 
+      : `${namePart[0]}***${namePart[namePart.length - 1]}@${domainPart}`;
+
+    const isDevSimulation = !process.env.BREVO_API_KEY || process.env.BREVO_API_KEY.includes('your_brevo');
+
+    res.json({
+      message: `A single-use 6-digit One-Time PIN has been sent to ${maskedEmail}. Valid for 15 minutes.`,
+      emailMasked: maskedEmail,
+      schoolId: user.school_id,
+      classification: user.classification || 'STUDENT',
+      demoOtp: isDevSimulation ? otpCode : undefined
+    });
+  } catch (error) {
+    console.error('Error in requestPasswordReset:', error);
+    res.status(500).json({ message: 'Failed to process password reset request', error: error.message });
+  }
+};
+
+// Verify One-Time PIN and set New Password (Single-Use Only!)
+export const verifyAndResetPassword = async (req, res) => {
+  try {
+    const { school_id, identifier, email, otp, newPassword, confirmPassword } = req.body;
+    const cleanId = (school_id || identifier || '').trim();
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanOtp = (otp || '').trim();
+    const pass = newPassword || '';
+
+    if (!cleanId || !cleanEmail || !cleanOtp || !pass) {
+      return res.status(400).json({ message: 'All fields (School ID, Email, One-Time PIN, and New Password) are required.' });
+    }
+
+    if (pass.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters long.' });
+    }
+
+    if (confirmPassword && pass !== confirmPassword) {
+      return res.status(400).json({ message: 'New password and confirmation password do not match.' });
+    }
+
+    // Find active, unused, non-expired OTP record
+    const [records] = await pool.query(
+      `SELECT pr.*, u.id as user_id, u.role, u.classification, u.full_name
+       FROM password_resets pr
+       JOIN users u ON pr.user_id = u.id
+       WHERE LOWER(pr.school_id) = LOWER(?) 
+         AND LOWER(pr.email) = LOWER(?)
+         AND pr.otp_code = ?
+         AND pr.used_at IS NULL
+         AND pr.expires_at > NOW()
+       ORDER BY pr.id DESC LIMIT 1`,
+      [cleanId, cleanEmail, cleanOtp]
+    );
+
+    if (records.length === 0) {
+      return res.status(400).json({ 
+        message: 'Invalid or expired One-Time PIN. Please check the 6 digits or request a fresh PIN.' 
+      });
+    }
+
+    const resetRecord = records[0];
+
+    // STRICT ROLE PROTECTION: NOT ADMIN AND NOT GUARD!
+    if (resetRecord.role === 'PASO_ADMIN' || resetRecord.role === 'GUARD') {
+      return res.status(403).json({ message: 'Unauthorized operation.' });
+    }
+
+    // IMMEDIATELY INVALIDATE AND MARK AS USED (SINGLE-USE ENFORCEMENT)
+    await pool.query(
+      'UPDATE password_resets SET used_at = NOW() WHERE id = ?',
+      [resetRecord.id]
+    );
+
+    // Hash new password and update user
+    const hashedPassword = await bcrypt.hash(pass, 10);
+    await pool.query(
+      'UPDATE users SET password = ? WHERE id = ?',
+      [hashedPassword, resetRecord.user_id]
+    );
+
+    res.json({
+      message: 'Password successfully reset! You can now log in with your new credentials.',
+      schoolId: resetRecord.school_id
+    });
+  } catch (error) {
+    console.error('Error in verifyAndResetPassword:', error);
+    res.status(500).json({ message: 'Failed to reset password', error: error.message });
+  }
+};
+
+/**
+ * Change Password for Authenticated Users (Profile Settings)
+ * Requires valid current password and updates the hash in users table
+ */
+export const changePassword = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    if (!currentPassword) {
+      return res.status(400).json({ message: 'Please enter your current password.' });
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters long.' });
+    }
+
+    if (confirmPassword && newPassword !== confirmPassword) {
+      return res.status(400).json({ message: 'New password and confirmation do not match.' });
+    }
+
+    // Fetch user with current password hash
+    const [users] = await pool.query('SELECT id, password, school_id, email, full_name FROM users WHERE id = ?', [userId]);
+    if (users.length === 0) {
+      return res.status(404).json({ message: 'User account not found.' });
+    }
+
+    const user = users[0];
+
+    // Verify current password with bcrypt
+    const isCurrentValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isCurrentValid) {
+      return res.status(400).json({ message: 'Current password is incorrect. Please try again.' });
+    }
+
+    // Ensure new password is not identical to current
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
+    if (isSamePassword) {
+      return res.status(400).json({ message: 'New password must be different from your current password.' });
+    }
+
+    // Hash new password and save to database
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await pool.query(
+      'UPDATE users SET password = ?, updated_at = NOW() WHERE id = ?',
+      [hashedPassword, userId]
+    );
+
+    res.json({
+      success: true,
+      message: 'Password successfully updated! Your account is now secured with the new password.'
+    });
+  } catch (error) {
+    console.error('Error in changePassword:', error);
+    res.status(500).json({ message: 'Failed to update password', error: error.message });
   }
 };

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import QRCode from "qrcode";
 import { usePass } from "../../context/PassContext";
+import { isValidImageUrl } from "../../utils/imageCompressor";
 import {
   QrCode,
   Maximize2,
@@ -650,18 +651,23 @@ export default function VehiclePass() {
             <div className="p-5 space-y-4">
               <div className="flex items-center space-x-4">
                 <div className="w-20 h-24 rounded-2xl overflow-hidden bg-slate-50 border-2 border-emerald-400 shadow-xs flex flex-col items-center justify-center text-slate-400 shrink-0">
-                  {applicant_photo ? (
+                  {isValidImageUrl(applicant_photo) ? (
                     <img
                       src={applicant_photo}
                       alt="Applicant Identification"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        if (e.currentTarget.nextElementSibling) {
+                          e.currentTarget.nextElementSibling.classList.remove('hidden');
+                        }
+                      }}
                       className="w-full h-full object-cover"
                     />
-                  ) : (
-                    <div className="flex flex-col items-center">
-                      <User className="w-8 h-8 text-slate-300" />
-                      <span className="text-[9px] mt-1">Photo</span>
-                    </div>
-                  )}
+                  ) : null}
+                  <div className={`flex flex-col items-center justify-center w-full h-full bg-slate-100 ${isValidImageUrl(applicant_photo) ? 'hidden' : ''}`}>
+                    <User className="w-8 h-8 text-slate-300" />
+                    <span className="text-[9px] mt-1 text-slate-400 font-bold uppercase">Photo</span>
+                  </div>
                 </div>
                 <div className="space-y-1 min-w-0 flex-1">
                   <p className="text-[10px] uppercase font-bold text-slate-400">

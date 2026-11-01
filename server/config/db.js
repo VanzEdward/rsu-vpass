@@ -43,6 +43,19 @@ export const testConnection = async () => {
         await connection.query('ALTER TABLE applications ADD COLUMN cr_url LONGTEXT NULL AFTER or_url');
         logger.db('Added column cr_url to applications table.');
       }
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS password_resets (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT NOT NULL,
+          school_id VARCHAR(50) NOT NULL,
+          email VARCHAR(120) NOT NULL,
+          otp_code VARCHAR(10) NOT NULL,
+          expires_at TIMESTAMP NOT NULL,
+          used_at TIMESTAMP NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_user_otp (school_id, email, otp_code)
+        ) ENGINE=InnoDB
+      `);
     } catch (e) {
       // Ignore if table does not exist yet during initial boot
     }
