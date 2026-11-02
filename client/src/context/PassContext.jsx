@@ -1793,8 +1793,25 @@ export const PassProvider = ({ children }) => {
       });
   };
 
+  const lastGateLogRef = useRef({ identifier: '', timestamp: 0, type: '' });
+
   // Add Gate Log (Records Employee Entry/Exit, Student Spot-Check, or Visitor Event)
   const addGateLog = (logData) => {
+    const now = Date.now();
+    const identifier = (logData.passNumber || logData.plateNumber || '').trim().toUpperCase();
+    const logType = logData.type || 'ENTRY';
+
+    // Anti-duplicate protection: Ignore identical log submissions within 3.5 seconds
+    if (
+      identifier &&
+      lastGateLogRef.current.identifier === identifier &&
+      lastGateLogRef.current.type === logType &&
+      now - lastGateLogRef.current.timestamp < 3500
+    ) {
+      console.log(`[PassContext] Debounced duplicate gate log for ${identifier} (${logType})`);
+      return null;
+    }
+    lastGateLogRef.current = { identifier, timestamp: now, type: logType };
     const timeStr = new Date().toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",

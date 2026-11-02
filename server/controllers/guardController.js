@@ -467,6 +467,25 @@ export const logVerification = async (req, res) => {
     const gateSt = gate_station || gate || 'Gate 1';
     const vClass = classification || 'STUDENT';
 
+    // Anti-duplicate protection: Check if an identical log was recorded in the last 4 seconds
+    const [recentLogs] = await pool.query(`
+      SELECT id FROM verification_logs 
+      WHERE (
+        (pass_number = ? AND pass_number != '') OR 
+        (plate_number = ? AND plate_number != '')
+      )
+      AND verification_type = ?
+      AND timestamp >= NOW() - INTERVAL 4 SECOND
+      LIMIT 1
+    `, [passNum || '', plate || '', vType]);
+
+    if (recentLogs.length > 0) {
+      return res.status(200).json({ 
+        message: 'Duplicate log suppressed (already recorded within 4 seconds)',
+        id: recentLogs[0].id 
+      });
+    }
+
     const [result] = await pool.query(`
       INSERT INTO verification_logs 
       (pass_number, plate_number, owner_name, guard_id, verification_type, verification_method, verification_status, gate_station, classification)

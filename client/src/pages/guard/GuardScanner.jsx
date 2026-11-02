@@ -267,6 +267,7 @@ export default function GuardScanner() {
   const scanLoopRef = useRef(null);
   const lastScanTimestampRef = useRef(0);
   const cooldownUntilRef = useRef(0);
+  const isProcessingScanRef = useRef(false);
 
   // Audio feedback beep
   const playBeep = (isSuccess = true) => {
@@ -2315,16 +2316,16 @@ export default function GuardScanner() {
                   </span>
                 </span>
 
-                <h4 className="text-sm sm:text-base font-black text-white leading-tight truncate">
+                <h4 className="text-sm sm:text-base font-black text-white leading-tight break-words">
                   {verifiedPass.client}
                 </h4>
 
-                <div className="text-[11px] font-mono text-emerald-400 font-semibold truncate">
+                <div className="text-[11px] font-mono text-emerald-400 font-semibold">
                   <span className="text-slate-400">ID: </span>
                   <span className="text-white">{verifiedPass.schoolId}</span>
                 </div>
 
-                <p className="text-[11px] text-slate-400 leading-snug truncate">
+                <p className="text-[11px] text-slate-300 font-medium leading-tight break-words pt-0.5">
                   {verifiedPass.classification === "STUDENT"
                     ? verifiedPass.yearCourse ||
                       verifiedPass.department ||

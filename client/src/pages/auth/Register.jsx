@@ -720,27 +720,29 @@ export default function Register() {
       <div className="max-w-4xl w-full bg-white rounded-3xl border border-slate-200/90 shadow-2xl shadow-slate-300/40 overflow-hidden">
         
         {/* Official University Header */}
-        <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-800 text-white px-5 sm:px-10 py-6 border-b border-emerald-950">
+        <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-teal-900 text-white px-5 sm:px-10 py-6 border-b border-emerald-950">
           <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4">
             <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shrink-0 shadow-inner">
               <ShieldCheck className="w-10 h-10 text-emerald-300" />
             </div>
-            <div className="space-y-0.5 flex-1">
-              <h2 className="text-xs font-bold tracking-widest uppercase text-emerald-300">
-                Romblon State University
-              </h2>
-              <h1 className="text-lg sm:text-xl font-black tracking-tight text-white uppercase">
-                Public Assistance and Security Office (PASO)
-              </h1>
-              <p className="text-[11px] text-emerald-100/80">
+            <div className="space-y-1.5 flex-1 w-full">
+              <div>
+                <p className="text-[11px] sm:text-xs font-extrabold tracking-widest uppercase text-emerald-400">
+                  Romblon State University
+                </p>
+                <h1 className="text-base sm:text-xl font-black tracking-tight text-white uppercase leading-snug">
+                  Public Assistance and Security Office (PASO)
+                </h1>
+              </div>
+              <p className="text-[11px] text-emerald-100/90 leading-relaxed max-w-2xl mx-auto sm:mx-0">
                 G/F Admin Building, RSU-Main Campus, Liwanag, Odiongan, Romblon 5505
               </p>
-              <div className="pt-1 flex flex-wrap items-center justify-center sm:justify-start gap-x-4 text-[10px] text-emerald-200">
-                <span>Tel: (042) 567-5911</span>
-                <span>•</span>
-                <span>Email: securityrsvp@rsu.edu.ph</span>
-                <span>•</span>
-                <span>Website: rsu.edu.ph</span>
+              <div className="pt-0.5 flex flex-wrap items-center justify-center sm:justify-start gap-x-3 gap-y-1 text-[10px] text-emerald-200/90 font-medium">
+                <span className="inline-flex items-center">Tel: (042) 567-5911</span>
+                <span className="hidden sm:inline text-emerald-400/60">•</span>
+                <span className="inline-flex items-center">Email: securityrsvp@rsu.edu.ph</span>
+                <span className="hidden sm:inline text-emerald-400/60">•</span>
+                <span className="inline-flex items-center">Website: rsu.edu.ph</span>
               </div>
             </div>
           </div>
@@ -1467,30 +1469,52 @@ export default function Register() {
           {/* Section 6: Data Privacy Act Consent (Republic Act No. 10173) */}
           <div className="pt-4 border-t border-slate-200 space-y-4">
             <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200/90 space-y-2.5 shadow-xs">
-              <div className="flex items-start space-x-3">
-                <input
-                  id="privacyConsent"
-                  type="checkbox"
-                  required
-                  checked={privacyConsent}
-                  onChange={(e) => setPrivacyConsent(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 rounded text-emerald-600 border-slate-300 focus:ring-emerald-500 cursor-pointer shrink-0 accent-emerald-600"
-                />
-                <label htmlFor="privacyConsent" className="text-xs text-slate-700 leading-relaxed cursor-pointer select-none">
-                  <span className="font-bold text-slate-900">Data Privacy Consent Agreement:</span> I have read, understood, and accept the{' '}
-                  <button
-                    type="button"
-                    onClick={() => setShowPrivacyModal(true)}
-                    className="text-emerald-700 font-extrabold underline hover:text-emerald-900 cursor-pointer inline-flex items-center gap-0.5"
-                  >
-                    RSU PASO Data Privacy Notice
-                  </button>{' '}
-                  in accordance with <span className="font-bold text-slate-900">Republic Act No. 10173 (Data Privacy Act of 2012)</span>. <span className="text-rose-500 font-bold">*</span>
-                </label>
+              <div 
+                onClick={() => setPrivacyConsent(!privacyConsent)}
+                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer select-none flex items-start gap-3.5 ${
+                  privacyConsent
+                    ? 'bg-emerald-50/70 border-emerald-500 shadow-xs'
+                    : 'bg-white border-slate-300 hover:border-slate-400'
+                }`}
+              >
+                <div className="pt-0.5 shrink-0">
+                  <input
+                    id="privacyConsent"
+                    type="checkbox"
+                    required
+                    checked={privacyConsent}
+                    onChange={(e) => setPrivacyConsent(e.target.checked)}
+                    className="sr-only"
+                  />
+                  <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${
+                    privacyConsent
+                      ? 'bg-emerald-600 border-emerald-600 shadow-xs'
+                      : 'bg-white border-slate-400'
+                  }`}>
+                    {privacyConsent && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
+                  </div>
+                </div>
+
+                <div className="space-y-1 text-xs text-slate-700 leading-relaxed">
+                  <label htmlFor="privacyConsent" className="cursor-pointer font-medium text-slate-800">
+                    <span className="font-bold text-slate-950">Data Privacy Consent Agreement:</span> I have read, understood, and accept the{' '}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowPrivacyModal(true);
+                      }}
+                      className="text-emerald-700 font-extrabold underline hover:text-emerald-900 cursor-pointer inline-flex items-center gap-0.5"
+                    >
+                      RSU PASO Data Privacy Notice
+                    </button>{' '}
+                    in accordance with <span className="font-bold text-slate-900">Republic Act No. 10173 (Data Privacy Act of 2012)</span>. <span className="text-rose-500 font-bold">*</span>
+                  </label>
+                  <p className="text-[11px] text-slate-500 leading-normal">
+                    By ticking this box, you authorize the RSU Public Assistance and Security Office (PASO) to collect and process your personal and vehicle records solely for campus security and pass issuance.
+                  </p>
+                </div>
               </div>
-              <p className="text-[11px] text-slate-500 pl-7 leading-relaxed">
-                By ticking this box, you authorize the RSU Public Assistance and Security Office (PASO) to collect and process your personal and vehicle records solely for campus security and pass issuance.
-              </p>
             </div>
 
             {/* Live Requirements Status Checklist Banner */}

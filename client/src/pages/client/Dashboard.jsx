@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { useAuth } from '../../context/AuthContext';
 import { usePass } from '../../context/PassContext';
-import { formatNotificationTime, getFullNotificationTimestamp } from '../../utils/dateUtils';
+import { formatNotificationTime, getFullNotificationTimestamp, formatLogTimestamp } from '../../utils/dateUtils';
 import { 
   Car, 
   Clock, 
@@ -209,7 +209,7 @@ export default function Dashboard() {
 
   // Find recent gate log for this user or plate
   const recentGateLog = gateLogs.find(
-    log => (log.plateNumber && log.plateNumber === activePass.plateNumber) ||
+    log => (log.plateNumber && activePass?.plateNumber && log.plateNumber === activePass.plateNumber) ||
            (log.owner && user?.full_name && log.owner.toLowerCase().includes(user.full_name.toLowerCase()))
   );
 
@@ -762,10 +762,10 @@ export default function Dashboard() {
                 </div>
 
                 <h3 className="text-lg font-black text-slate-900">
-                  {(selectedPass || activePass).vehicleName || (selectedPass || activePass).vehicle || 'Registered Vehicle'}
+                  {(selectedPass || activePass)?.vehicleName || (selectedPass || activePass)?.vehicle || 'Registered Vehicle'}
                 </h3>
                 <p className="text-xs text-slate-500 font-mono mt-0.5 font-bold">
-                  Plate: {(selectedPass || activePass).plateNumber || 'N/A'}
+                  Plate: {(selectedPass || activePass)?.plateNumber || 'N/A'}
                 </p>
 
                 <div className="mt-4 p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100 inline-block shadow-inner">
