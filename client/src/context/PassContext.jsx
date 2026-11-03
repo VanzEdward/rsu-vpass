@@ -461,6 +461,10 @@ export const PassProvider = ({ children }) => {
     localStorage.setItem("vpass_active_gate", gate);
   };
 
+  const { user, token } = useAuth();
+  const [isSyncing, setIsSyncing] = useState(false);
+  const isFetchingRef = useRef(false);
+
   // Persistent System Settings (Academic Year, Sticker Fees, Expiration Rules)
   const [systemSettings, setSystemSettings] = useState(() => {
     const saved = localStorage.getItem("vpass_admin_settings");
@@ -512,10 +516,6 @@ export const PassProvider = ({ children }) => {
       });
     return () => { isMounted = false; };
   }, [user?.role]);
-
-  const { user, token } = useAuth();
-  const [isSyncing, setIsSyncing] = useState(false);
-  const isFetchingRef = useRef(false);
 
   // Real-time synchronization with Aiven Cloud Database
   const fetchCloudData = useCallback(async () => {

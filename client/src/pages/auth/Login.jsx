@@ -155,19 +155,6 @@ export default function Login() {
     navigate('/guard/scanner');
   };
 
-  const quickSwitch = (role) => {
-    if (role === 'CLIENT') {
-      setIdentifier('');
-      setPassword('');
-    } else if (role === 'ADMIN') {
-      setIdentifier('PASO-ADMIN-01');
-      setPassword('');
-    } else {
-      setIdentifier('GUARD-GATE-01');
-      setPassword('');
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50/50 via-slate-50 to-slate-100 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
