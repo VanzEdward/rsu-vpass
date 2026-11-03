@@ -50,18 +50,17 @@ Before installing the system on a new computer or laptop, ensure the following r
 | **Operating System** | Windows 10/11, macOS 12+, Ubuntu 20.04+ | Windows 11 (64-bit) | Host OS |
 | **Node.js** | v18.16.0 LTS | v20.x or v22.x LTS | JavaScript runtime engine |
 | **npm** | v9.0.0 | v10.x+ | Package manager (bundled with Node.js) |
-| **Git** | v2.30+ | Latest | Version control / repository cloning |
+| **Archive Utility** | Built-in Windows ZIP | Windows Extract / 7-Zip / WinRAR | Extract project archive from Google Drive / USB |
 | **Web Browser** | Chrome 90+, Edge 90+, Safari 15+ | Google Chrome (Latest) | Camera and Barcode API support |
 | **Database Engine** | MySQL 8.0+ | Aiven Cloud MySQL / XAMPP v8.2+ | Relational data persistence |
 
 > [!NOTE]
-> To verify if Node.js and Git are installed on the computer, open PowerShell or Command Prompt and run:
+> To verify if Node.js is installed on the computer, open PowerShell or Command Prompt and run:
 > ```bash
 > node -v
 > npm -v
-> git --version
 > ```
-> If not installed, download the official LTS installer from [https://nodejs.org](https://nodejs.org) and [https://git-scm.com](https://git-scm.com).
+> If not installed, download the official LTS installer from [https://nodejs.org](https://nodejs.org).
 
 ### 3.2 Minimum Hardware Requirements
 * **Processor**: Dual-Core 2.0 GHz (Intel Core i3 / AMD Ryzen 3 or equivalent).
@@ -76,21 +75,24 @@ Before installing the system on a new computer or laptop, ensure the following r
 
 Follow these steps in order when setting up the system on a new laptop or PC:
 
-### Step 1: Copy or Clone the Project Repository
-Open PowerShell or Terminal on the target laptop and navigate to your preferred directory:
+### Step 1: Download and Extract the Project Archive (Google Drive / USB)
 
-```bash
-# Navigate to Desktop or Projects folder
-cd "C:\Users\<YourUsername>\Desktop"
+1. **Obtain the Project Package**:
+   * **Google Drive**: Download the `rsuv-vpass.zip` file from your shared Google Drive link to the target laptop or PC.
+   * **USB Flash Drive**: Copy the `rsuv-vpass.zip` file (or the unzipped `rsuv-vpass` folder) directly from your USB drive to the **Desktop** or **Documents** folder.
 
-# Option A: Clone from GitHub
-git clone https://github.com/vanzedwardmantes/rsuv-vpass.git
-cd rsuv-vpass
+2. **Extract the ZIP Archive (If compressed)**:
+   * Right-click the downloaded `rsuv-vpass.zip` file and select **Extract All...** (or open with 7-Zip / WinRAR).
+   * Specify the destination folder (e.g. `C:\Users\<YourUsername>\Desktop\rsuv-vpass`).
+   * Click **Extract** and wait for the extraction to finish.
 
-# Option B: If transferring via USB flash drive
-# Copy the "rsuv-vpass" folder directly to your Desktop and open PowerShell inside it:
-cd "C:\Users\<YourUsername>\Desktop\rsuv-vpass"
-```
+3. **Open the Terminal inside the Project Folder**:
+   * Open the extracted `rsuv-vpass` folder in Windows File Explorer.
+   * Click the File Explorer **address bar** at the top, type `powershell` (or `cmd`), and press **Enter**.
+   * *Alternatively*, open PowerShell and navigate using:
+     ```bash
+     cd "C:\Users\<YourUsername>\Desktop\rsuv-vpass"
+     ```
 
 ---
 
@@ -363,3 +365,4 @@ Security Guard accounts are provisioned exclusively by PASO Administration to ma
 ---
 
 *RSU VPASS Technical Manual • Developed for Romblon State University Physical Assets & Security Office (PASO).*
+
