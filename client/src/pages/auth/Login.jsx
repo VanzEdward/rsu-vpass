@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiRequest } from '../../api/client';
-import { ShieldCheck, ArrowRight, UserCheck, ShieldAlert, KeyRound, UserPlus, MapPin, Lock, Check, X, CheckCircle2, Eye, EyeOff, Mail, RefreshCw, AlertCircle, Sparkles } from 'lucide-react';
+import { ShieldCheck, ArrowRight, ShieldAlert, KeyRound, UserPlus, MapPin, Lock, Check, X, CheckCircle2, Eye, EyeOff, Mail, RefreshCw, AlertCircle, Sparkles } from 'lucide-react';
 import { usePass, CAMPUS_GATES } from '../../context/PassContext';
 
 export default function Login() {
@@ -284,39 +284,6 @@ export default function Login() {
             <p className="text-[10px] text-slate-400 pt-1 border-t border-emerald-100">
               Note: Security Guard credentials are provisioned exclusively by PASO Admin.
             </p>
-          </div>
-
-          {/* Quick Demo Switcher */}
-          <div className="mt-6 pt-5 border-t border-slate-100">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-              Quick Switch Role (Prototype Demo):
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => quickSwitch('CLIENT')}
-                className="px-2 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 text-[11px] font-semibold text-slate-700 flex flex-col items-center cursor-pointer transition-colors"
-              >
-                <UserCheck className="w-3.5 h-3.5 text-emerald-600 mb-0.5" />
-                <span>Client</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => quickSwitch('ADMIN')}
-                className="px-2 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 text-[11px] font-semibold text-slate-700 flex flex-col items-center cursor-pointer transition-colors"
-              >
-                <KeyRound className="w-3.5 h-3.5 text-emerald-600 mb-0.5" />
-                <span>PASO Admin</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => quickSwitch('GUARD')}
-                className="px-2 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 text-[11px] font-semibold text-slate-700 flex flex-col items-center cursor-pointer transition-colors"
-              >
-                <ShieldAlert className="w-3.5 h-3.5 text-slate-600 mb-0.5" />
-                <span>Gate Guard</span>
-              </button>
-            </div>
           </div>
         </div>
       </div>

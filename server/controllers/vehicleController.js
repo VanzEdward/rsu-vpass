@@ -108,7 +108,7 @@ export const getMyApplications = async (req, res) => {
         u.full_name as applicant_name, u.school_id, u.classification, u.contact_number,
         u.year_course, u.department_unit,
         v.id as vehicle_id, v.plate_number, v.vehicle_type, v.make, v.model, v.color, v.year_model,
-        vp.id as pass_id, vp.pass_number, vp.valid_until, vp.qr_code_data, vp.status as pass_status,
+        vp.id as pass_id, vp.pass_number, vp.valid_until, vp.qr_code_data, vp.academic_year, vp.template_version, vp.status as pass_status,
         vp.issued_at as pass_issued_at
       FROM applications a
       JOIN users u ON a.user_id = u.id
@@ -159,6 +159,8 @@ export const getMyApplications = async (req, res) => {
         passNumber: app.pass_number,
         validUntil: app.valid_until,
         qrData: app.qr_code_data,
+        academicYear: app.academic_year || '2026-2027',
+        templateVersion: app.template_version || 'V1',
         status: app.pass_status || 'ACTIVE',
         issuedAt: app.pass_issued_at || app.updated_at,
       } : null,

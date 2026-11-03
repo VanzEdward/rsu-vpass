@@ -92,6 +92,8 @@ CREATE TABLE IF NOT EXISTS vehicle_passes (
     user_id INT NOT NULL,
     qr_code_data LONGTEXT NOT NULL,
     valid_until DATE NOT NULL,
+    academic_year VARCHAR(50) DEFAULT '2026-2027',
+    template_version VARCHAR(20) DEFAULT 'V1',
     status ENUM('ACTIVE', 'EXPIRED', 'REVOKED') DEFAULT 'ACTIVE',
     issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE,
@@ -152,31 +154,11 @@ CREATE TABLE IF NOT EXISTS password_resets (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
--- ==========================================================
--- System Seed Data (Essential Administrative Accounts)
--- ==========================================================
+-- 9. System Global Settings
+CREATE TABLE IF NOT EXISTS system_settings (
+    setting_key VARCHAR(100) PRIMARY KEY,
+    setting_value TEXT NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
 
--- PASO Admin Account (Default Credentials: PASO-ADMIN-01 / admin)
-INSERT INTO users (id, school_id, email, password, full_name, role, contact_number)
-VALUES (
-    2,
-    'PASO-ADMIN-01',
-    'paso@rsu.edu.ph',
-    '$2b$10$f5THNbdhVPHUobjsTEtH3OtMIKeA83NqIPLvrZvXVUGv4y.HvChRW',
-    'PASO Administrator',
-    'PASO_ADMIN',
-    '+63 917 111 2222'
-) ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), password = VALUES(password);
-
--- Gate Guard Account (Default Credentials: GUARD-GATE-01 / guard)
-INSERT INTO users (id, school_id, email, password, full_name, role, contact_number)
-VALUES (
-    3,
-    'GUARD-GATE-01',
-    'guard.main@rsu.edu.ph',
-    '$2b$10$8f4pS0teMTtLX9z7D5u.xOybkWkWoi9onTEeq.hnUUD.tRHUqP2we',
-    'Officer Santos',
-    'GUARD',
-    '+63 918 333 4444'
-) ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), password = VALUES(password);
-
+-- End of Schema Definition

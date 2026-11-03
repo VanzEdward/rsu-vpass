@@ -26,28 +26,10 @@ import {
   Lock
 } from 'lucide-react';
 
-const INITIAL_DEMO_GUARDS = [
-  {
-    id: 1,
-    school_id: 'GUARD-GATE-01',
-    first_name: 'Pedro',
-    last_name: 'Penduko',
-    middle_name: 'M.',
-    full_name: 'Penduko, Pedro M.',
-    email: 'guard.main@rsu.edu.ph',
-    contact_number: '+63 917 111 2233',
-    role: 'GUARD',
-    created_at: '2026-01-10T08:00:00.000Z'
-  }
-];
-
 export default function AdminGuards() {
-  const [guards, setGuards] = useState(() => {
-    const saved = localStorage.getItem('vpass_guards_list');
-    return saved ? JSON.parse(saved) : INITIAL_DEMO_GUARDS;
-  });
+  const [guards, setGuards] = useState([]);
 
-  const [loading, setLoading] = useState(false);
+const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
   // Modal states
@@ -94,7 +76,7 @@ export default function AdminGuards() {
     try {
       setLoading(true);
       const res = await apiRequest('/paso/guards');
-      if (Array.isArray(res) && res.length > 0) {
+      if (Array.isArray(res)) {
         setGuards(res);
       }
     } catch (err) {

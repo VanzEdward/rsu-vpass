@@ -36,7 +36,7 @@ export default function GuardLayout() {
           <div className="flex items-center space-x-2 text-[11px] font-mono text-emerald-400 bg-slate-900/60 px-2.5 py-1 rounded-xl border border-slate-700">
             <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
             <span className="hidden sm:inline">OFFICER:</span>
-            <span className="font-bold text-white">{user?.full_name || 'Officer Santos'}</span>
+            <span className="font-bold text-white">{user?.full_name || 'Security Officer'}</span>
           </div>
         </div>
       </div>

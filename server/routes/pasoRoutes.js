@@ -10,7 +10,9 @@ import {
   createGuard,
   updateGuard,
   deleteGuard,
-  dispatchEmailNotification
+  dispatchEmailNotification,
+  getSystemSettings,
+  updateSystemSettings
 } from '../controllers/pasoController.js';
 import { verifyToken } from '../middleware/authMiddleware.js';
 import { authorizeRoles } from '../middleware/roleMiddleware.js';
@@ -33,6 +35,9 @@ const permissiveAuthInDev = (req, res, next) => {
 
 router.post('/notifications/send-email', permissiveAuthInDev, dispatchEmailNotification);
 
+// System Settings endpoint (Fetch active Academic Year & policy)
+router.get('/settings', getSystemSettings);
+
 router.use(verifyToken);
 router.use(authorizeRoles('PASO_ADMIN'));
 
@@ -42,6 +47,7 @@ router.patch('/applications/:applicationId/review', reviewApplication);
 router.post('/applications/:applicationId/issue-pass', issuePass);
 router.post('/applications/:applicationId/reject-receipt', rejectReceipt);
 router.post('/payments/record', recordPayment);
+router.put('/settings', updateSystemSettings);
 
 // Security Guard Accounts Management (PASO Admin Only)
 router.get('/guards', getGuards);

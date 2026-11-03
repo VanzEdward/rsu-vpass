@@ -40,7 +40,8 @@ export default function Dashboard() {
     notifications = [], 
     markNotificationAsRead,
     markAllNotificationsAsRead,
-    gateLogs = [] 
+    gateLogs = [],
+    systemSettings
   } = usePass();
 
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
@@ -71,7 +72,7 @@ export default function Dashboard() {
         vehicleType: app.vehicle?.type || 'Motorcycle',
         color: app.vehicle?.color || '',
         passNumber: passNum,
-        validUntil: app.pass?.validUntil || 'December 31, 2026',
+        validUntil: app.pass?.validUntil || `July 31, ${systemSettings?.academicYear?.split('-')[1] || '2027'}`,
         status: app.pass?.status || (app.status === 'PASS_ISSUED' ? 'ACTIVE' : 'Active Pass'),
         qrData,
         hasIssuedPass: Boolean(app.pass || app.status === 'PASS_ISSUED')
@@ -96,7 +97,7 @@ export default function Dashboard() {
         vehicleType: v.type || 'Motorcycle',
         color: v.color || '',
         passNumber: passNum,
-        validUntil: 'December 31, 2026',
+        validUntil: `July 31, ${systemSettings?.academicYear?.split('-')[1] || '2027'}`,
         status: v.status || 'Active Pass',
         qrData,
         hasIssuedPass: v.status === 'Active Pass' || Boolean(v.passNumber)
@@ -128,7 +129,7 @@ export default function Dashboard() {
     vehicle: `${activeApp.vehicle?.make || ''} ${activeApp.vehicle?.model || ''}`.trim() || 'Motor Vehicle',
     plateNumber: activeApp.vehicle?.plateNumber || 'N/A',
     vehicleType: activeApp.vehicle?.type || 'Motorcycle',
-    validUntil: activeApp.pass.validUntil || 'December 31, 2026',
+    validUntil: activeApp.pass.validUntil || `July 31, ${systemSettings?.academicYear?.split('-')[1] || '2027'}`,
     status: activeApp.pass.status || 'ACTIVE',
     qrData: activeApp.pass.qrData || `RSU-VPASS:${activeApp.pass.passNumber}:${activeApp.vehicle?.plateNumber}:${activeApp.school_id || user?.school_id}`,
   } : null;
@@ -237,7 +238,7 @@ export default function Dashboard() {
 
               <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-950/40 border border-emerald-400/30 text-xs font-medium text-emerald-200">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>A.Y. 2026–2027</span>
+                <span>A.Y. {systemSettings?.academicYear || "2026-2027"}</span>
               </span>
             </div>
 

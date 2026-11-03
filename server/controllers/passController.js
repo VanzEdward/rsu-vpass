@@ -5,7 +5,7 @@ export const getMyPasses = async (req, res) => {
   try {
     const [passes] = await pool.query(`
       SELECT 
-        vp.id as pass_id, vp.pass_number, vp.qr_code_data, vp.valid_until, vp.status, vp.issued_at,
+        vp.id as pass_id, vp.pass_number, vp.qr_code_data, vp.valid_until, vp.academic_year, vp.template_version, vp.status, vp.issued_at,
         v.plate_number, v.vehicle_type, v.make, v.model, v.color, v.year_model, v.vehicle_photo_url,
         u.full_name, u.school_id, u.photo_url as client_photo
       FROM vehicle_passes vp

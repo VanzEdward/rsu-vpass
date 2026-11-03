@@ -45,7 +45,7 @@ export const getAllApplications = async (req, res) => {
         u.id as user_id, u.school_id, u.full_name, u.email, u.contact_number,
         u.classification, u.year_course, u.department_unit,
         v.id as vehicle_id, v.plate_number, v.vehicle_type, v.make, v.model, v.color, v.year_model,
-        vp.id as pass_id, vp.pass_number, vp.valid_until, vp.qr_code_data, vp.status as pass_status,
+        vp.id as pass_id, vp.pass_number, vp.valid_until, vp.qr_code_data, vp.academic_year, vp.template_version, vp.status as pass_status,
         vp.issued_at as pass_issued_at
       FROM applications a
       JOIN users u ON a.user_id = u.id
@@ -95,6 +95,8 @@ export const getAllApplications = async (req, res) => {
         passNumber: app.pass_number,
         validUntil: app.valid_until,
         qrData: app.qr_code_data,
+        academicYear: app.academic_year || '2026-2027',
+        templateVersion: app.template_version || 'V1',
         status: app.pass_status || 'ACTIVE',
         issuedAt: app.pass_issued_at || app.updated_at,
       } : null,
@@ -195,7 +197,7 @@ export const reviewApplication = async (req, res) => {
 export const issuePass = async (req, res) => {
   try {
     const { applicationId } = req.params;
-    const { passNumber, validUntil, orNumber, amount } = req.body;
+    const { passNumber, validUntil, orNumber, amount, academicYear, templateVersion } = req.body;
 
     let appCondition = 'a.id = ?';
     if (isNaN(Number(applicationId))) {
@@ -222,12 +224,31 @@ export const issuePass = async (req, res) => {
     const finalValidUntil = validUntil ? new Date(validUntil).toISOString().split('T')[0] : `${new Date().getFullYear() + 1}-07-31`;
     const qrData = `RSU-VPASS:${finalPassNum}:${app.plate_number}:${app.school_id}`;
 
+        // Fetch active system settings for defaults
+    const [settingsRows] = await pool.query(
+      "SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('academicYear', 'stickerTemplateVersion')"
+    );
+    const settingsMap = Object.fromEntries(settingsRows.map(r => [r.setting_key, r.setting_value]));
+    const finalAcadYear = academicYear || settingsMap.academicYear || '2026-2027';
+    let finalTemplate = templateVersion || settingsMap.stickerTemplateVersion;
+    if (!finalTemplate) {
+      if (finalAcadYear === '2027-2028') finalTemplate = 'V2';
+      else if (finalAcadYear === '2028-2029') finalTemplate = 'V3';
+      else finalTemplate = 'V1';
+    }
+
     // 1. Insert or update vehicle pass
     await pool.query(
-      `INSERT INTO vehicle_passes (pass_number, vehicle_id, user_id, qr_code_data, valid_until, status)
-       VALUES (?, ?, ?, ?, ?, 'ACTIVE')
-       ON DUPLICATE KEY UPDATE pass_number = VALUES(pass_number), qr_code_data = VALUES(qr_code_data), valid_until = VALUES(valid_until), status = 'ACTIVE'`,
-      [finalPassNum, app.vehicle_id, app.user_id, qrData, finalValidUntil]
+      `INSERT INTO vehicle_passes (pass_number, vehicle_id, user_id, qr_code_data, valid_until, academic_year, template_version, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+       ON DUPLICATE KEY UPDATE 
+         pass_number = VALUES(pass_number), 
+         qr_code_data = VALUES(qr_code_data), 
+         valid_until = VALUES(valid_until), 
+         academic_year = VALUES(academic_year), 
+         template_version = VALUES(template_version), 
+         status = 'ACTIVE'`,
+      [finalPassNum, app.vehicle_id, app.user_id, qrData, finalValidUntil, finalAcadYear, finalTemplate]
     );
 
     // 2. Insert payment if OR number is available
@@ -266,6 +287,8 @@ export const issuePass = async (req, res) => {
       message: 'Official Vehicle Pass issued successfully!',
       passNumber: finalPassNum,
       validUntil: finalValidUntil,
+      academicYear: finalAcadYear,
+      templateVersion: finalTemplate,
       qrData
     });
   } catch (error) {
@@ -764,5 +787,85 @@ export const dispatchEmailNotification = async (req, res) => {
   } catch (error) {
     console.error("[Dispatch Email Error]:", error);
     res.status(500).json({ message: "Failed to dispatch email", error: error.message });
+  }
+};
+
+
+const DEFAULT_SYSTEM_SETTINGS = {
+  academicYear: "2026-2027",
+  passValidityType: "ACADEMIC_YEAR",
+  stickerTemplateVersion: "V1",
+  renewalWindowDays: "60",
+  motorcycleFee: "150",
+  fourWheelFee: "300",
+  commercialFee: "500",
+  studentScanPolicy: "SPOT_CHECK",
+  employeeLoggingEnforced: true,
+  defaultVisitorStayDays: "1",
+  maxVisitorStayDays: "7",
+  scannerAudioEnabled: true,
+  campusName: "Romblon State University • Odiongan Main Campus",
+  primaryGate: "Gate 1",
+};
+
+// Retrieve university system & academic year settings
+export const getSystemSettings = async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT setting_key, setting_value FROM system_settings');
+    const dbSettings = {};
+    for (const row of rows) {
+      let val = row.setting_value;
+      if (val === 'true') val = true;
+      else if (val === 'false') val = false;
+      dbSettings[row.setting_key] = val;
+    }
+    const merged = { ...DEFAULT_SYSTEM_SETTINGS, ...dbSettings };
+    res.json(merged);
+  } catch (error) {
+    console.error('Error in getSystemSettings:', error);
+    res.status(500).json({ message: 'Error retrieving system settings', error: error.message });
+  }
+};
+
+// Update university system & academic year settings (PASO Admin only)
+export const updateSystemSettings = async (req, res) => {
+  try {
+    const newSettings = req.body || {};
+
+    // Auto-align stickerTemplateVersion if academicYear changed and template wasn't explicitly supplied
+    if (newSettings.academicYear && !req.body.stickerTemplateVersion) {
+      if (newSettings.academicYear === '2027-2028') newSettings.stickerTemplateVersion = 'V2';
+      else if (newSettings.academicYear === '2028-2029') newSettings.stickerTemplateVersion = 'V3';
+      else if (newSettings.academicYear === '2026-2027') newSettings.stickerTemplateVersion = 'V1';
+    }
+
+    const entries = Object.entries(newSettings);
+    for (const [k, v] of entries) {
+      const valStr = typeof v === 'object' ? JSON.stringify(v) : String(v);
+      await pool.query(
+        `INSERT INTO system_settings (setting_key, setting_value) 
+         VALUES (?, ?) 
+         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
+        [k, valStr]
+      );
+    }
+
+    const [rows] = await pool.query('SELECT setting_key, setting_value FROM system_settings');
+    const dbSettings = {};
+    for (const row of rows) {
+      let val = row.setting_value;
+      if (val === 'true') val = true;
+      else if (val === 'false') val = false;
+      dbSettings[row.setting_key] = val;
+    }
+    const merged = { ...DEFAULT_SYSTEM_SETTINGS, ...dbSettings };
+
+    res.json({
+      message: 'System settings saved successfully to cloud database!',
+      settings: merged,
+    });
+  } catch (error) {
+    console.error('Error in updateSystemSettings:', error);
+    res.status(500).json({ message: 'Failed to update system settings', error: error.message });
   }
 };

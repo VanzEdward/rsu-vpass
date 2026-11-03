@@ -710,7 +710,7 @@ export default function VehiclePass() {
                 <div className="flex justify-between items-center pt-1 border-t border-slate-200 gap-2">
                   <span className="text-slate-500 shrink-0">Academic Year:</span>
                   <span className="font-bold text-emerald-800 truncate text-right font-mono">
-                    A.Y. {pass.academicYear || systemSettings?.academicYear || '2026-2027'}
+                    A.Y. {systemSettings?.academicYear || pass.academicYear || '2026-2027'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center gap-2">
@@ -780,7 +780,7 @@ export default function VehiclePass() {
               passNumber={pass.passNumber || "S-001"}
               plateNumber={vehicle.plateNumber || "RSU 2026"}
               qrPayload={pass.qrData || `RSU-VPASS:${pass.passNumber}:${vehicle?.plateNumber || 'N/A'}:${school_id}`}
-              templateVersion={pass.templateVersion || systemSettings?.stickerTemplateVersion || "V1"}
+              templateVersion={systemSettings?.stickerTemplateVersion || pass.templateVersion || "V1"}
               showDownloadButton={true}
             />
 

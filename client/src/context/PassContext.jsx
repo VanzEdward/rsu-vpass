@@ -467,13 +467,51 @@ export const PassProvider = ({ children }) => {
     return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
   });
 
-  const updateSystemSettings = (newSettings) => {
-    setSystemSettings((prev) => {
-      const updated = typeof newSettings === "function" ? newSettings(prev) : { ...prev, ...newSettings };
+  const updateSystemSettings = async (newSettings) => {
+    const updated = typeof newSettings === "function" ? newSettings(systemSettings) : { ...systemSettings, ...newSettings };
+    setSystemSettings(updated);
+    try {
       localStorage.setItem("vpass_admin_settings", JSON.stringify(updated));
-      return updated;
-    });
+    } catch (_) {}
+
+    try {
+      const res = await apiRequest("/paso/settings", {
+        method: "PUT",
+        body: JSON.stringify(updated),
+      });
+      if (res && res.settings) {
+        setSystemSettings(res.settings);
+        try {
+          localStorage.setItem("vpass_admin_settings", JSON.stringify(res.settings));
+        } catch (_) {}
+        return res.settings;
+      }
+    } catch (err) {
+      console.warn("[PassContext] Cloud settings persistence warning:", err.message);
+    }
+    return updated;
   };
+
+  // Real-time synchronization of System Settings with Aiven Cloud MySQL
+  useEffect(() => {
+    let isMounted = true;
+    apiRequest("/paso/settings")
+      .then((settings) => {
+        if (isMounted && settings && typeof settings === "object" && settings.academicYear) {
+          setSystemSettings((prev) => {
+            const merged = { ...prev, ...settings };
+            try {
+              localStorage.setItem("vpass_admin_settings", JSON.stringify(merged));
+            } catch (_) {}
+            return merged;
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn("[PassContext] Settings sync warning:", err.message);
+      });
+    return () => { isMounted = false; };
+  }, [user?.role]);
 
   const { user, token } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
@@ -486,11 +524,19 @@ export const PassProvider = ({ children }) => {
       isFetchingRef.current = true;
       setIsSyncing(true);
       if (user.role === "PASO_ADMIN") {
-        const [appsRes, logsRes, visRes] = await Promise.allSettled([
+        const [appsRes, logsRes, visRes, settingsRes] = await Promise.allSettled([
           apiRequest("/paso/applications"),
           apiRequest("/guard/logs"),
           apiRequest("/guard/visitors"),
+          apiRequest("/paso/settings"),
         ]);
+        if (settingsRes.status === "fulfilled" && settingsRes.value?.academicYear) {
+          setSystemSettings((prev) => {
+            const merged = { ...prev, ...settingsRes.value };
+            try { localStorage.setItem("vpass_admin_settings", JSON.stringify(merged)); } catch (_) {}
+            return merged;
+          });
+        }
         if (appsRes.status === "fulfilled" && Array.isArray(appsRes.value)) {
           setApplications((appsRes.value || []).map(sanitizeApp));
         }
@@ -501,10 +547,18 @@ export const PassProvider = ({ children }) => {
           setVisitorPasses(visRes.value);
         }
       } else if (user.role === "CLIENT") {
-        const [appsRes, vehsRes] = await Promise.allSettled([
+        const [appsRes, vehsRes, settingsRes] = await Promise.allSettled([
           apiRequest("/vehicles/my-applications"),
           apiRequest("/vehicles/my-vehicles"),
+          apiRequest("/paso/settings"),
         ]);
+        if (settingsRes.status === "fulfilled" && settingsRes.value?.academicYear) {
+          setSystemSettings((prev) => {
+            const merged = { ...prev, ...settingsRes.value };
+            try { localStorage.setItem("vpass_admin_settings", JSON.stringify(merged)); } catch (_) {}
+            return merged;
+          });
+        }
         if (appsRes.status === "fulfilled" && Array.isArray(appsRes.value)) {
           setApplications((appsRes.value || []).map(sanitizeApp));
         }
@@ -524,11 +578,19 @@ export const PassProvider = ({ children }) => {
           }
         }
       } else if (user.role === "GUARD") {
-        const [appsRes, logsRes, visRes] = await Promise.allSettled([
+        const [appsRes, logsRes, visRes, settingsRes] = await Promise.allSettled([
           apiRequest("/guard/passes"),
           apiRequest("/guard/logs"),
           apiRequest("/guard/visitors"),
+          apiRequest("/paso/settings"),
         ]);
+        if (settingsRes.status === "fulfilled" && settingsRes.value?.academicYear) {
+          setSystemSettings((prev) => {
+            const merged = { ...prev, ...settingsRes.value };
+            try { localStorage.setItem("vpass_admin_settings", JSON.stringify(merged)); } catch (_) {}
+            return merged;
+          });
+        }
         if (appsRes.status === "fulfilled" && Array.isArray(appsRes.value)) {
           setApplications(appsRes.value);
         }
@@ -1480,6 +1542,8 @@ export const PassProvider = ({ children }) => {
       body: JSON.stringify({
         passNumber: generatedPassNum,
         validUntil: customDetails.expiresAt || oneYear.expiresAt,
+        academicYear: acadYear,
+        templateVersion: activeTemplateVersion,
         orNumber: targetApp.receipt?.orNumber,
         amount: (targetApp.vehicle?.type || "").toLowerCase().includes("4-wheel") ? 300 : 150,
       }),
