@@ -34,7 +34,7 @@ The application is engineered using a modern client-server architecture:
                ▼                              │
 ┌─────────────────────────────────────────────────────────────┐
 │                 Database Layer (Data Store)                 │
-│      Aiven Cloud MySQL 8.x / Local MySQL (XAMPP / Workbench)│
+│      TiDB Cloud Serverless MySQL / Local MySQL (XAMPP)       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -52,7 +52,7 @@ Before installing the system on a new computer or laptop, ensure the following r
 | **npm** | v9.0.0 | v10.x+ | Package manager (bundled with Node.js) |
 | **Archive Utility** | Built-in Windows ZIP | Windows Extract / 7-Zip / WinRAR | Extract project archive from Google Drive / USB |
 | **Web Browser** | Chrome 90+, Edge 90+, Safari 15+ | Google Chrome (Latest) | Camera and Barcode API support |
-| **Database Engine** | MySQL 8.0+ | Aiven Cloud MySQL / XAMPP v8.2+ | Relational data persistence |
+| **Database Engine** | MySQL 8.0+ | TiDB Cloud Serverless / XAMPP v8.2+ | Relational data persistence |
 
 > [!NOTE]
 > To verify if Node.js is installed on the computer, open PowerShell or Command Prompt and run:
@@ -140,11 +140,11 @@ PORT=5000
 NODE_ENV=development
 CLIENT_URL=http://localhost:5173
 
-# Database Connection (Aiven Cloud MySQL or Local MySQL)
-DB_HOST=rsu-vpass-db-vanzedwardmantes-853c.a.aivencloud.com
-DB_PORT=18335
-DB_USER=avnadmin
-DB_PASSWORD=your_aiven_password_here
+# Database Connection (TiDB Cloud Serverless MySQL or Local MySQL)
+DB_HOST=gateway01.ap-southeast-1.prod.aws.tidbcloud.com
+DB_PORT=4000
+DB_USER=your_cluster_prefix.root
+DB_PASSWORD=your_tidb_password_here
 DB_NAME=rsu_vpass
 DB_SSL=true
 
@@ -152,15 +152,16 @@ DB_SSL=true
 JWT_SECRET=rsu_vpass_super_secure_production_jwt_token_2026_key
 JWT_EXPIRES_IN=7d
 
-# Brevo Email Service (Optional for Automated Email Notifications)
-BREVO_API_KEY=your_brevo_api_key_here
-EMAIL_FROM=paso@rsu.edu.ph
+# Brevo (Sendinblue) Email Service (300 Free Transactional Emails / Day)
+# Note: EMAIL_FROM must be a verified sender in your Brevo console
+BREVO_API_KEY=xkeysib-your_brevo_api_key_here
+EMAIL_FROM=your_verified_sender_email@gmail.com
 EMAIL_FROM_NAME="RSU VPASS (PASO)"
 ```
 
 > [!TIP]
 > **Using Local MySQL (XAMPP / WampServer / MySQL Workbench):**  
-> If using a local MySQL server instead of Aiven Cloud, set:
+> If using a local MySQL server instead of TiDB Cloud, set:
 > ```env
 > DB_HOST=127.0.0.1
 > DB_PORT=3306
@@ -185,9 +186,9 @@ npm run db:init
 ======================================================
   RSU VPASS — Cloud MySQL Database Initializer
 ======================================================
-Connecting to: rsu-vpass-db-vanzedwardmantes-853c.a.aivencloud.com:18335
+Connecting to: gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000
 Database:     rsu_vpass
-User:         avnadmin
+User:         your_cluster_prefix.root
 SSL Enabled:  YES (Cloud Mode)
 ------------------------------------------------------
  Connected to MySQL successfully!
@@ -324,14 +325,14 @@ Security Guard accounts are provisioned exclusively by PASO Administration to ma
   Or change `PORT=5001` inside `server/.env`.
 
 ### Issue 2: MySQL Connection Error (`getaddrinfo ENOTFOUND` or `ECONNREFUSED`)
-* **Cause**: Incorrect database hostname, missing internet connection (for Aiven Cloud), or local MySQL service stopped.
+* **Cause**: Incorrect database hostname, missing internet connection (for TiDB Cloud), or local MySQL service stopped.
 * **Resolution**:
-  1. Check internet connection if using Aiven Cloud MySQL.
+  1. Check internet connection if using TiDB Cloud MySQL.
   2. Test database connection directly using:
      ```bash
      npm run db:check
      ```
-  3. Verify that `DB_SSL=true` is set when connecting to Aiven Cloud MySQL.
+  3. Verify that `DB_SSL=true` is set when connecting to TiDB Cloud MySQL.
 
 ### Issue 3: Camera shows black screen or permission denied
 * **Cause**: Browser camera permissions were dismissed or blocked.
