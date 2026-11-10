@@ -2,6 +2,22 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext(null);
 
+const SESSION_CACHE_KEYS = [
+  'vpass_applications',
+  'vpass_vehicles',
+  'vpass_registration_draft',
+  'vpass_visitor_passes',
+  'vpass_gate_logs',
+  'vpass_notifications',
+  'vpass_guards_list',
+];
+
+const clearSessionCaches = () => {
+  try {
+    SESSION_CACHE_KEYS.forEach((key) => localStorage.removeItem(key));
+  } catch (_) {}
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('vpass_user');
@@ -11,6 +27,8 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
 
   const login = (userData, userToken) => {
+    // Clear previous session cache if switching accounts or starting a fresh login
+    clearSessionCaches();
     setUser(userData);
     setToken(userToken);
     localStorage.setItem('vpass_user', JSON.stringify(userData));
@@ -18,6 +36,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    clearSessionCaches();
     setUser(null);
     setToken(null);
     localStorage.removeItem('vpass_user');

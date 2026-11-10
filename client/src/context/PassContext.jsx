@@ -207,24 +207,24 @@ export const getSequentialPassNumber = (targetApp, allApplications = []) => {
   return `${prefix}-${String(nextSeq).padStart(3, "0")}`;
 };
 
-// One-time safe purge to ensure clean state without deleting active user data
+// One-time safe purge to ensure strict per-user cache isolation and clear stale unscoped localStorage data
 const purgeLegacyDummyDataOnce = () => {
   try {
-    if (localStorage.getItem("vpass_clean_storage_v3")) return;
-    const vList = localStorage.getItem("vpass_vehicles") || "";
-    // Only remove obsolete mock demo plate if still present from old code
-    if (vList.includes("XYZ 5678")) {
-      localStorage.removeItem("vpass_vehicles");
-    }
-    // Clean out any bloated or corrupted applications cache from earlier unsanitized uploads
-    const rawApps = localStorage.getItem("vpass_applications") || "";
-    if (rawApps.length > 50000) {
-      localStorage.removeItem("vpass_applications");
-    }
-    localStorage.setItem("vpass_clean_storage_v3", "true");
+    if (localStorage.getItem("vpass_clean_storage_v4")) return;
+    [
+      "vpass_vehicles",
+      "vpass_applications",
+      "vpass_registration_draft",
+      "vpass_visitor_passes",
+      "vpass_gate_logs",
+      "vpass_notifications",
+      "vpass_guards_list",
+    ].forEach((k) => localStorage.removeItem(k));
+    localStorage.setItem("vpass_clean_storage_v4", "true");
   } catch (e) {
     try {
       localStorage.removeItem("vpass_applications");
+      localStorage.removeItem("vpass_vehicles");
     } catch (_) {}
   }
 };
@@ -329,6 +329,9 @@ const persistAllReadNotifIds = (ids, userId) => {
 const memoryImageCache = new Map();
 
 export const PassProvider = ({ children }) => {
+  const { user, token } = useAuth();
+  const loadedUserIdRef = useRef(user?.id || null);
+
   const sanitizeApp = (app) => {
     if (!app || typeof app !== "object") return app;
 
@@ -402,20 +405,23 @@ export const PassProvider = ({ children }) => {
   };
 
   const [applications, setApplications] = useState(() => {
+    if (!user?.id) return [];
     try {
-      const saved = localStorage.getItem("vpass_applications");
+      const saved = localStorage.getItem(`vpass_applications_${user.id}`);
       const parsed = saved ? JSON.parse(saved) : [];
       return Array.isArray(parsed) ? parsed.map(sanitizeApp) : [];
     } catch (e) {
-      try { localStorage.removeItem("vpass_applications"); } catch (_) {}
+      try { localStorage.removeItem(`vpass_applications_${user.id}`); } catch (_) {}
       return [];
     }
   });
 
   const [vehicles, setVehicles] = useState(() => {
+    if (!user?.id) return [];
     try {
-      const saved = localStorage.getItem("vpass_vehicles");
-      return saved ? JSON.parse(saved) : [];
+      const saved = localStorage.getItem(`vpass_vehicles_${user.id}`);
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) ? parsed : [];
     } catch (e) {
       return [];
     }
@@ -423,8 +429,9 @@ export const PassProvider = ({ children }) => {
 
   // Auto-saved In-Progress Draft Application
   const [draftApplication, setDraftApplication] = useState(() => {
+    if (!user?.id) return null;
     try {
-      const saved = localStorage.getItem("vpass_registration_draft");
+      const saved = localStorage.getItem(`vpass_registration_draft_${user.id}`);
       return saved ? JSON.parse(saved) : null;
     } catch (e) {
       return null;
@@ -433,8 +440,9 @@ export const PassProvider = ({ children }) => {
 
   // Persistent Temporary Visitor Passes
   const [visitorPasses, setVisitorPasses] = useState(() => {
+    if (!user?.id) return INITIAL_VISITORS;
     try {
-      const saved = localStorage.getItem("vpass_visitor_passes");
+      const saved = localStorage.getItem(`vpass_visitor_passes_${user.id}`);
       return saved ? JSON.parse(saved) : INITIAL_VISITORS;
     } catch (e) {
       return INITIAL_VISITORS;
@@ -443,8 +451,9 @@ export const PassProvider = ({ children }) => {
 
   // Persistent Gate Audit Logs
   const [gateLogs, setGateLogs] = useState(() => {
+    if (!user?.id) return INITIAL_LOGS;
     try {
-      const saved = localStorage.getItem("vpass_gate_logs");
+      const saved = localStorage.getItem(`vpass_gate_logs_${user.id}`);
       return saved ? (JSON.parse(saved) || []).map(sanitizeGateLog) : INITIAL_LOGS;
     } catch (e) {
       return INITIAL_LOGS;
@@ -461,7 +470,6 @@ export const PassProvider = ({ children }) => {
     localStorage.setItem("vpass_active_gate", gate);
   };
 
-  const { user, token } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
   const isFetchingRef = useRef(false);
 
@@ -559,23 +567,47 @@ export const PassProvider = ({ children }) => {
             return merged;
           });
         }
-        if (appsRes.status === "fulfilled" && Array.isArray(appsRes.value)) {
-          setApplications((appsRes.value || []).map(sanitizeApp));
+        const fetchedApps =
+          appsRes.status === "fulfilled" && Array.isArray(appsRes.value)
+            ? (appsRes.value || []).map(sanitizeApp)
+            : null;
+        if (fetchedApps) {
+          setApplications(fetchedApps);
         }
         if (vehsRes.status === "fulfilled" && Array.isArray(vehsRes.value)) {
-          const vList = vehsRes.value.map((v) => ({
-            id: v.id,
-            make: v.make,
-            model: v.model,
-            year: String(v.year_model || "2026"),
-            color: v.color,
-            plateNumber: v.plate_number,
-            type: v.vehicle_type,
-            status: "Active Pass",
-          }));
-          if (vList.length > 0) {
-            setVehicles(vList);
-          }
+          const appsForMatch = fetchedApps || [];
+          const vList = vehsRes.value.map((v) => {
+            const matchedApp = appsForMatch.find(
+              (a) =>
+                a.vehicle?.id === v.id ||
+                (a.vehicle?.plateNumber || "").replace(/\s+/g, "").toUpperCase() ===
+                  (v.plate_number || "").replace(/\s+/g, "").toUpperCase()
+            );
+            let derivedStatus = "Pending Review";
+            if (matchedApp) {
+              if (matchedApp.status === "PASS_ISSUED" && matchedApp.pass) {
+                derivedStatus = isPassExpired(matchedApp.pass) ? "Pass Expired" : "Active Pass";
+              } else if (matchedApp.status === "RECEIPT_SUBMITTED") {
+                derivedStatus = "Receipt Under Verification";
+              } else if (matchedApp.status === "APPROVED") {
+                derivedStatus = "Payment Pending";
+              } else if (matchedApp.status === "REJECTED") {
+                derivedStatus = "Correction Required";
+              }
+            }
+            return {
+              id: v.id,
+              appId: matchedApp?.id || null,
+              make: v.make,
+              model: v.model,
+              year: String(v.year_model || "2026"),
+              color: v.color,
+              plateNumber: v.plate_number,
+              type: v.vehicle_type,
+              status: derivedStatus,
+            };
+          });
+          setVehicles(vList);
         }
       } else if (user.role === "GUARD") {
         const [appsRes, logsRes, visRes, settingsRes] = await Promise.allSettled([
@@ -642,11 +674,13 @@ export const PassProvider = ({ children }) => {
     };
   }, [user, token, fetchCloudData]);
 
-  // Sync to localStorage safely (strips out heavy Base64 image data to prevent Safari QuotaExceededError crashes)
+  // Sync to localStorage safely per user (strips out heavy Base64 image data to prevent Safari QuotaExceededError crashes)
   useEffect(() => {
+    if (!user?.id || loadedUserIdRef.current !== user.id) return;
+    const storageKey = `vpass_applications_${user.id}`;
     try {
       if (!applications || applications.length === 0) {
-        localStorage.setItem("vpass_applications", JSON.stringify([]));
+        localStorage.setItem(storageKey, JSON.stringify([]));
         return;
       }
 
@@ -665,54 +699,54 @@ export const PassProvider = ({ children }) => {
         } : null,
       }));
 
-      localStorage.setItem("vpass_applications", JSON.stringify(lightweightApps));
+      localStorage.setItem(storageKey, JSON.stringify(lightweightApps));
     } catch (err) {
       console.warn("[PassContext] LocalStorage quota reached for applications; clearing local cache:", err);
       try {
-        localStorage.removeItem("vpass_applications");
+        localStorage.removeItem(storageKey);
       } catch (_) {}
     }
-  }, [applications]);
+  }, [applications, user?.id]);
 
   useEffect(() => {
+    if (!user?.id || loadedUserIdRef.current !== user.id) return;
     try {
-      localStorage.setItem("vpass_vehicles", JSON.stringify(vehicles));
+      localStorage.setItem(`vpass_vehicles_${user.id}`, JSON.stringify(vehicles));
     } catch (err) {
       console.warn("[PassContext] LocalStorage setItem error for vehicles:", err);
     }
-  }, [vehicles]);
+  }, [vehicles, user?.id]);
 
   useEffect(() => {
+    if (!user?.id || loadedUserIdRef.current !== user.id) return;
+    const storageKey = `vpass_registration_draft_${user.id}`;
     try {
       if (draftApplication) {
-        localStorage.setItem(
-          "vpass_registration_draft",
-          JSON.stringify(draftApplication),
-        );
+        localStorage.setItem(storageKey, JSON.stringify(draftApplication));
       } else {
-        localStorage.removeItem("vpass_registration_draft");
+        localStorage.removeItem(storageKey);
       }
     } catch (err) {
       console.warn("[PassContext] LocalStorage setItem error for draftApplication:", err);
     }
-  }, [draftApplication]);
+  }, [draftApplication, user?.id]);
 
   useEffect(() => {
+    if (!user?.id || loadedUserIdRef.current !== user.id) return;
     try {
-      localStorage.setItem("vpass_visitor_passes", JSON.stringify(visitorPasses));
+      localStorage.setItem(`vpass_visitor_passes_${user.id}`, JSON.stringify(visitorPasses));
     } catch (err) {
       console.warn("[PassContext] LocalStorage setItem error for visitorPasses:", err);
     }
-  }, [visitorPasses]);
+  }, [visitorPasses, user?.id]);
 
   // Persistent Notifications with Read State Retention
   const [notifications, setNotifications] = useState(() => {
+    if (!user?.id) return INITIAL_NOTIFICATIONS;
     try {
-      const savedUser = user?.id ? localStorage.getItem(`vpass_notifications_${user.id}`) : null;
-      const savedGlobal = localStorage.getItem("vpass_notifications");
-      const raw = savedUser || savedGlobal;
-      if (raw) {
-        const parsed = JSON.parse(raw);
+      const savedUser = localStorage.getItem(`vpass_notifications_${user.id}`);
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
         if (Array.isArray(parsed)) {
           return parsed.map((n) => ({
             ...n,
@@ -726,31 +760,85 @@ export const PassProvider = ({ children }) => {
   });
 
   useEffect(() => {
+    if (!user?.id || loadedUserIdRef.current !== user.id) return;
     try {
-      localStorage.setItem("vpass_notifications", JSON.stringify(notifications));
-      if (user?.id) {
-        localStorage.setItem(`vpass_notifications_${user.id}`, JSON.stringify(notifications));
-      }
+      localStorage.setItem(`vpass_notifications_${user.id}`, JSON.stringify(notifications));
     } catch (e) {}
   }, [notifications, user?.id]);
 
-  // When active user switches, re-hydrate notifications and read state for that user
+  // Strictly isolate cached state whenever the logged-in user changes or signs out
   useEffect(() => {
-    if (!user?.id) return;
+    const nextUserId = user?.id || null;
+    if (loadedUserIdRef.current === nextUserId) return;
+
+    memoryImageCache.clear();
+    loadedUserIdRef.current = nextUserId;
+
+    if (!nextUserId) {
+      setApplications([]);
+      setVehicles([]);
+      setDraftApplication(null);
+      setVisitorPasses(INITIAL_VISITORS);
+      setGateLogs(INITIAL_LOGS);
+      setNotifications(INITIAL_NOTIFICATIONS);
+      return;
+    }
+
     try {
-      const userSaved = localStorage.getItem(`vpass_notifications_${user.id}`);
+      const savedApps = localStorage.getItem(`vpass_applications_${nextUserId}`);
+      const parsedApps = savedApps ? JSON.parse(savedApps) : [];
+      setApplications(Array.isArray(parsedApps) ? parsedApps.map(sanitizeApp) : []);
+    } catch (e) {
+      setApplications([]);
+    }
+
+    try {
+      const savedVehs = localStorage.getItem(`vpass_vehicles_${nextUserId}`);
+      const parsedVehs = savedVehs ? JSON.parse(savedVehs) : [];
+      setVehicles(Array.isArray(parsedVehs) ? parsedVehs : []);
+    } catch (e) {
+      setVehicles([]);
+    }
+
+    try {
+      const savedDraft = localStorage.getItem(`vpass_registration_draft_${nextUserId}`);
+      setDraftApplication(savedDraft ? JSON.parse(savedDraft) : null);
+    } catch (e) {
+      setDraftApplication(null);
+    }
+
+    try {
+      const savedVis = localStorage.getItem(`vpass_visitor_passes_${nextUserId}`);
+      setVisitorPasses(savedVis ? JSON.parse(savedVis) : INITIAL_VISITORS);
+    } catch (e) {
+      setVisitorPasses(INITIAL_VISITORS);
+    }
+
+    try {
+      const savedLogs = localStorage.getItem(`vpass_gate_logs_${nextUserId}`);
+      setGateLogs(savedLogs ? (JSON.parse(savedLogs) || []).map(sanitizeGateLog) : INITIAL_LOGS);
+    } catch (e) {
+      setGateLogs(INITIAL_LOGS);
+    }
+
+    try {
+      const userSaved = localStorage.getItem(`vpass_notifications_${nextUserId}`);
       if (userSaved) {
         const parsed = JSON.parse(userSaved);
-        const readIds = getReadNotifIds(user.id);
+        const readIds = getReadNotifIds(nextUserId);
         setNotifications(
           parsed.map((n) => ({
             ...n,
             time: formatNotificationTime(n.date, n.time),
-            read: readIds.includes(n.id) || isNotifMarkedRead(n, user.id)
+            read: readIds.includes(n.id) || isNotifMarkedRead(n, nextUserId)
           }))
         );
+      } else {
+        setNotifications(INITIAL_NOTIFICATIONS);
       }
-    } catch (e) {}
+    } catch (e) {
+      setNotifications(INITIAL_NOTIFICATIONS);
+    }
   }, [user?.id]);
 
   // Helper to add a notification
@@ -827,21 +915,23 @@ export const PassProvider = ({ children }) => {
   };
 
   useEffect(() => {
+    if (!user?.id || loadedUserIdRef.current !== user.id) return;
     try {
-      localStorage.setItem("vpass_gate_logs", JSON.stringify(gateLogs));
+      localStorage.setItem(`vpass_gate_logs_${user.id}`, JSON.stringify(gateLogs));
     } catch (err) {
       console.warn("[PassContext] LocalStorage setItem error for gateLogs:", err);
     }
-  }, [gateLogs]);
+  }, [gateLogs, user?.id]);
 
-  // Multi-tab storage synchronization so actions taken in Admin or Client tabs sync in real time
+  // Multi-tab storage synchronization so actions taken in the same account across tabs sync in real time
   useEffect(() => {
+    if (!user?.id) return;
     const handleStorageChange = (e) => {
       try {
-        if (e.key === "vpass_notifications" && e.newValue) {
+        if (e.key === `vpass_notifications_${user.id}` && e.newValue) {
           setNotifications(JSON.parse(e.newValue));
         }
-        if (e.key === "vpass_applications" && e.newValue) {
+        if (e.key === `vpass_applications_${user.id}` && e.newValue) {
           const parsed = JSON.parse(e.newValue);
           // Preserve in-memory full photos if incoming storage items are sanitized
           if (Array.isArray(parsed)) {
@@ -869,7 +959,7 @@ export const PassProvider = ({ children }) => {
             });
           }
         }
-        if (e.key === "vpass_vehicles" && e.newValue) {
+        if (e.key === `vpass_vehicles_${user.id}` && e.newValue) {
           setVehicles(JSON.parse(e.newValue));
         }
       } catch (err) {
@@ -878,11 +968,11 @@ export const PassProvider = ({ children }) => {
     };
     window.addEventListener("storage", handleStorageChange);
     return () => window.removeEventListener("storage", handleStorageChange);
-  }, []);
+  }, [user?.id]);
 
   // Self-healing synchronization: keep `vehicles` aligned with `applications`
   useEffect(() => {
-    if (!applications || applications.length === 0) return;
+    if (!user?.id || loadedUserIdRef.current !== user.id || !applications || applications.length === 0) return;
 
     setVehicles((prev) => {
       let changed = false;
@@ -1198,7 +1288,12 @@ export const PassProvider = ({ children }) => {
   // Discard Draft
   const clearDraft = () => {
     setDraftApplication(null);
-    localStorage.removeItem("vpass_registration_draft");
+    try {
+      if (user?.id) {
+        localStorage.removeItem(`vpass_registration_draft_${user.id}`);
+      }
+      localStorage.removeItem("vpass_registration_draft");
+    } catch (_) {}
   };
 
   // Submit new registration (Milestone 1)

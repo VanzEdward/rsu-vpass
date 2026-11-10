@@ -594,10 +594,10 @@ export default function MyVehicle() {
             );
             const hasPass = Boolean(app?.status === "PASS_ISSUED" && app?.pass);
             const isExpired = hasPass && isPassExpired(app.pass);
-            const isRenewalPending = app?.renewalPending || v.status === "Renewal Awaiting Payment";
-            const isPaymentPending = app?.status === "APPROVED" || v.status === "Payment Pending";
-            const isUnderVerification = app?.status === "RECEIPT_SUBMITTED" || v.status === "Receipt Under Verification";
-            const isCorrectionRequired = app?.status === "REJECTED" || v.status === "Correction Required";
+            const isRenewalPending = app ? Boolean(app.renewalPending) : v.status === "Renewal Awaiting Payment";
+            const isPaymentPending = app ? app.status === "APPROVED" : v.status === "Payment Pending";
+            const isUnderVerification = app ? app.status === "RECEIPT_SUBMITTED" : v.status === "Receipt Under Verification";
+            const isCorrectionRequired = app ? app.status === "REJECTED" : v.status === "Correction Required";
 
             return (
               <div key={v.id} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
@@ -640,7 +640,7 @@ export default function MyVehicle() {
                       ? 'Payment Pending' 
                       : isCorrectionRequired
                       ? 'Correction Required'
-                      : v.status || 'Pending Review'}
+                      : (v.status && v.status !== 'Active Pass' ? v.status : 'Pending Review')}
                   </span>
                 </div>
 

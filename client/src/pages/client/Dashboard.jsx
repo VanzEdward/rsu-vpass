@@ -50,19 +50,22 @@ export default function Dashboard() {
   const [selectedPass, setSelectedPass] = useState(null);
   const [qrModalView, setQrModalView] = useState('qr'); // 'qr' | 'select' | 'empty'
 
-  // Collect all registered vehicles with passes or registrations for gate presentation
+  // Collect only registered vehicles that have an actual issued gate pass
   const registeredVehiclePasses = useMemo(() => {
     const list = [];
     const seenPlates = new Set();
 
-    // 1. Applications with issued passes or active passes
+    // Only applications with official issued passes appear in the gate pass selector
     (applications || []).forEach((app) => {
+      if (app.status !== 'PASS_ISSUED' && !app.pass) return;
+
       const plate = (app.vehicle?.plateNumber || '').trim();
       const cleanPlate = plate.replace(/\s+/g, '').toUpperCase();
       if (!cleanPlate || seenPlates.has(cleanPlate)) return;
 
       const vehicleName = `${app.vehicle?.make || ''} ${app.vehicle?.model || ''}`.trim() || 'Motor Vehicle';
-      const passNum = app.pass?.passNumber || app.passNumber || `VP-${cleanPlate.slice(0, 4)}`;
+      const passNum = app.pass?.passNumber || app.passNumber;
+      if (!passNum) return;
       const qrData = app.pass?.qrData || `RSU-VPASS:${passNum}:${cleanPlate}:${app.school_id || user?.school_id || ''}`;
 
       list.push({
@@ -73,40 +76,15 @@ export default function Dashboard() {
         color: app.vehicle?.color || '',
         passNumber: passNum,
         validUntil: app.pass?.validUntil || `July 31, ${systemSettings?.academicYear?.split('-')[1] || '2027'}`,
-        status: app.pass?.status || (app.status === 'PASS_ISSUED' ? 'ACTIVE' : 'Active Pass'),
+        status: app.pass?.status || 'ACTIVE',
         qrData,
-        hasIssuedPass: Boolean(app.pass || app.status === 'PASS_ISSUED')
-      });
-      seenPlates.add(cleanPlate);
-    });
-
-    // 2. Also check vehicles array
-    (vehicles || []).forEach((v) => {
-      const plate = (v.plateNumber || '').trim();
-      const cleanPlate = plate.replace(/\s+/g, '').toUpperCase();
-      if (!cleanPlate || seenPlates.has(cleanPlate)) return;
-
-      const vehicleName = `${v.make || ''} ${v.model || ''}`.trim() || 'Motor Vehicle';
-      const passNum = v.passNumber || `VP-${cleanPlate.slice(0, 4)}`;
-      const qrData = v.qrData || `RSU-VPASS:${passNum}:${cleanPlate}:${user?.school_id || ''}`;
-
-      list.push({
-        id: v.id || cleanPlate,
-        vehicleName,
-        plateNumber: plate,
-        vehicleType: v.type || 'Motorcycle',
-        color: v.color || '',
-        passNumber: passNum,
-        validUntil: `July 31, ${systemSettings?.academicYear?.split('-')[1] || '2027'}`,
-        status: v.status || 'Active Pass',
-        qrData,
-        hasIssuedPass: v.status === 'Active Pass' || Boolean(v.passNumber)
+        hasIssuedPass: true
       });
       seenPlates.add(cleanPlate);
     });
 
     return list;
-  }, [applications, vehicles, user]);
+  }, [applications, user, systemSettings]);
 
   // Active or approved application with an issued pass
   const activeApp = applications.find(a => a.status === 'PASS_ISSUED' && a.pass) || 
@@ -191,14 +169,15 @@ export default function Dashboard() {
 
   // Compute live dynamic stats
   const stats = {
-    myVehicles: vehicles.length > 0 ? vehicles.length : (activeApp ? 1 : 0),
+    myVehicles: vehicles.length > 0 ? vehicles.length : applications.length,
     pendingApplications: applications.filter(
       a => a.status === 'PENDING' || 
            a.status === 'RECEIPT_SUBMITTED' || 
            a.status === 'UNDER_REVIEW' || 
+           a.status === 'APPROVED' || 
            a.status === 'APPROVED_PENDING_PAYMENT'
     ).length,
-    activePasses: applications.filter(a => a.status === 'PASS_ISSUED').length || (activeApp?.pass ? 1 : 0),
+    activePasses: applications.filter(a => a.status === 'PASS_ISSUED' && a.pass).length,
   };
 
   // User classification

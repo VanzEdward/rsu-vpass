@@ -139,13 +139,11 @@ export const reviewApplication = async (req, res) => {
         });
     }
 
-    let appCondition = 'id = ?';
-    if (isNaN(Number(applicationId))) {
-      appCondition = 'app_ref_number = ?';
-    }
+    const appWhere = isNaN(Number(applicationId)) ? 'app_ref_number = ?' : 'id = ?';
+    const appJoinWhere = isNaN(Number(applicationId)) ? 'a.app_ref_number = ?' : 'a.id = ?';
 
     await pool.query(
-      `UPDATE applications SET status = ?, rejection_reason = ? WHERE ${appCondition}`,
+      `UPDATE applications SET status = ?, rejection_reason = ? WHERE ${appWhere}`,
       [status, status === "REJECTED" ? rejection_reason : null, applicationId],
     );
 
@@ -156,7 +154,7 @@ export const reviewApplication = async (req, res) => {
          FROM applications a
          JOIN users u ON a.user_id = u.id
          JOIN vehicles v ON a.vehicle_id = v.id
-         WHERE ${appCondition}`,
+         WHERE ${appJoinWhere}`,
         [applicationId]
       );
 

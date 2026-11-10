@@ -1,11 +1,11 @@
-import { BrevoClient } from '@getbrevo/brevo';
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { BrevoClient } from "@getbrevo/brevo";
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.join(__dirname, '../.env') });
+dotenv.config({ path: path.join(__dirname, "../.env") });
 dotenv.config();
 
 /**
@@ -15,7 +15,11 @@ dotenv.config();
 
 const getBrevoClient = () => {
   const apiKey = process.env.BREVO_API_KEY;
-  if (!apiKey || apiKey.trim() === '' || apiKey.includes('your_brevo_api_key')) {
+  if (
+    !apiKey ||
+    apiKey.trim() === "" ||
+    apiKey.includes("your_brevo_api_key")
+  ) {
     return null;
   }
   return new BrevoClient({ apiKey: apiKey.trim() });
@@ -23,15 +27,22 @@ const getBrevoClient = () => {
 
 const getSender = () => {
   return {
-    name: process.env.EMAIL_FROM_NAME || 'RSU VPASS (PASO)',
-    email: process.env.EMAIL_FROM || 'paso@rsu.edu.ph',
+    name: process.env.EMAIL_FROM_NAME || "RSU VPASS (PASO)",
+    email: process.env.EMAIL_FROM || "paso@rsu.edu.ph",
   };
 };
 
 /**
  * Common HTML email wrapper with Romblon State University emerald branding
  */
-const renderEmailHtml = ({ title, preheader, badgeText, badgeColor = '#059669', contentHtml, actionButton }) => {
+const renderEmailHtml = ({
+  title,
+  preheader,
+  badgeText,
+  badgeColor = "#059669",
+  contentHtml,
+  actionButton,
+}) => {
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -65,10 +76,10 @@ const renderEmailHtml = ({ title, preheader, badgeText, badgeColor = '#059669', 
       <div class="header-sub">Romblon State University • Physical Assets and Security Office</div>
     </div>
     <div class="body">
-      ${badgeText ? `<div class="badge">${badgeText}</div>` : ''}
+      ${badgeText ? `<div class="badge">${badgeText}</div>` : ""}
       <h2 style="font-size: 19px; font-weight: 800; margin-top: 0; color: #0f172a;">${title}</h2>
       ${contentHtml}
-      ${actionButton ? `<div style="text-align: center;"><a href="${actionButton.url}" class="btn">${actionButton.text}</a></div>` : ''}
+      ${actionButton ? `<div style="text-align: center;"><a href="${actionButton.url}" class="btn">${actionButton.text}</a></div>` : ""}
     </div>
     <div class="footer">
       <div class="footer-bold">Physical Assets and Security Office (PASO)</div>
@@ -84,21 +95,30 @@ const renderEmailHtml = ({ title, preheader, badgeText, badgeColor = '#059669', 
 /**
  * Base sender using Brevo Transactional Email Client
  */
-export const sendEmail = async ({ toEmail, recipientName, subject, htmlContent }) => {
+export const sendEmail = async ({
+  toEmail,
+  recipientName,
+  subject,
+  htmlContent,
+}) => {
   const client = getBrevoClient();
 
   if (!toEmail) {
-    console.warn('[Brevo Email Service] Skipped email: missing recipient email address.');
-    return { success: false, reason: 'Missing toEmail' };
+    console.warn(
+      "[Brevo Email Service] Skipped email: missing recipient email address.",
+    );
+    return { success: false, reason: "Missing toEmail" };
   }
 
   // If no Brevo API key is configured, log mock in development without breaking app
   if (!client) {
     console.log(`\n======================================================`);
     console.log(`[Brevo Email Service - DEMO / SIMULATION MODE]`);
-    console.log(`To: ${recipientName || 'Applicant'} <${toEmail}>`);
+    console.log(`To: ${recipientName || "Applicant"} <${toEmail}>`);
     console.log(`Subject: ${subject}`);
-    console.log(`Status: Brevo API key not set. Set BREVO_API_KEY in server/.env to send real emails.`);
+    console.log(
+      `Status: Brevo API key not set. Set BREVO_API_KEY in server/.env to send real emails.`,
+    );
     console.log(`======================================================\n`);
     return { success: true, simulated: true };
   }
@@ -108,15 +128,21 @@ export const sendEmail = async ({ toEmail, recipientName, subject, htmlContent }
     const sendPayload = {
       subject,
       sender,
-      to: [{ email: toEmail.trim(), name: recipientName || 'RSU Member' }],
+      to: [{ email: toEmail.trim(), name: recipientName || "RSU Member" }],
       htmlContent,
     };
 
-    const response = await client.transactionalEmails.sendTransacEmail(sendPayload);
-    console.log(`[Brevo Email Service] Email successfully dispatched to ${toEmail} (Subject: "${subject}")`);
+    const response =
+      await client.transactionalEmails.sendTransacEmail(sendPayload);
+    console.log(
+      `[Brevo Email Service] Email successfully dispatched to ${toEmail} (Subject: "${subject}")`,
+    );
     return { success: true, response };
   } catch (error) {
-    console.error(`[Brevo Email Service Error] Failed to send email to ${toEmail}:`, error?.message || error);
+    console.error(
+      `[Brevo Email Service Error] Failed to send email to ${toEmail}:`,
+      error?.message || error,
+    );
     // Don't re-throw to prevent breaking business logic
     return { success: false, error: error?.message || error };
   }
@@ -134,23 +160,23 @@ export const sendRegistrationApprovedEmail = async ({
   recipientName,
   vehicle,
   plateNumber,
-  fee = '150.00',
+  fee = "100.00",
 }) => {
-  const title = 'Vehicle Registration Approved — Proceed to Cashier';
+  const title = "Vehicle Registration Approved — Proceed to Cashier";
   const subject = `[RSU VPASS] Vehicle Registration Approved (${plateNumber})`;
 
   const contentHtml = `
-    <p>Good day, <strong>${recipientName || 'Applicant'}</strong>,</p>
+    <p>Good day, <strong>${recipientName || "Applicant"}</strong>,</p>
     <p>We are pleased to inform you that your vehicle registration documents have been verified and approved by the <strong>Physical Assets and Security Office (PASO)</strong>.</p>
     
     <div class="content-box">
       <div class="table-row">
         <span class="table-label">Registered Vehicle:</span>
-        <span class="table-value">${vehicle || 'Motor Vehicle'}</span>
+        <span class="table-value">${vehicle || "Motor Vehicle"}</span>
       </div>
       <div class="table-row">
         <span class="table-label">Plate / Temp Number:</span>
-        <span class="table-value">${plateNumber || 'N/A'}</span>
+        <span class="table-value">${plateNumber || "N/A"}</span>
       </div>
       <div class="table-row">
         <span class="table-label">Registration Status:</span>
@@ -172,8 +198,8 @@ export const sendRegistrationApprovedEmail = async ({
 
   const htmlContent = renderEmailHtml({
     title,
-    badgeText: 'Milestone 2 • Approved',
-    badgeColor: '#059669',
+    badgeText: "Milestone 2 • Approved",
+    badgeColor: "#059669",
     contentHtml,
   });
 
@@ -190,27 +216,27 @@ export const sendRegistrationRejectedEmail = async ({
   plateNumber,
   reason,
 }) => {
-  const title = 'Registration Form Returned for Correction';
+  const title = "Registration Form Returned for Correction";
   const subject = `[RSU VPASS] Action Required: Vehicle Registration Returned (${plateNumber})`;
 
   const contentHtml = `
-    <p>Dear <strong>${recipientName || 'Applicant'}</strong>,</p>
+    <p>Dear <strong>${recipientName || "Applicant"}</strong>,</p>
     <p>The Physical Assets and Security Office (PASO) reviewed your vehicle registration application and found issues that require your correction before it can be approved.</p>
     
     <div class="content-box">
       <div class="table-row">
         <span class="table-label">Vehicle Details:</span>
-        <span class="table-value">${vehicle || 'Motor Vehicle'}</span>
+        <span class="table-value">${vehicle || "Motor Vehicle"}</span>
       </div>
       <div class="table-row" style="border-bottom: none;">
         <span class="table-label">Plate Number:</span>
-        <span class="table-value">${plateNumber || 'N/A'}</span>
+        <span class="table-value">${plateNumber || "N/A"}</span>
       </div>
     </div>
 
     <div class="remark-box">
       <strong>PASO Evaluation Remark:</strong><br>
-      "${reason || 'Incomplete or unreadable documents uploaded. Please re-check vehicle plate and license.'}"
+      "${reason || "Incomplete or unreadable documents uploaded. Please re-check vehicle plate and license."}"
     </div>
 
     <p style="font-size: 13px; line-height: 1.6;">
@@ -220,8 +246,8 @@ export const sendRegistrationRejectedEmail = async ({
 
   const htmlContent = renderEmailHtml({
     title,
-    badgeText: 'Action Required • Form Returned',
-    badgeColor: '#e11d48',
+    badgeText: "Action Required • Form Returned",
+    badgeColor: "#e11d48",
     contentHtml,
   });
 
@@ -239,27 +265,27 @@ export const sendReceiptRejectedEmail = async ({
   orNumber,
   reason,
 }) => {
-  const title = 'Cashier Receipt Proof Declined by PASO';
-  const subject = `[RSU VPASS] Action Required: Cashier Receipt Declined (OR #${orNumber || 'N/A'})`;
+  const title = "Cashier Receipt Proof Declined by PASO";
+  const subject = `[RSU VPASS] Action Required: Cashier Receipt Declined (OR #${orNumber || "N/A"})`;
 
   const contentHtml = `
-    <p>Dear <strong>${recipientName || 'Applicant'}</strong>,</p>
-    <p>Your uploaded Cashier payment receipt proof for vehicle <strong>${vehicle || 'Vehicle'} (${plateNumber || 'N/A'})</strong> was evaluated by the PASO Administration Office and could not be verified.</p>
+    <p>Dear <strong>${recipientName || "Applicant"}</strong>,</p>
+    <p>Your uploaded Cashier payment receipt proof for vehicle <strong>${vehicle || "Vehicle"} (${plateNumber || "N/A"})</strong> was evaluated by the PASO Administration Office and could not be verified.</p>
     
     <div class="content-box">
       <div class="table-row">
         <span class="table-label">Official Receipt (OR) Number:</span>
-        <span class="table-value">#${orNumber || 'N/A'}</span>
+        <span class="table-value">#${orNumber || "N/A"}</span>
       </div>
       <div class="table-row" style="border-bottom: none;">
         <span class="table-label">Vehicle Plate:</span>
-        <span class="table-value">${plateNumber || 'N/A'}</span>
+        <span class="table-value">${plateNumber || "N/A"}</span>
       </div>
     </div>
 
     <div class="remark-box">
       <strong>Reason for Receipt Rejection:</strong><br>
-      "${reason || 'Receipt image is blurry, unreadable, or payment amount does not match university vehicle sticker fees.'}"
+      "${reason || "Receipt image is blurry, unreadable, or payment amount does not match university vehicle sticker fees."}"
     </div>
 
     <div class="success-box" style="background-color: #f8fafc; border-left-color: #3b82f6; color: #1e3a8a;">
@@ -272,8 +298,8 @@ export const sendReceiptRejectedEmail = async ({
 
   const htmlContent = renderEmailHtml({
     title,
-    badgeText: 'Payment Proof Declined',
-    badgeColor: '#e11d48',
+    badgeText: "Payment Proof Declined",
+    badgeColor: "#e11d48",
     contentHtml,
   });
 
@@ -290,13 +316,13 @@ export const sendPassIssuedEmail = async ({
   plateNumber,
   passNumber,
   validUntil,
-  academicYear = '2026-2027',
+  academicYear = "2026-2027",
 }) => {
   const title = `Official Gate Pass Issued: ${passNumber}`;
   const subject = `[RSU VPASS] Official Gate Pass ${passNumber} Active (${plateNumber})`;
 
   const contentHtml = `
-    <p>Congratulations, <strong>${recipientName || 'Applicant'}</strong>!</p>
+    <p>Congratulations, <strong>${recipientName || "Applicant"}</strong>!</p>
     <p>Your Cashier payment has been verified by the Physical Assets and Security Office (PASO). Your official university vehicle clearance pass is now <strong>ACTIVE</strong> for campus gate entry.</p>
     
     <div class="content-box">
@@ -306,7 +332,7 @@ export const sendPassIssuedEmail = async ({
       </div>
       <div class="table-row">
         <span class="table-label">Vehicle:</span>
-        <span class="table-value">${vehicle || 'Motor Vehicle'}</span>
+        <span class="table-value">${vehicle || "Motor Vehicle"}</span>
       </div>
       <div class="table-row">
         <span class="table-label">Plate Number:</span>
@@ -318,7 +344,7 @@ export const sendPassIssuedEmail = async ({
       </div>
       <div class="table-row" style="border-bottom: none;">
         <span class="table-label">Valid Until:</span>
-        <span class="table-value" style="color: #0f172a;">${validUntil || '1 Year from Issuance'}</span>
+        <span class="table-value" style="color: #0f172a;">${validUntil || "1 Year from Issuance"}</span>
       </div>
     </div>
 
@@ -332,8 +358,8 @@ export const sendPassIssuedEmail = async ({
 
   const htmlContent = renderEmailHtml({
     title,
-    badgeText: 'Milestone 4 • Pass Active',
-    badgeColor: '#059669',
+    badgeText: "Milestone 4 • Pass Active",
+    badgeColor: "#059669",
     contentHtml,
   });
 
@@ -348,10 +374,10 @@ export const sendGuardAccountCreatedEmail = async ({
   guardName,
   schoolId,
   rawPassword,
-  gatePost = 'Gate 1 (Main Campus)',
-  shift = 'Day Shift',
+  gatePost = "Gate 1 (Main Campus)",
+  shift = "Day Shift",
 }) => {
-  const title = 'Security Guard Portal Access Credentials';
+  const title = "Security Guard Portal Access Credentials";
   const subject = `[RSU VPASS] Gate Security Guard Access Provisioned (${schoolId})`;
 
   const contentHtml = `
@@ -384,14 +410,13 @@ export const sendGuardAccountCreatedEmail = async ({
 
   const htmlContent = renderEmailHtml({
     title,
-    badgeText: 'Guard Provisioned',
-    badgeColor: '#3b82f6',
+    badgeText: "Guard Provisioned",
+    badgeColor: "#3b82f6",
     contentHtml,
   });
 
   return sendEmail({ toEmail, recipientName: guardName, subject, htmlContent });
 };
-
 
 /**
  * Trigger 6: Student & Employee One-Time Password (OTP) for Password Reset
@@ -401,15 +426,17 @@ export const sendPasswordResetOtpEmail = async ({
   recipientName,
   schoolId,
   otpCode,
-  classification = 'STUDENT'
+  classification = "STUDENT",
 }) => {
-  const isEmployee = classification === 'EMPLOYEE';
-  const roleLabel = isEmployee ? 'University Personnel / Employee' : 'Student Motorist';
-  const title = 'Your One-Time PIN for Password Reset';
+  const isEmployee = classification === "EMPLOYEE";
+  const roleLabel = isEmployee
+    ? "University Personnel / Employee"
+    : "Student Motorist";
+  const title = "Your One-Time PIN for Password Reset";
   const subject = `[RSU VPASS] One-Time PIN: ${otpCode} (Password Reset)`;
 
   const contentHtml = `
-    <p>Hello <strong>${recipientName || 'Motorist'}</strong>,</p>
+    <p>Hello <strong>${recipientName || "Motorist"}</strong>,</p>
     <p>We received a request to reset the password for your RSU VPASS account (<strong>${schoolId}</strong> • ${roleLabel}).</p>
     
     <div style="background-color: #f0fdf4; border: 2px dashed #10b981; border-radius: 16px; padding: 24px; text-align: center; margin: 24px 0;">
@@ -429,8 +456,8 @@ export const sendPasswordResetOtpEmail = async ({
 
   const htmlContent = renderEmailHtml({
     title,
-    badgeText: 'One-Time PIN • Security',
-    badgeColor: '#059669',
+    badgeText: "One-Time PIN • Security",
+    badgeColor: "#059669",
     contentHtml,
   });
 
