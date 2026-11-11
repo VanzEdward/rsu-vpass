@@ -299,12 +299,19 @@ export const createTemporaryPass = async (req, res) => {
 // Get All Temporary Visitor Passes (Active and Historical)
 export const getTemporaryPasses = async (req, res) => {
   try {
+    const fetchAll = req.query?.all === 'true';
     const [passes] = await pool.query(`
-      SELECT tp.*, u.full_name as issued_by_guard
+      SELECT tp.*, u.full_name as issued_by_guard,
+        (
+          SELECT MAX(vl.timestamp)
+          FROM verification_logs vl
+          WHERE vl.pass_number = tp.pass_number
+            AND vl.verification_type = 'EXIT'
+        ) as exit_timestamp
       FROM temporary_passes tp
       LEFT JOIN users u ON tp.created_by = u.id
       ORDER BY tp.created_at DESC
-      LIMIT 100
+      ${fetchAll ? '' : 'LIMIT 100'}
     `);
 
     const formatted = passes.map(tp => {
@@ -327,14 +334,20 @@ export const getTemporaryPasses = async (req, res) => {
         purpose: tp.purpose || 'Official Business',
         validDays: Math.ceil((new Date(tp.valid_to) - new Date(tp.valid_from)) / (1000 * 60 * 60 * 24)) || 1,
         validUntil: isExpired ? 'Expired' : `${new Date(tp.valid_to).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}`,
+        valid_from: tp.valid_from,
+        valid_to: tp.valid_to,
         entryGate: tp.entry_gate || 'Gate 1',
         entryTime: `${entryDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
         entryDate: entryDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }),
+        timestamp: tp.created_at || tp.valid_from,
+        created_at: tp.created_at,
         status: isExited ? 'EXITED' : (isExpired ? 'EXPIRED' : 'INSIDE'),
         exitGate: tp.exit_gate,
         exitTime: tp.exit_gate ? 'Exited' : null,
+        exitTimestamp: tp.exit_timestamp || null,
         classification: 'VISITOR',
-        qrData: tp.qr_code_data
+        qrData: tp.qr_code_data,
+        issued_by_guard: tp.issued_by_guard || 'Gate Security'
       };
     });
 
@@ -514,12 +527,13 @@ export const logVerification = async (req, res) => {
 // Get Recent Logs for Guard and Admin
 export const getRecentLogs = async (req, res) => {
   try {
+    const fetchAll = req.query?.all === 'true';
     const [logs] = await pool.query(`
       SELECT vl.*, u.full_name as guard_name
       FROM verification_logs vl
       LEFT JOIN users u ON vl.guard_id = u.id
       ORDER BY vl.timestamp DESC
-      LIMIT 100
+      ${fetchAll ? '' : 'LIMIT 100'}
     `);
 
     const formatted = logs.map(l => {
@@ -555,4 +569,3 @@ export const getRecentLogs = async (req, res) => {
     res.status(500).json({ message: 'Error fetching logs', error: error.message });
   }
 };
-

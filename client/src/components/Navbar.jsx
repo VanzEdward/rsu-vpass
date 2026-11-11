@@ -83,9 +83,11 @@ export default function Navbar({ hideLogout = false }) {
       case 'GUARD':
         return <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-800 border border-slate-300">Gate Security</span>;
       default:
-        return <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Client / Student</span>;
+        return null;
     }
   };
+
+  const roleBadge = user ? getRoleBadge(user.role) : null;
 
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-xs w-full">
@@ -115,7 +117,7 @@ export default function Navbar({ hideLogout = false }) {
               {/* User text callout (desktop) */}
               <div className="text-right hidden md:block">
                 <p className="text-sm font-semibold text-slate-800 leading-tight">{user.full_name || 'User'}</p>
-                <div className="mt-0.5">{getRoleBadge(user.role)}</div>
+                {roleBadge && <div className="mt-0.5">{roleBadge}</div>}
               </div>
 
               {/* NOTIFICATION FEATURE: Positioned on the HEADER to the LEFT of the profile icon (Client side only) */}

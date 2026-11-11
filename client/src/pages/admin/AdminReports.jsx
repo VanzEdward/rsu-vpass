@@ -1,23 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { usePass } from '../../context/PassContext';
-import { 
-  BarChart3, 
-  LogIn, 
-  LogOut, 
-  Eye, 
-  CheckCircle, 
-  Users, 
-  Search, 
-  Printer, 
+import {
+  LogIn,
+  LogOut,
+  Eye,
+  CheckCircle,
+  Users,
+  Search,
   Download,
-  Calendar,
-  Building,
+  ChevronDown,
+  FileSpreadsheet,
   ShieldCheck,
   Clock,
-  MapPin
+  MapPin,
+  RefreshCw,
+  CheckCircle2,
+  X
 } from 'lucide-react';
-import { CAMPUS_GATES } from '../../context/PassContext';
 import { formatLogTimestamp, formatExactDateTime } from '../../utils/dateUtils';
+import { apiRequest } from '../../api/client';
+import { downloadExcelWorkbook } from '../../utils/excelExport';
 
 export default function AdminReports() {
   const { gateLogs, visitorPasses } = usePass();
@@ -26,6 +28,29 @@ export default function AdminReports() {
   const [logFilter, setLogFilter] = useState('ALL'); // 'ALL' | 'ENTRY' | 'EXIT' | 'CHECK'
   const [gateFilter, setGateFilter] = useState('ALL'); // 'ALL' | 'Gate 1' | 'Gate 2' | 'Gate 3' | 'Gate 4'
   const [searchQuery, setSearchQuery] = useState('');
+  const [isDownloadOpen, setIsDownloadOpen] = useState(false);
+  const [downloadingType, setDownloadingType] = useState(null);
+  const [downloadBanner, setDownloadBanner] = useState('');
+  const downloadMenuRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (downloadMenuRef.current && !downloadMenuRef.current.contains(event.target)) {
+        setIsDownloadOpen(false);
+      }
+    };
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setIsDownloadOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, []);
 
   const activeVisitors = (visitorPasses || []).filter((v) => v.status === 'INSIDE');
 
@@ -56,12 +81,236 @@ export default function AdminReports() {
     return true;
   });
 
-  const handlePrint = () => {
-    window.print();
+  const parseDateValue = (primaryTs, fallbackDate, fallbackTime) => {
+    if (primaryTs) {
+      const d = new Date(primaryTs);
+      if (!isNaN(d.getTime())) return d;
+    }
+    if (fallbackDate) {
+      const cleanedDate = String(fallbackDate).replace(/Today|Yesterday/gi, '').trim();
+      const cleanedTime = String(fallbackTime || '').replace(/Today|Yesterday/gi, '').trim();
+      const combined = cleanedDate && cleanedTime ? `${cleanedDate} ${cleanedTime}` : cleanedDate;
+      const d = new Date(combined);
+      if (!isNaN(d.getTime())) return d;
+    }
+    return null;
+  };
+
+  const formatCleanDate = (dateObj, fallback = 'N/A') => {
+    if (!dateObj || isNaN(dateObj.getTime())) return fallback;
+    return dateObj.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  const formatCleanTime = (dateObj, fallback = 'N/A') => {
+    if (!dateObj || isNaN(dateObj.getTime())) return fallback;
+    return dateObj.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+  const formatClassificationLabel = (raw) => {
+    const val = String(raw || '').toUpperCase();
+    if (val === 'VISITOR') return 'Visitor';
+    if (val.includes('EMPLOYEE') || val.includes('FACULTY') || val.includes('STAFF')) return 'Employee';
+    return 'Student';
+  };
+
+  const formatMethodLabel = (raw) => {
+    const val = String(raw || '').toUpperCase();
+    if (val === 'MANUAL_SEARCH') return 'Manual Search';
+    if (val === 'QR_SCAN') return 'QR Scan';
+    return raw || 'QR Scan';
+  };
+
+  const handleDownloadReport = async (reportChoice) => {
+    setIsDownloadOpen(false);
+    setDownloadingType(reportChoice);
+
+    const now = new Date();
+    const todaySlug = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    try {
+      if (reportChoice === 'logs') {
+        let allLogs = Array.isArray(gateLogs) ? gateLogs : [];
+        try {
+          const freshLogs = await apiRequest('/guard/logs?all=true');
+          if (Array.isArray(freshLogs)) {
+            allLogs = freshLogs;
+          }
+        } catch {
+          // Fallback to currently loaded context records if offline
+        }
+
+        const headers = [
+          'No.',
+          'Date',
+          'Time',
+          'Action',
+          'Gate Station',
+          'User Category',
+          'Classification',
+          'Client / Visitor Name',
+          'Plate Number',
+          'Pass Reference',
+          'Verification Method',
+          'Security Status',
+          'Verified By Guard',
+        ];
+
+        const rows = allLogs.map((log, idx) => {
+          const dateObj = parseDateValue(log.timestamp, log.date, log.time);
+          const clsLabel = formatClassificationLabel(log.classification || 'STUDENT');
+          const userCategory = clsLabel === 'Visitor' ? 'Visitor' : 'Client';
+          const rawType = String(log.type || 'ENTRY').toUpperCase();
+          const actionLabel = rawType === 'CHECK' ? 'SPOT-CHECK' : rawType;
+
+          return [
+            idx + 1,
+            formatCleanDate(dateObj, log.date || 'N/A'),
+            formatCleanTime(dateObj, log.time || 'N/A'),
+            actionLabel,
+            log.gate || log.gate_station || 'Gate 1',
+            userCategory,
+            clsLabel,
+            log.owner || log.owner_name || 'Registered Motorist',
+            log.plateNumber || log.plate_number || 'N/A',
+            log.passNumber || log.pass_number || 'N/A',
+            formatMethodLabel(log.method || log.verification_method),
+            log.status || log.verification_status || 'VALID',
+            log.guard_name || 'Gate Security',
+          ];
+        });
+
+        const filename = `RSU_VPASS_Gate_Access_Audit_Logs_${todaySlug}.xlsx`;
+        downloadExcelWorkbook({
+          filename,
+          sheetName: 'Gate Access Audit Logs',
+          headers,
+          rows,
+        });
+
+        setDownloadBanner(`Downloaded ${rows.length} Gate Access Audit Log record${rows.length === 1 ? '' : 's'} (${filename}).`);
+      } else {
+        let allVisitors = Array.isArray(visitorPasses) ? visitorPasses : [];
+        try {
+          const freshVisitors = await apiRequest('/guard/visitors?all=true');
+          if (Array.isArray(freshVisitors)) {
+            allVisitors = freshVisitors;
+          }
+        } catch {
+          // Fallback to currently loaded context records if offline
+        }
+
+        const headers = [
+          'No.',
+          'Pass ID',
+          'Visitor Name',
+          'Contact Number',
+          'ID Presented',
+          'Plate Number',
+          'Vehicle Type',
+          'Destination',
+          'Purpose',
+          'Entry Gate',
+          'Entry Date',
+          'Entry Time',
+          'Valid Days',
+          'Valid Until',
+          'Exit Gate',
+          'Exit Date & Time',
+          'Current Status',
+          'Issued By Guard',
+        ];
+
+        const rows = allVisitors.map((v, idx) => {
+          const entryObj = parseDateValue(v.timestamp || v.created_at || v.valid_from, v.entryDate, v.entryTime);
+          const validToObj = v.valid_to ? new Date(v.valid_to) : null;
+          const exitObj = v.exitTimestamp ? new Date(v.exitTimestamp) : null;
+
+          const validUntilClean =
+            validToObj && !isNaN(validToObj.getTime())
+              ? formatCleanDate(validToObj)
+              : (v.validUntil || 'N/A');
+
+          const isDeparted = v.status === 'EXITED' || Boolean(v.exitGate);
+          const exitGateClean = v.exitGate || (isDeparted ? 'Gate Recorded' : 'Still on Campus');
+          const exitDateTimeClean =
+            exitObj && !isNaN(exitObj.getTime())
+              ? `${formatCleanDate(exitObj)} ${formatCleanTime(exitObj)}`
+              : isDeparted
+              ? (v.exitDate && v.exitTime ? `${v.exitDate} ${v.exitTime}` : 'Exited')
+              : 'Still on Campus';
+
+          const statusLabel =
+            v.status === 'INSIDE'
+              ? 'INSIDE CAMPUS'
+              : v.status === 'EXPIRED'
+              ? 'EXPIRED'
+              : 'DEPARTED';
+
+          return [
+            idx + 1,
+            v.id || v.pass_number || 'N/A',
+            v.name || v.visitor_name || 'N/A',
+            v.contact || 'N/A',
+            v.idPresented || v.id_presented || "Driver's License",
+            v.plateNumber || v.plate_number || 'N/A',
+            v.vehicleType || 'Motorcycle',
+            v.destination || 'Administration Building',
+            v.purpose || 'Official Business',
+            v.entryGate || 'Gate 1',
+            formatCleanDate(entryObj, v.entryDate || 'N/A'),
+            formatCleanTime(entryObj, v.entryTime || 'N/A'),
+            Number(v.validDays) || 1,
+            validUntilClean,
+            exitGateClean,
+            exitDateTimeClean,
+            statusLabel,
+            v.issued_by_guard || 'Gate Security',
+          ];
+        });
+
+        const filename = `RSU_VPASS_Campus_Visitor_Passes_${todaySlug}.xlsx`;
+        downloadExcelWorkbook({
+          filename,
+          sheetName: 'Campus Visitor Passes',
+          headers,
+          rows,
+        });
+
+        setDownloadBanner(`Downloaded ${rows.length} Campus Visitor Pass record${rows.length === 1 ? '' : 's'} (${filename}).`);
+      }
+
+      setTimeout(() => setDownloadBanner(''), 4500);
+    } finally {
+      setDownloadingType(null);
+    }
   };
 
   return (
     <div className="space-y-6 w-full pb-16">
+      {downloadBanner && (
+        <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 px-4 py-3 rounded-2xl flex items-center justify-between text-xs shadow-xs animate-in fade-in duration-150">
+          <div className="flex items-center space-x-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span className="font-semibold">{downloadBanner}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setDownloadBanner('')}
+            className="text-emerald-700 hover:text-emerald-900 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -71,14 +320,64 @@ export default function AdminReports() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handlePrint}
-          className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold shadow-xs cursor-pointer"
-        >
-          <Printer className="w-4 h-4 text-emerald-600" />
-          <span>Print / Export Audit</span>
-        </button>
+        <div className="relative self-start sm:self-auto" ref={downloadMenuRef}>
+          <button
+            type="button"
+            disabled={downloadingType !== null}
+            onClick={() => setIsDownloadOpen((prev) => !prev)}
+            className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold shadow-xs cursor-pointer disabled:opacity-60"
+          >
+            {downloadingType ? (
+              <RefreshCw className="w-4 h-4 text-emerald-600 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4 text-emerald-600" />
+            )}
+            <span>{downloadingType ? 'Preparing Excel...' : 'Download'}</span>
+            <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isDownloadOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {isDownloadOpen && (
+            <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl border border-slate-200 shadow-xl py-2 z-40 animate-in fade-in zoom-in-95 duration-150">
+              <div className="px-3.5 py-1.5 border-b border-slate-100">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  Choose Data to Download (.xlsx)
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleDownloadReport('logs')}
+                className="w-full px-3.5 py-2.5 text-left hover:bg-slate-50 transition-colors flex items-start space-x-3 cursor-pointer"
+              >
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+                  <FileSpreadsheet className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-900">Gate Access Audit Logs</p>
+                  <p className="text-[11px] text-slate-500 leading-snug">
+                    All entry, exit &amp; spot-check logs for clients &amp; visitors
+                  </p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleDownloadReport('visitors')}
+                className="w-full px-3.5 py-2.5 text-left hover:bg-slate-50 transition-colors flex items-start space-x-3 cursor-pointer"
+              >
+                <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0 mt-0.5">
+                  <Users className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-900">Campus Visitor Passes</p>
+                  <p className="text-[11px] text-slate-500 leading-snug">
+                    All issued &amp; historical temporary visitor pass records
+                  </p>
+                </div>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Sub Tabs */}
