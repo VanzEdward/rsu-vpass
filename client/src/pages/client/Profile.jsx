@@ -41,9 +41,26 @@ export default function Profile() {
     emergency_phone: user?.emergency_phone || '',
     emergency_relation: user?.emergency_relation || '',
   });
+  const [contactSaving, setContactSaving] = useState(false);
+  const [contactError, setContactError] = useState('');
+
+  // Fetch authoritative user profile from backend database on mount
+  useEffect(() => {
+    let isMounted = true;
+    apiRequest('/auth/me')
+      .then((freshUser) => {
+        if (isMounted && freshUser && freshUser.id) {
+          updateUser(freshUser);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
-    if (user) {
+    if (user && !isEditingContact) {
       setContactForm({
         contact_number: user.contact_number || '',
         emergency_name: user.emergency_name || '',
@@ -51,7 +68,7 @@ export default function Profile() {
         emergency_relation: user.emergency_relation || '',
       });
     }
-  }, [user]);
+  }, [user, isEditingContact]);
 
   const [contactSavedAlert, setContactSavedAlert] = useState(false);
 
@@ -87,18 +104,41 @@ export default function Profile() {
     setTimeout(() => setCopiedId(false), 2000);
   };
 
-  // Save Contact Details
-  const handleSaveContact = (e) => {
+  // Save Contact Details (persisted to database via /auth/profile)
+  const handleSaveContact = async (e) => {
     e.preventDefault();
-    updateUser({
-      contact_number: contactForm.contact_number,
-      emergency_name: contactForm.emergency_name,
-      emergency_phone: contactForm.emergency_phone,
-      emergency_relation: contactForm.emergency_relation,
-    });
-    setIsEditingContact(false);
-    setContactSavedAlert(true);
-    setTimeout(() => setContactSavedAlert(false), 3500);
+    setContactError('');
+    setContactSavedAlert(false);
+
+    const payload = {
+      contact_number: contactForm.contact_number.trim(),
+      emergency_name: contactForm.emergency_name.trim(),
+      emergency_phone: contactForm.emergency_phone.trim(),
+      emergency_relation: contactForm.emergency_relation.trim(),
+    };
+
+    if (!payload.contact_number || !payload.emergency_name || !payload.emergency_phone || !payload.emergency_relation) {
+      setContactError('Please complete all contact and emergency details before saving.');
+      return;
+    }
+
+    setContactSaving(true);
+    try {
+      const res = await apiRequest('/auth/profile', {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+
+      const updatedUser = res?.user ? res.user : payload;
+      updateUser(updatedUser);
+      setIsEditingContact(false);
+      setContactSavedAlert(true);
+      setTimeout(() => setContactSavedAlert(false), 3500);
+    } catch (err) {
+      setContactError(err.message || 'Failed to save changes to the server. Please try again.');
+    } finally {
+      setContactSaving(false);
+    }
   };
 
   // Handle Change Password Submit (Real Database Connection)
@@ -294,7 +334,10 @@ export default function Profile() {
               {!isEditingContact && (
                 <button
                   type="button"
-                  onClick={() => setIsEditingContact(true)}
+                  onClick={() => {
+                    setContactError('');
+                    setIsEditingContact(true);
+                  }}
                   className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer"
                 >
                   <Edit3 className="w-3.5 h-3.5 text-slate-500" />
@@ -305,6 +348,13 @@ export default function Profile() {
 
             {isEditingContact ? (
               <form onSubmit={handleSaveContact} className="mt-4 space-y-4">
+                {contactError && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center space-x-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{contactError}</span>
+                  </div>
+                )}
+
                 <div>
                   <label className="text-[11px] font-bold text-slate-700 block mb-1">Primary Mobile Number</label>
                   <input
@@ -312,7 +362,8 @@ export default function Profile() {
                     value={contactForm.contact_number}
                     onChange={(e) => setContactForm({ ...contactForm, contact_number: e.target.value })}
                     required
-                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    disabled={contactSaving}
+                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-50"
                     placeholder="+63 9XX XXX XXXX"
                   />
                 </div>
@@ -330,7 +381,8 @@ export default function Profile() {
                       value={contactForm.emergency_name}
                       onChange={(e) => setContactForm({ ...contactForm, emergency_name: e.target.value })}
                       required
-                      className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      disabled={contactSaving}
+                      className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-50"
                       placeholder="e.g. Maria Dela Cruz"
                     />
                   </div>
@@ -343,7 +395,8 @@ export default function Profile() {
                         value={contactForm.emergency_relation}
                         onChange={(e) => setContactForm({ ...contactForm, emergency_relation: e.target.value })}
                         required
-                        className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        disabled={contactSaving}
+                        className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-50"
                         placeholder="e.g. Parent / Spouse"
                       />
                     </div>
@@ -354,7 +407,8 @@ export default function Profile() {
                         value={contactForm.emergency_phone}
                         onChange={(e) => setContactForm({ ...contactForm, emergency_phone: e.target.value })}
                         required
-                        className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        disabled={contactSaving}
+                        className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-50"
                         placeholder="+63 9XX XXX XXXX"
                       />
                     </div>
@@ -364,15 +418,37 @@ export default function Profile() {
                 <div className="flex items-center space-x-2 pt-2">
                   <button
                     type="submit"
-                    className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center space-x-1.5 shadow-sm transition-colors cursor-pointer"
+                    disabled={contactSaving}
+                    className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center space-x-1.5 shadow-sm transition-colors cursor-pointer disabled:opacity-60"
                   >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>Save Changes</span>
+                    {contactSaving ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Saving Changes...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-3.5 h-3.5" />
+                        <span>Save Changes</span>
+                      </>
+                    )}
                   </button>
                   <button
                     type="button"
-                    onClick={() => setIsEditingContact(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-50 text-xs font-semibold transition-colors cursor-pointer"
+                    disabled={contactSaving}
+                    onClick={() => {
+                      setIsEditingContact(false);
+                      setContactError('');
+                      if (user) {
+                        setContactForm({
+                          contact_number: user.contact_number || '',
+                          emergency_name: user.emergency_name || '',
+                          emergency_phone: user.emergency_phone || '',
+                          emergency_relation: user.emergency_relation || '',
+                        });
+                      }
+                    }}
+                    className="px-4 py-2 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-50 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60"
                   >
                     Cancel
                   </button>
@@ -383,7 +459,7 @@ export default function Profile() {
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
                   <div>
                     <span className="text-slate-400 block font-semibold text-[11px]">Primary Contact</span>
-                    <span className="font-bold text-slate-800 mt-0.5 block">{contactForm.contact_number}</span>
+                    <span className="font-bold text-slate-800 mt-0.5 block">{contactForm.contact_number || 'Not provided'}</span>
                   </div>
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
                     Active
@@ -397,10 +473,10 @@ export default function Profile() {
                       Emergency Only
                     </span>
                   </div>
-                  <div className="font-bold text-slate-900 text-sm">{contactForm.emergency_name}</div>
+                  <div className="font-bold text-slate-900 text-sm">{contactForm.emergency_name || 'Not provided'}</div>
                   <div className="flex items-center justify-between text-slate-600 text-xs">
-                    <span>Relation: <strong className="text-slate-800">{contactForm.emergency_relation}</strong></span>
-                    <span className="font-mono font-bold text-slate-800">{contactForm.emergency_phone}</span>
+                    <span>Relation: <strong className="text-slate-800">{contactForm.emergency_relation || 'Not specified'}</strong></span>
+                    <span className="font-mono font-bold text-slate-800">{contactForm.emergency_phone || 'Not provided'}</span>
                   </div>
                 </div>
               </div>
@@ -453,21 +529,21 @@ export default function Profile() {
               <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
                 <span className="text-slate-400 block font-semibold text-[11px]">Driver's License No.</span>
                 <span className="font-mono font-bold text-slate-800 mt-0.5 block uppercase">
-                  {user?.drivers_license_no || 'D02-24-123456'}
+                  {user?.drivers_license_no || 'Not provided'}
                 </span>
               </div>
 
               <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
                 <span className="text-slate-400 block font-semibold text-[11px]">Age</span>
                 <span className="font-semibold text-slate-800 mt-0.5 block">
-                  {user?.age ? `${user.age} years old` : '21 years old'}
+                  {user?.age ? `${user.age} years old` : 'Not specified'}
                 </span>
               </div>
 
               <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 sm:col-span-2">
                 <span className="text-slate-400 block font-semibold text-[11px]">Current Address (Odiongan)</span>
                 <span className="font-medium text-slate-800 mt-0.5 block">
-                  {user?.current_address || 'Brgy. Liwanag, Odiongan, Romblon'}
+                  {user?.current_address || 'Not provided'}
                 </span>
               </div>
 
@@ -479,13 +555,6 @@ export default function Profile() {
                   </span>
                 </div>
               )}
-
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 sm:col-span-2">
-                <span className="text-slate-400 block font-semibold text-[11px]">Designated Campus Gate</span>
-                <span className="font-semibold text-slate-800 mt-0.5 block">
-                  RSU Main Campus • Gate 1
-                </span>
-              </div>
             </div>
           </div>
 

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { apiRequest } from '../api/client';
 
 const AuthContext = createContext(null);
 
@@ -47,11 +48,28 @@ export const AuthProvider = ({ children }) => {
 
   const updateUser = (updatedFields) => {
     setUser((prev) => {
+      if (!prev) return prev;
       const next = { ...prev, ...updatedFields };
       localStorage.setItem('vpass_user', JSON.stringify(next));
       return next;
     });
   };
+
+  // Sync latest profile fields from cloud database on session mount/token change
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    apiRequest('/auth/me')
+      .then((freshUser) => {
+        if (!cancelled && freshUser && freshUser.id) {
+          updateUser(freshUser);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   return (
     <AuthContext.Provider value={{ user, token, login, logout, updateUser, loading }}>

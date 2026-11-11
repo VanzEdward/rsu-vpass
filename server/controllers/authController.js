@@ -202,13 +202,46 @@ export const checkId = async (req, res) => {
 export const updateProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { full_name, email, school_id, contact_number, department_unit, password } = req.body;
+    const {
+      full_name,
+      email,
+      school_id,
+      contact_number,
+      department_unit,
+      emergency_name,
+      emergency_relation,
+      emergency_phone,
+      current_address,
+      permanent_address,
+      password
+    } = req.body;
 
-    // Check duplicate email or school_id
-    if (email || school_id) {
+    const cleanField = (val) => {
+      if (val === undefined || val === null) return null;
+      const trimmed = String(val).trim();
+      return trimmed !== '' ? trimmed : null;
+    };
+
+    const cleanSchoolId = cleanField(school_id);
+    const cleanEmail = cleanField(email);
+
+    // Check duplicate email or school_id when updating either field
+    if (cleanEmail || cleanSchoolId) {
+      const dupeConditions = [];
+      const dupeParams = [];
+      if (cleanSchoolId) {
+        dupeConditions.push('LOWER(school_id) = LOWER(?)');
+        dupeParams.push(cleanSchoolId);
+      }
+      if (cleanEmail) {
+        dupeConditions.push('LOWER(email) = LOWER(?)');
+        dupeParams.push(cleanEmail);
+      }
+      dupeParams.push(userId);
+
       const [existing] = await pool.query(
-        'SELECT id, school_id, email FROM users WHERE (LOWER(school_id) = LOWER(?) OR LOWER(email) = LOWER(?)) AND id != ?',
-        [school_id ? school_id.trim() : '', email ? email.trim() : '', userId]
+        `SELECT id, school_id, email FROM users WHERE (${dupeConditions.join(' OR ')}) AND id != ?`,
+        dupeParams
       );
       if (existing.length > 0) {
         return res.status(409).json({ message: 'Identification Card No. or Email is already taken by another account.' });
@@ -221,18 +254,29 @@ export const updateProfile = async (req, res) => {
         school_id = COALESCE(?, school_id),
         email = COALESCE(?, email),
         contact_number = COALESCE(?, contact_number),
-        department_unit = COALESCE(?, department_unit)
+        department_unit = COALESCE(?, department_unit),
+        emergency_name = COALESCE(?, emergency_name),
+        emergency_relation = COALESCE(?, emergency_relation),
+        emergency_phone = COALESCE(?, emergency_phone),
+        current_address = COALESCE(?, current_address),
+        permanent_address = COALESCE(?, permanent_address),
+        updated_at = NOW()
     `;
     const params = [
-      full_name || null,
-      school_id || null,
-      email || null,
-      contact_number || null,
-      department_unit || null,
+      cleanField(full_name),
+      cleanSchoolId,
+      cleanEmail,
+      cleanField(contact_number),
+      cleanField(department_unit),
+      cleanField(emergency_name),
+      cleanField(emergency_relation),
+      cleanField(emergency_phone),
+      cleanField(current_address),
+      cleanField(permanent_address),
     ];
 
-    if (password && password.trim() !== '') {
-      const hashedPassword = await bcrypt.hash(password.trim(), 10);
+    if (password && String(password).trim() !== '') {
+      const hashedPassword = await bcrypt.hash(String(password).trim(), 10);
       updateQuery += ', password = ?';
       params.push(hashedPassword);
     }
@@ -243,7 +287,7 @@ export const updateProfile = async (req, res) => {
     await pool.query(updateQuery, params);
 
     const [rows] = await pool.query(
-      'SELECT id, school_id, email, full_name, role, contact_number, department_unit FROM users WHERE id = ?',
+      'SELECT id, school_id, email, full_name, first_name, last_name, middle_name, role, contact_number, photo_url, age, current_address, permanent_address, drivers_license_no, classification, year_course, department_unit, emergency_name, emergency_relation, emergency_phone FROM users WHERE id = ?',
       [userId]
     );
 
@@ -252,6 +296,7 @@ export const updateProfile = async (req, res) => {
       user: rows[0],
     });
   } catch (error) {
+    console.error('Error in updateProfile:', error);
     res.status(500).json({ message: 'Failed to update profile', error: error.message });
   }
 };
