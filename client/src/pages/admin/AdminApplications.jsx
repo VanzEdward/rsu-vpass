@@ -5,6 +5,7 @@ import {
   getSequentialPassNumber,
   calculateOneYearExpiry,
   calculateAcademicYearExpiry,
+  getTemplateVersionForAcademicYear,
 } from "../../context/PassContext";
 import {
   FileCheck,
@@ -26,10 +27,11 @@ import {
   Copy,
   Check,
   ArrowRight,
+  RefreshCw,
   X,
   ExternalLink,
 } from "lucide-react";
-import RsuStickerPass from "../../components/RsuStickerPass";
+import RsuStickerPass, { PASS_TEMPLATES } from "../../components/RsuStickerPass";
 
 export default function AdminApplications() {
   const {
@@ -163,12 +165,17 @@ export default function AdminApplications() {
     setQrModalApp(app);
   };
 
-  // Confirm and Release the Generated QR Code to Client (Exactly 1-Year Expiration)
+  const activeIssuanceAcademicYear = systemSettings?.academicYear || "2026-2027";
+  const activeIssuanceVersion =
+    systemSettings?.stickerTemplateVersion ||
+    getTemplateVersionForAcademicYear(activeIssuanceAcademicYear);
+  const activeIssuanceTemplate =
+    PASS_TEMPLATES[activeIssuanceVersion] || PASS_TEMPLATES.V1;
+
+  // Confirm and Release the Generated QR Code to Client (Locked to active A.Y. & sticker set until renewed)
   const handleConfirmIssuePass = () => {
     if (!qrModalApp) return;
-    const expiry = calculateAcademicYearExpiry(
-      systemSettings?.academicYear || "2026-2027",
-    );
+    const expiry = calculateAcademicYearExpiry(activeIssuanceAcademicYear);
     const qrData = `RSU-VPASS:${generatedPassNum}:${qrModalApp.vehicle?.plateNumber || ""}:${qrModalApp.school_id || ""}`;
 
     verifyReceiptAndIssuePass(qrModalApp.id, {
@@ -176,6 +183,9 @@ export default function AdminApplications() {
       qrData,
       validUntil: expiry.validUntil,
       expiresAt: expiry.expiresAt,
+      validUntilDate: expiry.validUntilDate,
+      academicYear: activeIssuanceAcademicYear,
+      templateVersion: activeIssuanceVersion,
     });
 
     const issuedName = qrModalApp.applicant_name;
@@ -580,17 +590,17 @@ export default function AdminApplications() {
                     Annual Vehicle Pass Renewal Application
                   </span>
                   <p className="text-[11px] text-purple-900 mt-0.5 leading-relaxed">
-                    This applicant is renewing their pass for Academic Year{" "}
-                    <strong>
-                      {systemSettings?.academicYear || "2026-2027"}
-                    </strong>{" "}
-                    with an updated live selfie. Their assigned Pass Number (
+                    This applicant is renewing their pass for{" "}
+                    <strong>A.Y. {activeIssuanceAcademicYear}</strong> (
+                    {activeIssuanceTemplate.name}) with an updated live selfie.
+                    Their assigned Pass Number (
                     <strong>
                       {selectedApp.pass?.passNumber ||
                         selectedApp.assignedPassNumber ||
                         "Existing"}
                     </strong>
-                    ) and physical QR sticker remain active upon verification.
+                    ) stays preserved and their sticker updates to the{" "}
+                    {activeIssuanceAcademicYear} color set upon verification.
                   </p>
                 </div>
               </div>
@@ -1185,8 +1195,8 @@ export default function AdminApplications() {
                     (qrModalApp.classification || "")
                       .toLowerCase()
                       .includes("employee")
-                      ? "bg-red-100 text-red-900 border-red-200"
-                      : "bg-pink-100 text-pink-900 border-pink-200"
+                      ? activeIssuanceTemplate.employeeBadgeBg
+                      : activeIssuanceTemplate.studentBadgeBg
                   }`}
                 >
                   <span>
@@ -1209,6 +1219,7 @@ export default function AdminApplications() {
                 passNumber={generatedPassNum}
                 plateNumber={qrModalApp.vehicle?.plateNumber || "RSU 2026"}
                 qrPayload={`RSU-VPASS:${generatedPassNum}:${qrModalApp.vehicle?.plateNumber || ""}:${qrModalApp.school_id || ""}`}
+                templateVersion={activeIssuanceVersion}
                 showDownloadButton={false}
               />
 
@@ -1244,7 +1255,7 @@ export default function AdminApplications() {
                   <span className="font-bold text-slate-800">
                     Until{" "}
                     {
-                      calculateAcademicYearExpiry(systemSettings?.academicYear)
+                      calculateAcademicYearExpiry(activeIssuanceAcademicYear)
                         .validUntil
                     }
                   </span>
@@ -1254,7 +1265,15 @@ export default function AdminApplications() {
                     Academic Year:
                   </span>
                   <span className="font-bold text-emerald-700">
-                    A.Y. {systemSettings?.academicYear || "2026-2027"}
+                    A.Y. {activeIssuanceAcademicYear}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">
+                    Sticker Theme:
+                  </span>
+                  <span className="font-bold text-slate-800">
+                    {activeIssuanceTemplate.name}
                   </span>
                 </div>
               </div>

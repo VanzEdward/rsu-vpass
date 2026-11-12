@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { usePass } from '../../context/PassContext';
+import { usePass, getUniquePassApplications, isPassExpired } from '../../context/PassContext';
 import {
   User,
   ShieldCheck,
@@ -89,8 +89,10 @@ export default function Profile() {
   // Copy ID State
   const [copiedId, setCopiedId] = useState(false);
 
-  // Calculate Metrics
-  const activePassesCount = applications.filter((app) => app.pass?.status === 'ACTIVE').length;
+  // Calculate Metrics (deduplicated per vehicle)
+  const activePassesCount = getUniquePassApplications(applications).filter(
+    (app) => app.pass && !isPassExpired(app.pass)
+  ).length;
   const activeVehiclesCount = vehicles.filter((v) => v.status === 'Active Pass').length;
   const pendingVehiclesCount = vehicles.filter((v) => v.status !== 'Active Pass').length;
   const totalVehiclesCount = vehicles.length;

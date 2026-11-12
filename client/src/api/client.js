@@ -16,7 +16,11 @@ export const apiRequest = async (endpoint, options = {}) => {
 
   const data = await response.json();
   if (!response.ok) {
-    throw new Error(data.message || 'API request failed');
+    const err = new Error(data.message || 'API request failed');
+    err.status = response.status;
+    err.code = data.code;
+    err.data = data;
+    throw err;
   }
   return data;
 };

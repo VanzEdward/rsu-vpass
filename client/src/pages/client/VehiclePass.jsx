@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import QRCode from "qrcode";
-import { usePass } from "../../context/PassContext";
+import {
+  usePass,
+  resolvePassAcademicYear,
+  resolvePassTemplateVersion,
+  formatPassValidUntil,
+  getUniquePassApplications,
+} from "../../context/PassContext";
 import { isValidImageUrl } from "../../utils/imageCompressor";
 import {
   QrCode,
@@ -17,21 +23,19 @@ import {
   Car,
   CheckCircle2,
 } from "lucide-react";
-import RsuStickerPass from "../../components/RsuStickerPass";
+import RsuStickerPass, { PASS_TEMPLATES } from "../../components/RsuStickerPass";
 
 export default function VehiclePass() {
   const navigate = useNavigate();
-  const { applications, systemSettings, isPassExpired, initiatePassRenewal } = usePass();
+  const { applications, systemSettings, isPassExpired } = usePass();
   const [showQRModal, setShowQRModal] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [downloadMessage, setDownloadMessage] = useState("");
   const [isGeneratingPass, setIsGeneratingPass] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState("");
 
-  // Collect all applications that have an active or issued vehicle pass
-  const issuedApps = (applications || []).filter(
-    (a) => a.status === "PASS_ISSUED" || a.pass,
-  );
+  // Collect all applications that have an active or issued vehicle pass (1 pass per vehicle)
+  const issuedApps = getUniquePassApplications(applications);
   const [selectedAppId, setSelectedAppId] = useState(issuedApps[0]?.id || "");
 
   // Select the active vehicle application
@@ -78,6 +82,12 @@ export default function VehiclePass() {
 
     try {
       setIsGeneratingPass(true);
+      const passAcadYear = resolvePassAcademicYear(issuedApp.pass);
+      const passValidDisplay = formatPassValidUntil(
+        issuedApp.pass?.validUntil,
+        passAcadYear,
+      );
+      const passExpiredFlag = isPassExpired(issuedApp.pass);
 
       const canvas = document.createElement("canvas");
       canvas.width = 800;
@@ -129,16 +139,18 @@ export default function VehiclePass() {
 
       ctx.fillStyle = "#ecfdf5";
       ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.fillText("PHYSICAL ASSETS & SECURITY OFFICE • OFFICIAL PASS", 44, 104);
+      ctx.fillText(`PHYSICAL ASSETS & SECURITY OFFICE • A.Y. ${passAcadYear}`, 44, 104);
 
-      // "ACTIVE PASS" Pill Badge (Top Right)
+      // "ACTIVE PASS" / "EXPIRED PASS" Pill Badge (Top Right)
       ctx.save();
-      const badgeW = 126;
+      const badgeW = 134;
       const badgeH = 34;
       const badgeX = 800 - 44 - badgeW;
       const badgeY = 52 - badgeH / 2;
       drawRoundRect(badgeX, badgeY, badgeW, badgeH, 17);
-      ctx.fillStyle = "rgba(255, 255, 255, 0.22)";
+      ctx.fillStyle = passExpiredFlag
+        ? "rgba(225, 29, 72, 0.35)"
+        : "rgba(255, 255, 255, 0.22)";
       ctx.fill();
       ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
       ctx.lineWidth = 1.5;
@@ -148,7 +160,11 @@ export default function VehiclePass() {
       ctx.font = '800 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("ACTIVE PASS", badgeX + badgeW / 2, badgeY + badgeH / 2);
+      ctx.fillText(
+        passExpiredFlag ? "EXPIRED PASS" : "ACTIVE PASS",
+        badgeX + badgeW / 2,
+        badgeY + badgeH / 2,
+      );
       ctx.restore();
 
       // 3. Identification Section (Photo & Registered To)
@@ -330,7 +346,7 @@ export default function VehiclePass() {
       ctx.font = '800 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
       ctx.fillStyle = "#0f172a";
       ctx.textAlign = "right";
-      ctx.fillText(issuedApp.pass?.validUntil || "1 Year from Issuance", specX + specW - 20, specY + 175);
+      ctx.fillText(passValidDisplay || "1 Year from Issuance", specX + specW - 20, specY + 175);
 
       // 5. Dynamic Gate QR Code Box
       const qrBoxX = 44;
@@ -541,14 +557,40 @@ export default function VehiclePass() {
     type: issuedApp.vehicle_type || "Motorcycle",
   };
 
+  const issuedAcademicYear = resolvePassAcademicYear(pass);
+  const issuedTemplateVersion = resolvePassTemplateVersion(pass);
+  const issuedTemplateInfo =
+    PASS_TEMPLATES[issuedTemplateVersion] || PASS_TEMPLATES.V1;
+  const formattedValidUntil = formatPassValidUntil(
+    pass.validUntil,
+    issuedAcademicYear,
+  );
+  const passExpired = isPassExpired(pass);
+  const hasActiveRenewal = Boolean(
+    issuedApp?.isRenewal && issuedApp?.status !== "PASS_ISSUED",
+  );
+  const activeSystemAcademicYear = systemSettings?.academicYear || "2026-2027";
+
   return (
     <div className="space-y-6 max-w-5xl pb-12">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center space-x-2 px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold mb-1 border border-emerald-200">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Milestone 4: QR Pass Active</span>
+          <div
+            className={`inline-flex items-center space-x-2 px-3 py-0.5 rounded-full text-[11px] font-bold mb-1 border ${
+              passExpired
+                ? "bg-rose-100 text-rose-800 border-rose-200"
+                : "bg-emerald-100 text-emerald-800 border-emerald-200"
+            }`}
+          >
+            <Sparkles
+              className={`w-3.5 h-3.5 ${passExpired ? "text-rose-600" : "text-emerald-600"}`}
+            />
+            <span>
+              {passExpired
+                ? `Pass Expired • A.Y. ${issuedAcademicYear}`
+                : `Milestone 4: QR Pass Active • A.Y. ${issuedAcademicYear}`}
+            </span>
           </div>
           <h1 className="text-2xl font-black tracking-tight text-slate-900">
             Official Vehicle Pass
@@ -642,8 +684,14 @@ export default function VehiclePass() {
                   Romblon State University
                 </p>
               </div>
-              <span className="px-2.5 py-0.5 rounded-full bg-white/20 text-white text-[10px] font-bold tracking-wide border border-white/30">
-                ACTIVE PASS
+              <span
+                className={`px-2.5 py-0.5 rounded-full text-white text-[10px] font-bold tracking-wide border ${
+                  passExpired
+                    ? "bg-rose-500/40 border-rose-200/50"
+                    : "bg-white/20 border-white/30"
+                }`}
+              >
+                {passExpired ? "EXPIRED PASS" : "ACTIVE PASS"}
               </span>
             </div>
 
@@ -710,13 +758,17 @@ export default function VehiclePass() {
                 <div className="flex justify-between items-center pt-1 border-t border-slate-200 gap-2">
                   <span className="text-slate-500 shrink-0">Academic Year:</span>
                   <span className="font-bold text-emerald-800 truncate text-right font-mono">
-                    A.Y. {systemSettings?.academicYear || pass.academicYear || '2026-2027'}
+                    A.Y. {issuedAcademicYear}
                   </span>
                 </div>
                 <div className="flex justify-between items-center gap-2">
                   <span className="text-slate-500 shrink-0">Valid Until:</span>
-                  <span className="font-bold text-slate-900 truncate text-right">
-                    {pass.validUntil}
+                  <span
+                    className={`font-bold truncate text-right ${
+                      passExpired ? "text-rose-700" : "text-slate-900"
+                    }`}
+                  >
+                    {formattedValidUntil}
                   </span>
                 </div>
               </div>
@@ -775,17 +827,32 @@ export default function VehiclePass() {
           </div>
 
           <div className="p-4 bg-slate-50 rounded-3xl border border-slate-200 flex flex-col items-center">
+            <div className="mb-3 flex flex-wrap items-center justify-center gap-1.5">
+              <span
+                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                  (classification || "").toLowerCase().includes("employee")
+                    ? issuedTemplateInfo.employeeBadgeBg
+                    : issuedTemplateInfo.studentBadgeBg
+                }`}
+              >
+                {issuedTemplateInfo.name}
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-white text-slate-700 border border-slate-200">
+                A.Y. {issuedAcademicYear}
+              </span>
+            </div>
+
             <RsuStickerPass
               classification={classification || "Student"}
               passNumber={pass.passNumber || "S-001"}
               plateNumber={vehicle.plateNumber || "RSU 2026"}
               qrPayload={pass.qrData || `RSU-VPASS:${pass.passNumber}:${vehicle?.plateNumber || 'N/A'}:${school_id}`}
-              templateVersion={systemSettings?.stickerTemplateVersion || pass.templateVersion || "V1"}
+              templateVersion={issuedTemplateVersion}
               showDownloadButton={true}
             />
 
             <p className="text-[11px] text-slate-500 text-center leading-relaxed mt-2.5 max-w-xs">
-              Official Romblon State University {classification || "Student"} vehicle pass. Printed at 300 DPI high resolution with gate QR code ready for adhesive sticker attachment.
+              Official Romblon State University {classification || "Student"} vehicle pass issued for <strong>A.Y. {issuedAcademicYear}</strong> ({issuedTemplateInfo.name}). Printed at 300 DPI high resolution with gate QR code ready for adhesive sticker attachment.
             </p>
           </div>
 
@@ -793,16 +860,49 @@ export default function VehiclePass() {
           <div className="bg-white rounded-2xl border border-slate-200 p-4 max-w-sm mx-auto mt-4 space-y-2">
             <h3 className="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
               <RefreshCw className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Annual Pass Renewal • A.Y. {systemSettings?.academicYear || '2026-2027'}</span>
+              <span>Annual Pass Renewal • Active System A.Y. {activeSystemAcademicYear}</span>
             </h3>
-            
-            {issuedApp?.pass && isPassExpired(issuedApp.pass) ? (
+
+            {hasActiveRenewal ? (
+              <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-950 text-xs space-y-2">
+                <p className="font-bold text-blue-900">
+                  Renewal for A.Y. {activeSystemAcademicYear} In Progress
+                </p>
+                <p className="text-[11px] text-blue-800 leading-relaxed">
+                  {issuedApp.status === "APPROVED"
+                    ? "PASO approved your renewal form. Proceed to Cashier Payment and upload your receipt to activate the updated sticker set."
+                    : issuedApp.status === "RECEIPT_SUBMITTED"
+                    ? "Your renewal receipt has been uploaded and is awaiting PASO Admin verification."
+                    : issuedApp.status === "REJECTED"
+                    ? "Your renewal application needs correction before proceeding."
+                    : "Your renewal application is currently under PASO review. Your existing issued pass remains preserved until verification."}
+                </p>
+                {issuedApp.status === "APPROVED" ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/client/payments?appId=${issuedApp.id}`)}
+                    className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center space-x-1.5 cursor-pointer shadow-xs"
+                  >
+                    <span>Proceed to Renewal Payment</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                ) : (
+                  <Link
+                    to="/client/applications"
+                    className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-xs"
+                  >
+                    <span>Track Renewal Milestones</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                )}
+              </div>
+            ) : passExpired ? (
               <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs space-y-2">
                 <p className="font-bold text-rose-950 flex items-center space-x-1">
-                  <span>Pass Expired on {issuedApp.pass.validUntil}</span>
+                  <span>Pass Expired on {formattedValidUntil}</span>
                 </p>
                 <p className="text-[11px] text-rose-800 leading-relaxed">
-                  Your 1-year gate clearance for <strong>{vehicle?.make || 'Vehicle'} {vehicle?.model || ''} ({vehicle?.plateNumber || 'N/A'})</strong> has expired. Renew your pass to restore campus gate entry.
+                  Your A.Y. {issuedAcademicYear} gate clearance for <strong>{vehicle?.make || 'Vehicle'} {vehicle?.model || ''} ({vehicle?.plateNumber || 'N/A'})</strong> has expired. Renew your pass into <strong>A.Y. {activeSystemAcademicYear}</strong> to restore campus gate entry.
                 </p>
                 <button
                   type="button"
@@ -818,7 +918,15 @@ export default function VehiclePass() {
             ) : (
               <>
                 <p className="text-[11px] text-slate-500 leading-relaxed">
-                  Passes are valid for exactly 1 year from issuance for <strong>Academic Year {systemSettings?.academicYear || '2026-2027'}</strong>. Valid until <strong>{pass.validUntil}</strong>.
+                  {issuedAcademicYear !== activeSystemAcademicYear ? (
+                    <>
+                      This pass remains active on <strong>A.Y. {issuedAcademicYear}</strong> ({issuedTemplateInfo.name}) until <strong>{formattedValidUntil}</strong>. Changing campus settings to <strong>A.Y. {activeSystemAcademicYear}</strong> does not alter this sticker unless you renew.
+                    </>
+                  ) : (
+                    <>
+                      Valid for <strong>Academic Year {issuedAcademicYear}</strong> ({issuedTemplateInfo.name}) until <strong>{formattedValidUntil}</strong>.
+                    </>
+                  )}
                 </p>
                 <button
                   type="button"
@@ -827,7 +935,9 @@ export default function VehiclePass() {
                   }}
                   className="w-full py-2 px-3 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors cursor-pointer"
                 >
-                  Request Early Annual Renewal
+                  {issuedAcademicYear !== activeSystemAcademicYear
+                    ? `Renew for A.Y. ${activeSystemAcademicYear}`
+                    : "Request Early Annual Renewal"}
                 </button>
               </>
             )}

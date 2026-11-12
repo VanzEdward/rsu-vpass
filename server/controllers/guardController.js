@@ -1,5 +1,27 @@
 import pool from '../config/db.js';
 
+const formatSqlDateDisplay = (val) => {
+  if (!val) return null;
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    return val.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
+  const str = String(val).trim();
+  const ymd = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymd) {
+    const d = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
+    return d.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
+  return str;
+};
+
 // Verify Pass (via QR Code string or pass number or plate)
 export const verifyPass = async (req, res) => {
   try {
@@ -19,7 +41,7 @@ export const verifyPass = async (req, res) => {
     // 1. Check in vehicle_passes
     const [passes] = await pool.query(`
       SELECT 
-        vp.id as pass_id, vp.pass_number, vp.valid_until, vp.status, vp.qr_code_data,
+        vp.id as pass_id, vp.pass_number, vp.valid_until, vp.academic_year, vp.template_version, vp.status, vp.qr_code_data,
         v.plate_number, v.vehicle_type, v.make, v.model, v.color, v.year_model, v.vehicle_photo_url,
         u.full_name, u.school_id, COALESCE(a.applicant_photo, u.photo_url) as client_photo, u.contact_number,
         u.classification, u.year_course, u.department_unit
@@ -31,19 +53,26 @@ export const verifyPass = async (req, res) => {
          OR vp.pass_number = ?
          OR vp.qr_code_data = ?
          OR REPLACE(UPPER(v.plate_number), ' ', '') = ?
-      ORDER BY vp.id DESC
+      ORDER BY vp.id DESC, (a.status = 'PASS_ISSUED') DESC, a.updated_at DESC, a.id DESC
       LIMIT 1
     `, [cleanCode, extractedPassNum, cleanCode, cleanPlate]);
 
     if (passes.length > 0) {
       const pass = passes[0];
-      const isExpired = new Date(pass.valid_until) < new Date();
+      const expiryEnd = new Date(pass.valid_until);
+      if (!isNaN(expiryEnd.getTime())) {
+        expiryEnd.setHours(23, 59, 59, 999);
+      }
+      const isExpired = !isNaN(expiryEnd.getTime()) && expiryEnd < new Date();
       return res.json({
         found: true,
         type: 'REGISTERED',
         isValid: pass.status === 'ACTIVE' && !isExpired,
         status: isExpired ? 'EXPIRED' : pass.status,
-        pass
+        pass: {
+          ...pass,
+          valid_until: formatSqlDateDisplay(pass.valid_until)
+        }
       });
     }
 
@@ -93,7 +122,7 @@ export const manualSearch = async (req, res) => {
     if (classification === 'ALL' || classification === 'STUDENT' || classification === 'EMPLOYEE') {
       const [regResults] = await pool.query(`
         SELECT 
-          vp.id as pass_id, vp.pass_number, vp.valid_until, vp.status, vp.qr_code_data,
+          vp.id as pass_id, vp.pass_number, vp.valid_until, vp.academic_year, vp.template_version, vp.status, vp.qr_code_data,
           v.plate_number, v.vehicle_type, v.make, v.model, v.color, v.year_model,
           u.full_name, u.school_id, u.contact_number,
           COALESCE(a.applicant_photo, u.photo_url) as client_photo,
@@ -111,12 +140,28 @@ export const manualSearch = async (req, res) => {
            OR v.plate_number LIKE ? 
            OR REPLACE(v.plate_number, ' ', '') LIKE ?
            OR vp.pass_number LIKE ?
-        LIMIT 20
+        ORDER BY vp.id DESC, (a.status = 'PASS_ISSUED') DESC, a.updated_at DESC, a.id DESC
+        LIMIT 40
       `, [searchTerm, searchTerm, searchTerm, noSpacesSearch, searchTerm]);
 
-      const filteredReg = classification === 'ALL' 
-        ? regResults 
-        : regResults.filter(r => r.classification === classification);
+      const seenPassIds = new Set();
+      const uniqueRegResults = [];
+      for (const r of regResults) {
+        const key = r.pass_id || r.plate_number;
+        if (seenPassIds.has(key)) continue;
+        seenPassIds.add(key);
+        uniqueRegResults.push(r);
+        if (uniqueRegResults.length >= 20) break;
+      }
+
+      const filteredReg = (
+        classification === 'ALL'
+          ? uniqueRegResults
+          : uniqueRegResults.filter(r => r.classification === classification)
+      ).map(r => ({
+        ...r,
+        valid_until: formatSqlDateDisplay(r.valid_until) || r.valid_until
+      }));
 
       results = results.concat(filteredReg);
     }
@@ -158,15 +203,24 @@ export const getGuardPasses = async (req, res) => {
         u.id as user_id, u.school_id, u.full_name, u.email, u.contact_number,
         u.classification, u.year_course, u.department_unit,
         v.id as vehicle_id, v.plate_number, v.vehicle_type, v.make, v.model, v.color, v.year_model,
-        vp.id as pass_id, vp.pass_number, vp.valid_until, vp.qr_code_data, vp.status as pass_status
+        vp.id as pass_id, vp.pass_number, vp.valid_until, vp.academic_year, vp.template_version, vp.qr_code_data, vp.status as pass_status
       FROM vehicle_passes vp
       JOIN vehicles v ON vp.vehicle_id = v.id
       JOIN users u ON vp.user_id = u.id
       LEFT JOIN applications a ON a.vehicle_id = v.id
-      ORDER BY vp.id DESC
+      ORDER BY vp.id DESC, (a.status = 'PASS_ISSUED') DESC, a.updated_at DESC, a.id DESC
     `);
 
-    const formatted = apps.map((app) => ({
+    // Ensure strictly 1 entry per vehicle pass even if legacy duplicate applications exist
+    const seenPassKeys = new Set();
+    const uniqueApps = apps.filter((row) => {
+      const key = row.pass_id || row.vehicle_id;
+      if (seenPassKeys.has(key)) return false;
+      seenPassKeys.add(key);
+      return true;
+    });
+
+    const formatted = uniqueApps.map((app) => ({
       id: app.app_ref_number || `APP-2026-${String(app.id || app.pass_id).padStart(4, '0')}`,
       db_id: app.id,
       user_id: app.user_id,
@@ -190,8 +244,16 @@ export const getGuardPasses = async (req, res) => {
       pass: {
         id: app.pass_id,
         passNumber: app.pass_number,
-        validUntil: app.valid_until,
+        validUntil: formatSqlDateDisplay(app.valid_until),
         qrData: app.qr_code_data,
+        academicYear: app.academic_year || '2026-2027',
+        templateVersion:
+          app.template_version ||
+          (app.academic_year === '2027-2028'
+            ? 'V2'
+            : app.academic_year === '2028-2029'
+              ? 'V3'
+              : 'V1'),
         status: app.pass_status || 'ACTIVE',
       },
     }));

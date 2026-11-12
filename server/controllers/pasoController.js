@@ -7,6 +7,62 @@ import {
   sendGuardAccountCreatedEmail,
 } from "../services/emailService.js";
 
+const formatSqlDateDisplay = (val) => {
+  if (!val) return null;
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    return val.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
+  const str = String(val).trim();
+  const ymd = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymd) {
+    const d = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
+    return d.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
+  return str;
+};
+
+const resolveSqlDateFromAcademicYear = (academicYear = '2026-2027') => {
+  const parts = String(academicYear).split('-');
+  let endYear = 2027;
+  if (parts.length >= 2 && !isNaN(parseInt(parts[1], 10))) {
+    const raw = parseInt(parts[1], 10);
+    endYear = raw < 100 ? 2000 + raw : raw;
+  } else if (!isNaN(parseInt(parts[0], 10))) {
+    endYear = parseInt(parts[0], 10) + 1;
+  }
+  return `${endYear}-07-31`;
+};
+
+const resolveTemplateFromAcademicYear = (academicYear) => {
+  if (academicYear === '2027-2028') return 'V2';
+  if (academicYear === '2028-2029') return 'V3';
+  return 'V1';
+};
+
+const resolveSqlDateInput = (validUntil, academicYear) => {
+  if (validUntil) {
+    const str = String(validUntil).trim();
+    const ymd = str.match(/^(\d{4}-\d{2}-\d{2})$/);
+    if (ymd) return ymd[1];
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime())) {
+      const y = parsed.getFullYear();
+      const m = String(parsed.getMonth() + 1).padStart(2, '0');
+      const d = String(parsed.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+  }
+  return resolveSqlDateFromAcademicYear(academicYear);
+};
+
 // Get dashboard counts & statistics for PASO admin
 export const getAdminStats = async (req, res) => {
   try {
@@ -81,6 +137,7 @@ export const getAllApplications = async (req, res) => {
         orCr: app.or_cr_url || app.or_url || app.cr_url,
       },
       status: app.status,
+      isRenewal: Boolean(app.pass_number && app.status !== 'PASS_ISSUED'),
       rejection_reason: app.rejection_reason,
       receiptRejectionRemark: app.receipt_rejection_remark,
       created_at: app.created_at,
@@ -93,10 +150,10 @@ export const getAllApplications = async (req, res) => {
       pass: app.pass_number ? {
         id: app.pass_id,
         passNumber: app.pass_number,
-        validUntil: app.valid_until,
+        validUntil: formatSqlDateDisplay(app.valid_until),
         qrData: app.qr_code_data,
         academicYear: app.academic_year || '2026-2027',
-        templateVersion: app.template_version || 'V1',
+        templateVersion: app.template_version || resolveTemplateFromAcademicYear(app.academic_year),
         status: app.pass_status || 'ACTIVE',
         issuedAt: app.pass_issued_at || app.updated_at,
       } : null,
@@ -218,36 +275,60 @@ export const issuePass = async (req, res) => {
     }
 
     const app = apps[0];
-    const finalPassNum = passNumber || `S-${String(app.id).padStart(3, '0')}`;
-    const finalValidUntil = validUntil ? new Date(validUntil).toISOString().split('T')[0] : `${new Date().getFullYear() + 1}-07-31`;
+
+    // Check if this vehicle already has an issued pass row so renewal updates in-place unconditionally
+    const [existingPassRows] = await pool.query(
+      'SELECT id, pass_number, qr_code_data FROM vehicle_passes WHERE vehicle_id = ? ORDER BY id ASC LIMIT 1',
+      [app.vehicle_id]
+    );
+    const existingPass = existingPassRows[0] || null;
+
+    const finalPassNum = passNumber || existingPass?.pass_number || `S-${String(app.id).padStart(3, '0')}`;
     const qrData = `RSU-VPASS:${finalPassNum}:${app.plate_number}:${app.school_id}`;
 
-        // Fetch active system settings for defaults
+    // Fetch active system settings for defaults
     const [settingsRows] = await pool.query(
       "SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('academicYear', 'stickerTemplateVersion')"
     );
     const settingsMap = Object.fromEntries(settingsRows.map(r => [r.setting_key, r.setting_value]));
     const finalAcadYear = academicYear || settingsMap.academicYear || '2026-2027';
-    let finalTemplate = templateVersion || settingsMap.stickerTemplateVersion;
-    if (!finalTemplate) {
-      if (finalAcadYear === '2027-2028') finalTemplate = 'V2';
-      else if (finalAcadYear === '2028-2029') finalTemplate = 'V3';
-      else finalTemplate = 'V1';
-    }
+    const finalTemplate =
+      templateVersion ||
+      settingsMap.stickerTemplateVersion ||
+      resolveTemplateFromAcademicYear(finalAcadYear);
+    const finalValidUntil = resolveSqlDateInput(validUntil, finalAcadYear);
+    const displayValidUntil = formatSqlDateDisplay(finalValidUntil);
 
-    // 1. Insert or update vehicle pass
-    await pool.query(
-      `INSERT INTO vehicle_passes (pass_number, vehicle_id, user_id, qr_code_data, valid_until, academic_year, template_version, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
-       ON DUPLICATE KEY UPDATE 
-         pass_number = VALUES(pass_number), 
-         qr_code_data = VALUES(qr_code_data), 
-         valid_until = VALUES(valid_until), 
-         academic_year = VALUES(academic_year), 
-         template_version = VALUES(template_version), 
-         status = 'ACTIVE'`,
-      [finalPassNum, app.vehicle_id, app.user_id, qrData, finalValidUntil, finalAcadYear, finalTemplate]
-    );
+    // 1. Update existing vehicle pass in-place OR insert a new pass (locks this pass to the A.Y. & sticker set active at issuance/renewal)
+    if (existingPass) {
+      await pool.query(
+        `UPDATE vehicle_passes
+         SET pass_number = ?,
+             user_id = ?,
+             qr_code_data = ?,
+             valid_until = ?,
+             academic_year = ?,
+             template_version = ?,
+             status = 'ACTIVE',
+             issued_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [finalPassNum, app.user_id, qrData, finalValidUntil, finalAcadYear, finalTemplate, existingPass.id]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO vehicle_passes (pass_number, vehicle_id, user_id, qr_code_data, valid_until, academic_year, template_version, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+         ON DUPLICATE KEY UPDATE 
+           pass_number = VALUES(pass_number), 
+           qr_code_data = VALUES(qr_code_data), 
+           valid_until = VALUES(valid_until), 
+           academic_year = VALUES(academic_year), 
+           template_version = VALUES(template_version), 
+           status = 'ACTIVE',
+           issued_at = CURRENT_TIMESTAMP`,
+        [finalPassNum, app.vehicle_id, app.user_id, qrData, finalValidUntil, finalAcadYear, finalTemplate]
+      );
+    }
 
     // 2. Insert payment if OR number is available
     const finalOr = orNumber || app.receipt_or_number;
@@ -255,7 +336,7 @@ export const issuePass = async (req, res) => {
       await pool.query(
         `INSERT INTO payments (application_id, or_number, amount, recorded_by, remarks)
          VALUES (?, ?, ?, ?, 'Cashier verified by PASO Admin')
-         ON DUPLICATE KEY UPDATE or_number = VALUES(or_number)`,
+         ON DUPLICATE KEY UPDATE or_number = VALUES(or_number), amount = VALUES(amount)`,
         [app.id, finalOr, amount || 150.00, req.user.id]
       );
     }
@@ -275,7 +356,8 @@ export const issuePass = async (req, res) => {
         vehicle: vehicleDesc,
         plateNumber: app.plate_number,
         passNumber: finalPassNum,
-        validUntil: finalValidUntil,
+        validUntil: displayValidUntil,
+        academicYear: finalAcadYear,
       }).catch((err) => console.error('[Brevo Hook Error]:', err));
     } catch (e) {
       console.error('[Brevo Hook Query Error]:', e);
@@ -284,7 +366,7 @@ export const issuePass = async (req, res) => {
     res.json({
       message: 'Official Vehicle Pass issued successfully!',
       passNumber: finalPassNum,
-      validUntil: finalValidUntil,
+      validUntil: displayValidUntil,
       academicYear: finalAcadYear,
       templateVersion: finalTemplate,
       qrData
@@ -380,20 +462,54 @@ export const recordPayment = async (req, res) => {
     );
     if (appRows.length > 0) {
       const { user_id, vehicle_id } = appRows[0];
+      const [settingsRows] = await pool.query(
+        "SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('academicYear', 'stickerTemplateVersion')"
+      );
+      const settingsMap = Object.fromEntries(settingsRows.map(r => [r.setting_key, r.setting_value]));
+      const acadYear = settingsMap.academicYear || '2026-2027';
+      const templateVer = settingsMap.stickerTemplateVersion || resolveTemplateFromAcademicYear(acadYear);
       const year = new Date().getFullYear();
-      const passNumber = `VP-${year}-${String(application_id).padStart(4, "0")}`;
-      const validUntil = `${year}-12-31`; // Standard annual validity
+
+      const [existingPassRows] = await pool.query(
+        'SELECT id, pass_number FROM vehicle_passes WHERE vehicle_id = ? ORDER BY id ASC LIMIT 1',
+        [vehicle_id]
+      );
+      const existingPass = existingPassRows[0] || null;
+
+      const passNumber = existingPass?.pass_number || `VP-${year}-${String(application_id).padStart(4, "0")}`;
+      const validUntil = resolveSqlDateFromAcademicYear(acadYear);
       const qrData = `RSU-VPASS:${passNumber}:${vehicle_id}:${user_id}`;
 
-      // Insert or activate pass
-      await pool.query(
-        `
-        INSERT INTO vehicle_passes (pass_number, vehicle_id, user_id, qr_code_data, valid_until, status)
-        VALUES (?, ?, ?, ?, ?, 'ACTIVE')
-        ON DUPLICATE KEY UPDATE status = 'ACTIVE', valid_until = VALUES(valid_until)
-      `,
-        [passNumber, vehicle_id, user_id, qrData, validUntil],
-      );
+      // Update existing pass in-place or insert new pass
+      if (existingPass) {
+        await pool.query(
+          `UPDATE vehicle_passes
+           SET pass_number = ?,
+               user_id = ?,
+               qr_code_data = ?,
+               valid_until = ?,
+               academic_year = ?,
+               template_version = ?,
+               status = 'ACTIVE',
+               issued_at = CURRENT_TIMESTAMP
+           WHERE id = ?`,
+          [passNumber, user_id, qrData, validUntil, acadYear, templateVer, existingPass.id]
+        );
+      } else {
+        await pool.query(
+          `
+          INSERT INTO vehicle_passes (pass_number, vehicle_id, user_id, qr_code_data, valid_until, academic_year, template_version, status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+          ON DUPLICATE KEY UPDATE
+            status = 'ACTIVE',
+            valid_until = VALUES(valid_until),
+            academic_year = VALUES(academic_year),
+            template_version = VALUES(template_version),
+            issued_at = CURRENT_TIMESTAMP
+        `,
+          [passNumber, vehicle_id, user_id, qrData, validUntil, acadYear, templateVer],
+        );
+      }
 
       // Trigger Brevo Email for Pass Issuance
       try {
@@ -413,7 +529,8 @@ export const recordPayment = async (req, res) => {
             vehicle: vehicleDesc,
             plateNumber: userObj.plate_number,
             passNumber,
-            validUntil,
+            validUntil: formatSqlDateDisplay(validUntil),
+            academicYear: acadYear,
           }).catch((err) => console.error('[Brevo Hook Error]:', err));
         }
       } catch (e) {

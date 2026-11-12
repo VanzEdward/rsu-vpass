@@ -2,7 +2,15 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { useAuth } from '../../context/AuthContext';
-import { usePass } from '../../context/PassContext';
+import {
+  usePass,
+  resolvePassAcademicYear,
+  resolvePassTemplateVersion,
+  formatPassValidUntil,
+  isPassExpired,
+  getUniquePassApplications,
+  normalizePlateNumber,
+} from '../../context/PassContext';
 import { formatNotificationTime, getFullNotificationTimestamp, formatLogTimestamp } from '../../utils/dateUtils';
 import { 
   Car, 
@@ -55,18 +63,17 @@ export default function Dashboard() {
     const list = [];
     const seenPlates = new Set();
 
-    // Only applications with official issued passes appear in the gate pass selector
-    (applications || []).forEach((app) => {
-      if (app.status !== 'PASS_ISSUED' && !app.pass) return;
-
+    // Only deduplicated applications with official issued passes appear in the gate pass selector
+    getUniquePassApplications(applications).forEach((app) => {
       const plate = (app.vehicle?.plateNumber || '').trim();
-      const cleanPlate = plate.replace(/\s+/g, '').toUpperCase();
+      const cleanPlate = normalizePlateNumber(plate);
       if (!cleanPlate || seenPlates.has(cleanPlate)) return;
 
       const vehicleName = `${app.vehicle?.make || ''} ${app.vehicle?.model || ''}`.trim() || 'Motor Vehicle';
       const passNum = app.pass?.passNumber || app.passNumber;
       if (!passNum) return;
       const qrData = app.pass?.qrData || `RSU-VPASS:${passNum}:${cleanPlate}:${app.school_id || user?.school_id || ''}`;
+      const passAcadYear = resolvePassAcademicYear(app.pass);
 
       list.push({
         id: app.id || cleanPlate,
@@ -75,8 +82,10 @@ export default function Dashboard() {
         vehicleType: app.vehicle?.type || 'Motorcycle',
         color: app.vehicle?.color || '',
         passNumber: passNum,
-        validUntil: app.pass?.validUntil || `July 31, ${systemSettings?.academicYear?.split('-')[1] || '2027'}`,
-        status: app.pass?.status || 'ACTIVE',
+        academicYear: passAcadYear,
+        templateVersion: resolvePassTemplateVersion(app.pass),
+        validUntil: formatPassValidUntil(app.pass?.validUntil, passAcadYear),
+        status: isPassExpired(app.pass) ? 'EXPIRED' : (app.pass?.status || 'ACTIVE'),
         qrData,
         hasIssuedPass: true
       });
@@ -84,11 +93,12 @@ export default function Dashboard() {
     });
 
     return list;
-  }, [applications, user, systemSettings]);
+  }, [applications, user]);
 
   // Active or approved application with an issued pass
-  const activeApp = applications.find(a => a.status === 'PASS_ISSUED' && a.pass) || 
-                    applications.find(a => a.pass) || 
+  const uniquePassApps = getUniquePassApplications(applications);
+  const activeApp = uniquePassApps.find(a => a.status === 'PASS_ISSUED' && a.pass) ||
+                    uniquePassApps[0] ||
                     applications[0];
 
   const pendingPaymentApp = applications.find(
@@ -102,13 +112,17 @@ export default function Dashboard() {
   );
 
   // Pass preview object (strictly null if no active pass has been issued)
+  const activePassAcadYear = activeApp?.pass ? resolvePassAcademicYear(activeApp.pass) : null;
+  const activePassExpired = activeApp?.pass ? isPassExpired(activeApp.pass) : false;
   const activePass = activeApp?.pass ? {
     passNumber: activeApp.pass.passNumber,
     vehicle: `${activeApp.vehicle?.make || ''} ${activeApp.vehicle?.model || ''}`.trim() || 'Motor Vehicle',
     plateNumber: activeApp.vehicle?.plateNumber || 'N/A',
     vehicleType: activeApp.vehicle?.type || 'Motorcycle',
-    validUntil: activeApp.pass.validUntil || `July 31, ${systemSettings?.academicYear?.split('-')[1] || '2027'}`,
-    status: activeApp.pass.status || 'ACTIVE',
+    academicYear: activePassAcadYear,
+    templateVersion: resolvePassTemplateVersion(activeApp.pass),
+    validUntil: formatPassValidUntil(activeApp.pass.validUntil, activePassAcadYear),
+    status: activePassExpired ? 'EXPIRED' : (activeApp.pass.status || 'ACTIVE'),
     qrData: activeApp.pass.qrData || `RSU-VPASS:${activeApp.pass.passNumber}:${activeApp.vehicle?.plateNumber}:${activeApp.school_id || user?.school_id}`,
   } : null;
 
@@ -177,7 +191,9 @@ export default function Dashboard() {
            a.status === 'APPROVED' || 
            a.status === 'APPROVED_PENDING_PAYMENT'
     ).length,
-    activePasses: applications.filter(a => a.status === 'PASS_ISSUED' && a.pass).length,
+    activePasses: uniquePassApps.filter(
+      a => (a.status === 'PASS_ISSUED' || a.isRenewal) && a.pass && !isPassExpired(a.pass)
+    ).length,
   };
 
   // User classification
@@ -444,9 +460,19 @@ export default function Dashboard() {
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
                   <div className="space-y-2.5 min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold">
-                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>ACTIVE CLEARANCE</span>
+                      <span
+                        className={`inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full border text-[11px] font-bold ${
+                          activePass.status === 'EXPIRED'
+                            ? 'bg-rose-100 text-rose-800 border-rose-200'
+                            : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                        }`}
+                      >
+                        <ShieldCheck
+                          className={`w-3.5 h-3.5 ${
+                            activePass.status === 'EXPIRED' ? 'text-rose-600' : 'text-emerald-600'
+                          }`}
+                        />
+                        <span>{activePass.status === 'EXPIRED' ? 'EXPIRED PASS' : 'ACTIVE CLEARANCE'}</span>
                       </span>
 
                       <span className="text-[11px] font-medium text-slate-500">
@@ -468,8 +494,8 @@ export default function Dashboard() {
                     </div>
 
                     <div className="space-y-0.5 text-xs text-slate-600 pt-1">
-                      <p>Pass Number: <strong className="font-mono text-emerald-700">{activePass.passNumber}</strong></p>
-                      <p>Valid Until: <span className="font-semibold text-slate-800">{activePass.validUntil}</span></p>
+                      <p>Pass Number: <strong className="font-mono text-emerald-700">{activePass.passNumber}</strong> <span className="text-slate-400">•</span> <strong className="font-mono text-slate-700">A.Y. {activePass.academicYear}</strong></p>
+                      <p>Valid Until: <span className={`font-semibold ${activePass.status === 'EXPIRED' ? 'text-rose-700' : 'text-slate-800'}`}>{activePass.validUntil}</span></p>
                     </div>
                   </div>
 

@@ -32,6 +32,161 @@ export const DEFAULT_SETTINGS = {
   primaryGate: "Gate 1",
 };
 
+export const normalizePlateNumber = (plate) =>
+  String(plate || "").replace(/\s+/g, "").toUpperCase();
+
+/**
+ * Deduplicates applications with issued passes to strictly 1 pass record per vehicle
+ * (preferring active PASS_ISSUED records and newest timestamps if legacy duplicate rows exist).
+ */
+export const getUniquePassApplications = (applications = []) => {
+  const passApps = (applications || []).filter(
+    (a) => a && (a.status === "PASS_ISSUED" || a.pass),
+  );
+  const byVehicle = new Map();
+
+  for (const app of passApps) {
+    const cleanPlate = normalizePlateNumber(app.vehicle?.plateNumber);
+    const key = app.vehicle?.id
+      ? `veh-${app.vehicle.id}`
+      : cleanPlate
+      ? `plate-${cleanPlate}`
+      : app.pass?.passNumber
+      ? `pass-${app.pass.passNumber}`
+      : `app-${app.id}`;
+
+    const existing = byVehicle.get(key);
+    if (!existing) {
+      byVehicle.set(key, app);
+      continue;
+    }
+
+    const existingScore =
+      (existing.status === "PASS_ISSUED" ? 2 : 0) +
+      (existing.pass?.status === "ACTIVE" ? 1 : 0);
+    const candidateScore =
+      (app.status === "PASS_ISSUED" ? 2 : 0) +
+      (app.pass?.status === "ACTIVE" ? 1 : 0);
+
+    if (candidateScore > existingScore) {
+      byVehicle.set(key, app);
+    } else if (candidateScore === existingScore) {
+      const existingTime = new Date(existing.updated_at || existing.created_at || 0).getTime() || 0;
+      const candidateTime = new Date(app.updated_at || app.created_at || 0).getTime() || 0;
+      if (candidateTime > existingTime) {
+        byVehicle.set(key, app);
+      }
+    }
+  }
+
+  return Array.from(byVehicle.values());
+};
+
+/**
+ * Picks the single authoritative application for a given vehicle when legacy
+ * duplicate applications exist for the same vehicle_id / plateNumber.
+ */
+export const pickBestAppForVehicle = (matchingApps = []) => {
+  const valid = (matchingApps || []).filter(Boolean);
+  if (valid.length === 0) return null;
+
+  const scoreApp = (app) =>
+    (app.status === "PASS_ISSUED" && app.pass ? 4 : 0) +
+    (app.pass ? 2 : 0) +
+    (app.isRenewal ? 1 : 0);
+
+  return valid.reduce((best, candidate) => {
+    const bestScore = scoreApp(best);
+    const candidateScore = scoreApp(candidate);
+    if (candidateScore > bestScore) return candidate;
+    if (candidateScore < bestScore) return best;
+    const bestTime = new Date(best.updated_at || best.created_at || 0).getTime() || 0;
+    const candidateTime = new Date(candidate.updated_at || candidate.created_at || 0).getTime() || 0;
+    return candidateTime > bestTime ? candidate : best;
+  });
+};
+
+/**
+ * Maps an Academic Year string to its default sticker template set ID.
+ */
+export const getTemplateVersionForAcademicYear = (academicYear = "2026-2027") => {
+  const ay = String(academicYear || "").trim();
+  if (ay === "2027-2028") return "V2";
+  if (ay === "2028-2029") return "V3";
+  return "V1";
+};
+
+/**
+ * Resolves the Academic Year stored on an already-issued pass.
+ * Never falls back to global systemSettings so existing passes stay locked until renewed.
+ */
+export const resolvePassAcademicYear = (pass) => {
+  if (!pass) return "2026-2027";
+  if (pass.academicYear && String(pass.academicYear).trim()) {
+    return String(pass.academicYear).trim();
+  }
+  const sourceDate = pass.expiresAt || pass.validUntil;
+  if (sourceDate) {
+    const str = String(sourceDate).trim();
+    const ymd = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const yearNum = ymd ? parseInt(ymd[1], 10) : new Date(str).getFullYear();
+    if (!isNaN(yearNum) && yearNum >= 2020) {
+      return `${yearNum - 1}-${yearNum}`;
+    }
+  }
+  return "2026-2027";
+};
+
+/**
+ * Resolves the Canva sticker template version ("V1" | "V2" | "V3") locked to an issued pass.
+ * Uses pass.templateVersion first, otherwise derives from the pass's own Academic Year (default V1).
+ */
+export const resolvePassTemplateVersion = (pass) => {
+  if (!pass) return "V1";
+  const ver = String(pass.templateVersion || "").trim().toUpperCase();
+  if (ver === "V1" || ver === "V2" || ver === "V3") return ver;
+  return getTemplateVersionForAcademicYear(resolvePassAcademicYear(pass));
+};
+
+/**
+ * Formats pass.validUntil cleanly into human-readable "July 31, YYYY" without timezone shifts.
+ */
+export const formatPassValidUntil = (validUntil, academicYear) => {
+  if (!validUntil) {
+    return academicYear ? calculateAcademicYearExpiry(academicYear).validUntil : "July 31, 2027";
+  }
+  const str = String(validUntil).trim();
+  const ymd = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymd) {
+    const d = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
+    return d.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  }
+  if (/^\d{4}-\d{2}-\d{2}T/.test(str)) {
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      });
+    }
+  }
+  return str;
+};
+
+const areSettingsEqual = (a, b) => {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  return keysA.every((k) => String(a[k]) === String(b[k]));
+};
+
 /**
  * Checks whether a vehicle pass has expired
  * Checks both status === 'EXPIRED' and date bounds (expiresAt / validUntil)
@@ -43,7 +198,11 @@ export const isPassExpired = (pass) => {
     return new Date(pass.expiresAt).getTime() < Date.now();
   }
   if (pass.validUntil) {
-    const d = new Date(pass.validUntil);
+    const str = String(pass.validUntil).trim();
+    const ymd = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const d = ymd
+      ? new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]))
+      : new Date(str);
     if (!isNaN(d.getTime())) {
       d.setHours(23, 59, 59, 999);
       return d.getTime() < Date.now();
@@ -53,8 +212,8 @@ export const isPassExpired = (pass) => {
 };
 
 /**
- * Calculates exactly 1 year of validity from a given date
- * (e.g. Oct 10, 2026 -> Oct 10, 2027)
+ * Calculates Academic Year validity expiring on July 31 of the end year.
+ * (e.g. A.Y. 2026-2027 -> July 31, 2027)
  */
 export const calculateAcademicYearExpiry = (academicYear = "2026-2027") => {
   const parts = String(academicYear).split("-");
@@ -72,6 +231,7 @@ export const calculateAcademicYearExpiry = (academicYear = "2026-2027") => {
   return {
     expiresAt: exp.toISOString(),
     validUntil: formatted,
+    validUntilDate: `${endYear}-07-31`,
     academicYear,
   };
 };
@@ -380,11 +540,27 @@ export const PassProvider = ({ children }) => {
       };
     }
 
+    const normalizedPass = app.pass
+      ? {
+          ...app.pass,
+          academicYear: resolvePassAcademicYear(app.pass),
+          templateVersion: resolvePassTemplateVersion(app.pass),
+          validUntil: formatPassValidUntil(
+            app.pass.validUntil,
+            app.pass.academicYear,
+          ),
+        }
+      : null;
+
     let res = {
       ...app,
+      isRenewal: Boolean(
+        app.isRenewal || (normalizedPass && app.status !== "PASS_ISSUED"),
+      ),
       applicant_photo,
       documents: rehydratedDocs,
       receipt: rehydratedReceipt,
+      pass: normalizedPass,
     };
 
     if (!res.vehicle || typeof res.vehicle !== "object") {
@@ -512,6 +688,7 @@ export const PassProvider = ({ children }) => {
         if (isMounted && settings && typeof settings === "object" && settings.academicYear) {
           setSystemSettings((prev) => {
             const merged = { ...prev, ...settings };
+            if (areSettingsEqual(prev, merged)) return prev;
             try {
               localStorage.setItem("vpass_admin_settings", JSON.stringify(merged));
             } catch (_) {}
@@ -541,6 +718,7 @@ export const PassProvider = ({ children }) => {
         if (settingsRes.status === "fulfilled" && settingsRes.value?.academicYear) {
           setSystemSettings((prev) => {
             const merged = { ...prev, ...settingsRes.value };
+            if (areSettingsEqual(prev, merged)) return prev;
             try { localStorage.setItem("vpass_admin_settings", JSON.stringify(merged)); } catch (_) {}
             return merged;
           });
@@ -563,6 +741,7 @@ export const PassProvider = ({ children }) => {
         if (settingsRes.status === "fulfilled" && settingsRes.value?.academicYear) {
           setSystemSettings((prev) => {
             const merged = { ...prev, ...settingsRes.value };
+            if (areSettingsEqual(prev, merged)) return prev;
             try { localStorage.setItem("vpass_admin_settings", JSON.stringify(merged)); } catch (_) {}
             return merged;
           });
@@ -577,12 +756,13 @@ export const PassProvider = ({ children }) => {
         if (vehsRes.status === "fulfilled" && Array.isArray(vehsRes.value)) {
           const appsForMatch = fetchedApps || [];
           const vList = vehsRes.value.map((v) => {
-            const matchedApp = appsForMatch.find(
+            const vPlateClean = normalizePlateNumber(v.plate_number);
+            const matchingApps = appsForMatch.filter(
               (a) =>
                 a.vehicle?.id === v.id ||
-                (a.vehicle?.plateNumber || "").replace(/\s+/g, "").toUpperCase() ===
-                  (v.plate_number || "").replace(/\s+/g, "").toUpperCase()
+                (vPlateClean && normalizePlateNumber(a.vehicle?.plateNumber) === vPlateClean)
             );
+            const matchedApp = pickBestAppForVehicle(matchingApps);
             let derivedStatus = "Pending Review";
             if (matchedApp) {
               if (matchedApp.status === "PASS_ISSUED" && matchedApp.pass) {
@@ -590,7 +770,9 @@ export const PassProvider = ({ children }) => {
               } else if (matchedApp.status === "RECEIPT_SUBMITTED") {
                 derivedStatus = "Receipt Under Verification";
               } else if (matchedApp.status === "APPROVED") {
-                derivedStatus = "Payment Pending";
+                derivedStatus = matchedApp.isRenewal ? "Renewal Awaiting Payment" : "Payment Pending";
+              } else if (matchedApp.status === "PENDING" && matchedApp.isRenewal) {
+                derivedStatus = "Renewal Pending Review";
               } else if (matchedApp.status === "REJECTED") {
                 derivedStatus = "Correction Required";
               }
@@ -619,12 +801,13 @@ export const PassProvider = ({ children }) => {
         if (settingsRes.status === "fulfilled" && settingsRes.value?.academicYear) {
           setSystemSettings((prev) => {
             const merged = { ...prev, ...settingsRes.value };
+            if (areSettingsEqual(prev, merged)) return prev;
             try { localStorage.setItem("vpass_admin_settings", JSON.stringify(merged)); } catch (_) {}
             return merged;
           });
         }
         if (appsRes.status === "fulfilled" && Array.isArray(appsRes.value)) {
-          setApplications(appsRes.value);
+          setApplications((appsRes.value || []).map(sanitizeApp));
         }
         if (logsRes.status === "fulfilled" && Array.isArray(logsRes.value)) {
           setGateLogs((logsRes.value || []).map(sanitizeGateLog));
@@ -978,20 +1161,34 @@ export const PassProvider = ({ children }) => {
       let changed = false;
       let nextVehicles = [...prev];
 
+      const appGroups = new Map();
       applications.forEach((app) => {
         if (!app.vehicle?.plateNumber) return;
-        const appPlateClean = app.vehicle.plateNumber.replace(/\s+/g, "").toUpperCase();
+        const appPlateClean = normalizePlateNumber(app.vehicle.plateNumber);
+        const key = appPlateClean || (app.vehicle?.id ? `veh-${app.vehicle.id}` : `app-${app.id}`);
+        if (!appGroups.has(key)) {
+          appGroups.set(key, []);
+        }
+        appGroups.get(key).push(app);
+      });
 
-        const expectedStatus =
-          app.status === "PASS_ISSUED" && app.pass
-            ? "Active Pass"
-            : app.status === "RECEIPT_SUBMITTED"
-            ? "Receipt Under Verification"
-            : app.status === "APPROVED"
-            ? "Payment Pending"
-            : app.status === "REJECTED"
-            ? "Correction Required"
-            : "Pending Review";
+      Array.from(appGroups.values()).forEach((group) => {
+        const app = pickBestAppForVehicle(group);
+        if (!app || !app.vehicle?.plateNumber) return;
+        const appPlateClean = normalizePlateNumber(app.vehicle.plateNumber);
+
+        let expectedStatus = "Pending Review";
+        if (app.status === "PASS_ISSUED" && app.pass) {
+          expectedStatus = isPassExpired(app.pass) ? "Pass Expired" : "Active Pass";
+        } else if (app.status === "RECEIPT_SUBMITTED") {
+          expectedStatus = "Receipt Under Verification";
+        } else if (app.status === "APPROVED") {
+          expectedStatus = app.isRenewal ? "Renewal Awaiting Payment" : "Payment Pending";
+        } else if (app.status === "PENDING" && app.isRenewal) {
+          expectedStatus = "Renewal Pending Review";
+        } else if (app.status === "REJECTED") {
+          expectedStatus = "Correction Required";
+        }
 
         // Check if there is an exact match by appId or plateNumber
         const existingIdx = nextVehicles.findIndex(
@@ -1125,7 +1322,7 @@ export const PassProvider = ({ children }) => {
             nextNotifs.unshift({
               ...tempNotif,
               title: "Official Gate QR Pass Issued!",
-              message: `Your Cashier receipt has been verified! Gate Pass ${passNum || "Activated"} for ${app.vehicle?.make || "Vehicle"} (${app.vehicle?.plateNumber}) is now active for Academic Year ${systemSettings?.academicYear || "2026-2027"}.`,
+              message: `Your Cashier receipt has been verified! Gate Pass ${passNum || "Activated"} for ${app.vehicle?.make || "Vehicle"} (${app.vehicle?.plateNumber}) is now active for Academic Year ${app.pass?.academicYear || systemSettings?.academicYear || "2026-2027"}.`,
               link: "/client/vehicle-pass",
               time: formatNotificationTime(notifDate),
               read: isRead,
@@ -1297,10 +1494,54 @@ export const PassProvider = ({ children }) => {
   };
 
   // Submit new registration (Milestone 1)
-  const submitApplication = (formData) => {
-    const newId = `APP-2026-${String(applications.length + 1).padStart(4, "0")}`;
+  const submitApplication = async (formData) => {
+    const cleanPlateInput = (formData.plateNumber || "").trim().toUpperCase();
+    const normalizedInput = normalizePlateNumber(cleanPlateInput);
+
+    // Client-side guard: prevent duplicate registration for a vehicle already registered on this account
+    const duplicateLocal = (applications || []).find(
+      (a) => normalizedInput && normalizePlateNumber(a.vehicle?.plateNumber) === normalizedInput
+    );
+    if (duplicateLocal) {
+      const hasPass = Boolean(duplicateLocal.pass || duplicateLocal.status === "PASS_ISSUED");
+      const err = new Error(
+        hasPass
+          ? `Plate number "${cleanPlateInput}" already has an existing VPASS (${duplicateLocal.pass?.passNumber || "Issued"}). Please use the Renew button on that vehicle instead of creating a new registration.`
+          : `Plate number "${cleanPlateInput}" already has an active application (${duplicateLocal.id}). Please track or update that application instead.`
+      );
+      err.status = 409;
+      err.code = hasPass ? "VEHICLE_ALREADY_HAS_PASS" : "VEHICLE_APPLICATION_ALREADY_EXISTS";
+      err.data = { existingAppId: duplicateLocal.id };
+      throw err;
+    }
+
+    // Persist to Aiven Cloud MySQL first so server duplicate/conflict rejections never leave ghost state
+    const serverRes = await apiRequest("/vehicles/register", {
+      method: "POST",
+      body: JSON.stringify({
+        plateNumber: cleanPlateInput,
+        vehicleType: formData.type || formData.vehicleType || "Motorcycle",
+        make: formData.make || formData.brand || "",
+        model: formData.model || "",
+        color: formData.color || "",
+        year: formData.year || "2026",
+        applicant_photo: formData.applicant_photo,
+        driverLicense: formData.driverLicense,
+        orCopy: formData.orCopy,
+        crCopy: formData.crCopy,
+        orCr: formData.orCr || formData.orCopy || formData.crCopy,
+      }),
+    }).catch((err) => {
+      if (err?.status === 409) {
+        fetchCloudData().catch(() => {});
+      }
+      throw err;
+    });
+
+    const newId = serverRes?.appRef || `APP-2026-${String(applications.length + 1).padStart(4, "0")}`;
     const newApp = {
       id: newId,
+      db_id: serverRes?.applicationId || null,
       user_id: user?.id || 1,
       applicant_name: formData.applicant_name || user?.full_name || "",
       school_id: formData.school_id || user?.school_id || "",
@@ -1309,11 +1550,12 @@ export const PassProvider = ({ children }) => {
       contact_number: formData.contact_number || user?.contact_number || "",
       applicant_photo: formData.applicant_photo, // Live captured image
       vehicle: {
+        id: serverRes?.vehicleId || null,
         make: formData.make || formData.brand || "",
         model: formData.model || "",
         year: formData.year || "2026",
         color: formData.color || "",
-        plateNumber: (formData.plateNumber || "").trim().toUpperCase(),
+        plateNumber: cleanPlateInput,
         type: formData.type || formData.vehicleType || "Motorcycle",
       },
       documents: {
@@ -1338,43 +1580,20 @@ export const PassProvider = ({ children }) => {
     // Also register into vehicles list optimistically
     setVehicles((prev) => [
       {
-        id: Date.now(),
+        id: serverRes?.vehicleId || Date.now(),
         appId: newApp.id,
         make: formData.make || formData.brand || "",
         model: formData.model || "",
         year: formData.year || "2026",
         color: formData.color || "",
-        plateNumber: (formData.plateNumber || "").trim().toUpperCase(),
+        plateNumber: cleanPlateInput,
         type: formData.type || formData.vehicleType || "Motorcycle",
         status: "Pending Review",
       },
       ...prev,
     ]);
 
-    // Connect transaction to Aiven Cloud MySQL
-    apiRequest("/vehicles/register", {
-      method: "POST",
-      body: JSON.stringify({
-        plateNumber: (formData.plateNumber || "").trim().toUpperCase(),
-        vehicleType: formData.type || formData.vehicleType || "Motorcycle",
-        make: formData.make || formData.brand || "",
-        model: formData.model || "",
-        color: formData.color || "",
-        year: formData.year || "2026",
-        applicant_photo: formData.applicant_photo,
-        driverLicense: formData.driverLicense,
-        orCopy: formData.orCopy,
-        crCopy: formData.crCopy,
-        orCr: formData.orCr || formData.orCopy || formData.crCopy,
-      }),
-    })
-      .then(() => {
-        fetchCloudData();
-      })
-      .catch((err) => {
-        console.error("[Aiven Cloud Sync] Vehicle registration error:", err);
-      });
-
+    fetchCloudData().catch(() => {});
     return newApp;
   };
 
@@ -1537,9 +1756,13 @@ export const PassProvider = ({ children }) => {
       getSequentialPassNumber(targetApp, applications);
 
     const now = new Date();
-    const acadYear = systemSettings?.academicYear || "2026-2027";
+    const acadYear =
+      customDetails.academicYear || systemSettings?.academicYear || "2026-2027";
     const acadExpiry = calculateAcademicYearExpiry(acadYear);
-    const activeTemplateVersion = systemSettings?.stickerTemplateVersion || "V1";
+    const activeTemplateVersion =
+      customDetails.templateVersion ||
+      systemSettings?.stickerTemplateVersion ||
+      getTemplateVersionForAcademicYear(acadYear);
     const oneYear = acadExpiry;
     const vehiclePlate = targetApp.vehicle?.plateNumber;
 
@@ -1636,7 +1859,7 @@ export const PassProvider = ({ children }) => {
       method: "POST",
       body: JSON.stringify({
         passNumber: generatedPassNum,
-        validUntil: customDetails.expiresAt || oneYear.expiresAt,
+        validUntil: customDetails.validUntilDate || oneYear.validUntilDate,
         academicYear: acadYear,
         templateVersion: activeTemplateVersion,
         orNumber: targetApp.receipt?.orNumber,
@@ -1719,9 +1942,27 @@ export const PassProvider = ({ children }) => {
   };
 
   // Re-submit an application that was previously returned/rejected by PASO
-  const resubmitApplication = (appId, updatedData) => {
+  const resubmitApplication = async (appId, updatedData) => {
     const targetApp = (applications || []).find((a) => a.id === appId);
     const oldPlateNumber = targetApp?.vehicle?.plateNumber;
+
+    // Persist transaction to Aiven Cloud MySQL first so conflicts reject cleanly
+    await apiRequest(`/vehicles/applications/${encodeURIComponent(appId)}/resubmit`, {
+      method: "PUT",
+      body: JSON.stringify({
+        plateNumber: updatedData.plateNumber,
+        vehicleType: updatedData.type,
+        make: updatedData.make,
+        model: updatedData.model,
+        color: updatedData.color,
+        year: updatedData.year,
+        driverLicense: updatedData.driverLicense,
+        orCopy: updatedData.orCopy,
+        crCopy: updatedData.crCopy,
+        orCr: updatedData.orCr || updatedData.orCopy || updatedData.crCopy,
+        applicant_photo: updatedData.applicant_photo,
+      }),
+    });
 
     setApplications((prev) =>
       prev.map((app) => {
@@ -1735,6 +1976,7 @@ export const PassProvider = ({ children }) => {
             contact_number: updatedData.contact_number || app.contact_number,
             applicant_photo: updatedData.applicant_photo || app.applicant_photo,
             vehicle: {
+              ...(app.vehicle || {}),
               make: updatedData.make || app.vehicle?.make,
               model: updatedData.model || app.vehicle?.model,
               year: updatedData.year || app.vehicle?.year,
@@ -1764,12 +2006,12 @@ export const PassProvider = ({ children }) => {
 
     // Update vehicle status back to Pending Review and sync specs/plate
     setVehicles((prev) => {
-      const cleanOld = (oldPlateNumber || "").replace(/\s+/g, "").toUpperCase();
-      const cleanNew = (updatedData.plateNumber || "").replace(/\s+/g, "").toUpperCase();
+      const cleanOld = normalizePlateNumber(oldPlateNumber);
+      const cleanNew = normalizePlateNumber(updatedData.plateNumber);
 
       let matched = false;
       const updatedList = prev.map((v) => {
-        const cleanV = (v.plateNumber || "").replace(/\s+/g, "").toUpperCase();
+        const cleanV = normalizePlateNumber(v.plateNumber);
         if ((v.appId && v.appId === appId) || cleanV === cleanOld || cleanV === cleanNew) {
           matched = true;
           return {
@@ -1814,33 +2056,30 @@ export const PassProvider = ({ children }) => {
       appId,
     });
 
-    // Connect transaction to Aiven Cloud MySQL
-    apiRequest(`/vehicles/applications/${encodeURIComponent(appId)}/resubmit`, {
-      method: "PUT",
-      body: JSON.stringify({
-        plateNumber: updatedData.plateNumber,
-        vehicleType: updatedData.type,
-        make: updatedData.make,
-        model: updatedData.model,
-        color: updatedData.color,
-        year: updatedData.year,
-        driverLicense: updatedData.driverLicense,
-        orCopy: updatedData.orCopy,
-        crCopy: updatedData.crCopy,
-        orCr: updatedData.orCr || updatedData.orCopy || updatedData.crCopy,
-        applicant_photo: updatedData.applicant_photo,
-      }),
-    })
-      .then(() => {
-        fetchCloudData();
-      })
-      .catch((err) => {
-        console.error("[Aiven Cloud Sync] Resubmit application error:", err);
-      });
+    fetchCloudData().catch(() => {});
   };
 
   // Submit Pass Renewal Application (Pre-filled vehicle data, FRESH LIVE SELFIE REQUIRED, preserves S-number & QR code)
-  const submitRenewalApplication = (appId, renewalData) => {
+  const submitRenewalApplication = async (appId, renewalData) => {
+    // Persist transaction to Aiven Cloud MySQL first so conflicts reject cleanly
+    await apiRequest(`/vehicles/applications/${encodeURIComponent(appId)}/resubmit`, {
+      method: "PUT",
+      body: JSON.stringify({
+        isRenewal: true,
+        plateNumber: renewalData.plateNumber,
+        vehicleType: renewalData.type,
+        make: renewalData.make,
+        model: renewalData.model,
+        color: renewalData.color,
+        year: renewalData.year,
+        driverLicense: renewalData.driverLicense,
+        orCopy: renewalData.orCopy,
+        crCopy: renewalData.crCopy,
+        orCr: renewalData.orCr || renewalData.orCopy || renewalData.crCopy,
+        applicant_photo: renewalData.applicant_photo,
+      }),
+    });
+
     let preservedPassNumber = null;
     let preservedQrData = null;
 
@@ -1887,7 +2126,9 @@ export const PassProvider = ({ children }) => {
                   ...app.pass,
                   passNumber: preservedPassNumber,
                   qrData: preservedQrData,
-                  status: "EXPIRED", // Remains expired until cashier payment & admin verification
+                  academicYear: resolvePassAcademicYear(app.pass),
+                  templateVersion: resolvePassTemplateVersion(app.pass),
+                  status: isPassExpired(app.pass) ? "EXPIRED" : app.pass.status,
                 }
               : null,
             status: "PENDING", // Sent to PASO Admin for Renewal Evaluation
@@ -1907,11 +2148,18 @@ export const PassProvider = ({ children }) => {
 
     setVehicles((prev) =>
       prev.map((v) => {
-        const vPlate = (v.plateNumber || "").replace(/\s+/g, "").toUpperCase();
-        const targetPlate = (renewalData.plateNumber || "").replace(/\s+/g, "").toUpperCase();
-        if (vPlate === targetPlate) {
+        const vPlate = normalizePlateNumber(v.plateNumber);
+        const targetPlate = normalizePlateNumber(renewalData.plateNumber);
+        if ((v.appId && v.appId === appId) || vPlate === targetPlate) {
           return {
             ...v,
+            appId,
+            plateNumber: renewalData.plateNumber || v.plateNumber,
+            make: renewalData.make || v.make,
+            model: renewalData.model || v.model,
+            year: renewalData.year || v.year,
+            color: renewalData.color || v.color,
+            type: renewalData.type || v.type,
             status: "Renewal Pending Review",
           };
         }
@@ -1927,29 +2175,7 @@ export const PassProvider = ({ children }) => {
       appId,
     });
 
-    // Connect transaction to Aiven Cloud MySQL
-    apiRequest(`/vehicles/applications/${encodeURIComponent(appId)}/resubmit`, {
-      method: "PUT",
-      body: JSON.stringify({
-        plateNumber: renewalData.plateNumber,
-        vehicleType: renewalData.type,
-        make: renewalData.make,
-        model: renewalData.model,
-        color: renewalData.color,
-        year: renewalData.year,
-        driverLicense: renewalData.driverLicense,
-        orCopy: renewalData.orCopy,
-        crCopy: renewalData.crCopy,
-        orCr: renewalData.orCr || renewalData.orCopy || renewalData.crCopy,
-        applicant_photo: renewalData.applicant_photo,
-      }),
-    })
-      .then(() => {
-        fetchCloudData();
-      })
-      .catch((err) => {
-        console.error("[Aiven Cloud Sync] Renewal application error:", err);
-      });
+    fetchCloudData().catch(() => {});
   };
 
   const lastGateLogRef = useRef({ identifier: '', timestamp: 0, type: '' });

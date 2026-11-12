@@ -77,11 +77,20 @@ async function migrate() {
   }
   console.log('temporary_passes modified.');
 
-  // 5. Make sure vehicle_passes qr_code_data and pass_number are ready
+  // 5. Make sure vehicle_passes qr_code_data, academic_year, and template_version are ready
   await pool.query('ALTER TABLE vehicle_passes MODIFY COLUMN qr_code_data LONGTEXT NOT NULL');
+  const [vpCols] = await pool.query('DESCRIBE vehicle_passes');
+  const existingVpCols = vpCols.map(c => c.Field);
+  if (!existingVpCols.includes('academic_year')) {
+    await pool.query("ALTER TABLE vehicle_passes ADD COLUMN academic_year VARCHAR(50) DEFAULT '2026-2027' AFTER valid_until");
+  }
+  if (!existingVpCols.includes('template_version')) {
+    await pool.query("ALTER TABLE vehicle_passes ADD COLUMN template_version VARCHAR(20) DEFAULT 'V1' AFTER academic_year");
+  }
+  await pool.query("UPDATE vehicle_passes SET academic_year = COALESCE(NULLIF(academic_year, ''), '2026-2027'), template_version = COALESCE(NULLIF(template_version, ''), 'V1') WHERE academic_year IS NULL OR academic_year = '' OR template_version IS NULL OR template_version = ''");
   console.log('vehicle_passes modified.');
 
-    // 6. Ensure password_resets table exists
+  // 6. Ensure password_resets table exists
   await pool.query(`
     CREATE TABLE IF NOT EXISTS password_resets (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -96,6 +105,16 @@ async function migrate() {
     ) ENGINE=InnoDB
   `);
   console.log('password_resets table verified.');
+
+  // 7. Ensure system_settings table exists
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS system_settings (
+      setting_key VARCHAR(100) PRIMARY KEY,
+      setting_value TEXT NOT NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB
+  `);
+  console.log('system_settings table verified.');
 
   console.log('Schema migration complete!');
   process.exit(0);

@@ -1,5 +1,35 @@
 import pool from '../config/db.js';
 
+const formatSqlDateDisplay = (val) => {
+  if (!val) return null;
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    return val.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
+  const str = String(val).trim();
+  const ymd = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymd) {
+    const d = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
+    return d.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
+  return str;
+};
+
+const normalizePlateKey = (val) => String(val || '').replace(/\s+/g, '').toUpperCase();
+
+const resolveTemplateFromAcademicYear = (academicYear) => {
+  if (academicYear === '2027-2028') return 'V2';
+  if (academicYear === '2028-2029') return 'V3';
+  return 'V1';
+};
+
 // Get all vehicles for current logged-in client
 export const getMyVehicles = async (req, res) => {
   try {
@@ -29,6 +59,7 @@ export const registerVehicle = async (req, res) => {
     } = req.body;
     
     const finalPlate = (plateNumber || plate_number || '').trim().toUpperCase();
+    const normalizedPlate = normalizePlateKey(finalPlate);
     const finalType = vehicleType || vehicle_type || 'Motorcycle';
     const finalMake = (make || '').trim();
     const finalModel = (model || '').trim();
@@ -40,21 +71,64 @@ export const registerVehicle = async (req, res) => {
     const finalOrCr = finalOr || finalCr || orCr || or_cr_url || '';
     const finalPhoto = applicant_photo || null;
 
-    if (!finalPlate || !finalMake || !finalModel || !finalColor) {
+    if (!normalizedPlate || !finalMake || !finalModel || !finalColor) {
       return res.status(400).json({ message: 'Plate Number, Make, Model, and Color are required.' });
     }
 
-    // Check if plate already registered
-    const [existingPlate] = await pool.query('SELECT id, user_id FROM vehicles WHERE UPPER(plate_number) = ?', [finalPlate]);
+    // Check if plate already registered (space-insensitive & case-insensitive)
+    const [existingPlate] = await pool.query(
+      "SELECT id, user_id, plate_number FROM vehicles WHERE REPLACE(UPPER(plate_number), ' ', '') = ? LIMIT 1",
+      [normalizedPlate]
+    );
     let vehicleId;
     if (existingPlate.length > 0) {
       if (existingPlate[0].user_id !== req.user.id) {
-        return res.status(409).json({ message: `Plate number "${finalPlate}" is already registered by another user.` });
+        return res.status(409).json({
+          code: 'PLATE_OWNED_BY_OTHER_USER',
+          message: `Plate number "${finalPlate}" is already registered by another user.`
+        });
       }
+
       vehicleId = existingPlate[0].id;
+
+      // Enforce 1 vehicle = 1 application lifecycle: do NOT create duplicate applications or duplicate passes for the same vehicle.
+      const [existingApps] = await pool.query(
+        'SELECT id, app_ref_number, status FROM applications WHERE vehicle_id = ? AND user_id = ? ORDER BY updated_at DESC, id DESC LIMIT 1',
+        [vehicleId, req.user.id]
+      );
+      const [existingPasses] = await pool.query(
+        'SELECT id, pass_number, status, academic_year FROM vehicle_passes WHERE vehicle_id = ? LIMIT 1',
+        [vehicleId]
+      );
+
+      if (existingApps.length > 0 || existingPasses.length > 0) {
+        const latestApp = existingApps[0] || null;
+        const existingPass = existingPasses[0] || null;
+        const existingAppId = latestApp
+          ? (latestApp.app_ref_number || `APP-2026-${String(latestApp.id).padStart(4, '0')}`)
+          : null;
+
+        if (existingPass || latestApp?.status === 'PASS_ISSUED') {
+          return res.status(409).json({
+            code: 'VEHICLE_ALREADY_HAS_PASS',
+            existingAppId,
+            passNumber: existingPass?.pass_number || null,
+            academicYear: existingPass?.academic_year || null,
+            message: `Vehicle with plate "${existingPlate[0].plate_number || finalPlate}" already has an existing VPASS (${existingPass?.pass_number || 'Issued'}). Please use the Renew button on your existing vehicle instead of creating a duplicate registration.`
+          });
+        }
+
+        return res.status(409).json({
+          code: 'VEHICLE_APPLICATION_ALREADY_EXISTS',
+          existingAppId,
+          existingStatus: latestApp?.status || 'PENDING',
+          message: `Vehicle with plate "${existingPlate[0].plate_number || finalPlate}" already has an existing application (${existingAppId}, status: ${latestApp?.status || 'PENDING'}). Please update or track that application instead of registering it again.`
+        });
+      }
+
       await pool.query(
-        'UPDATE vehicles SET vehicle_type = ?, make = ?, model = ?, color = ?, year_model = ? WHERE id = ?',
-        [finalType, finalMake, finalModel, finalColor, finalYear, vehicleId]
+        'UPDATE vehicles SET plate_number = ?, vehicle_type = ?, make = ?, model = ?, color = ?, year_model = ? WHERE id = ?',
+        [finalPlate, finalType, finalMake, finalModel, finalColor, finalYear, vehicleId]
       );
     } else {
       const [vehResult] = await pool.query(
@@ -145,6 +219,7 @@ export const getMyApplications = async (req, res) => {
         orCr: app.or_cr_url || app.or_url || app.cr_url,
       },
       status: app.status,
+      isRenewal: Boolean(app.pass_number && app.status !== 'PASS_ISSUED'),
       rejection_reason: app.rejection_reason,
       receiptRejectionRemark: app.receipt_rejection_remark,
       created_at: app.created_at,
@@ -157,10 +232,10 @@ export const getMyApplications = async (req, res) => {
       pass: app.pass_number ? {
         id: app.pass_id,
         passNumber: app.pass_number,
-        validUntil: app.valid_until,
+        validUntil: formatSqlDateDisplay(app.valid_until),
         qrData: app.qr_code_data,
         academicYear: app.academic_year || '2026-2027',
-        templateVersion: app.template_version || 'V1',
+        templateVersion: app.template_version || resolveTemplateFromAcademicYear(app.academic_year),
         status: app.pass_status || 'ACTIVE',
         issuedAt: app.pass_issued_at || app.updated_at,
       } : null,
@@ -231,7 +306,8 @@ export const resubmitApplication = async (req, res) => {
       orCopy, or_url,
       crCopy, cr_url,
       orCr, or_cr_url,
-      applicant_photo 
+      applicant_photo,
+      isRenewal
     } = req.body;
 
     let appCondition = 'a.id = ?';
@@ -241,7 +317,7 @@ export const resubmitApplication = async (req, res) => {
     }
 
     const [apps] = await pool.query(
-      `SELECT a.id, a.vehicle_id FROM applications a WHERE ${appCondition} AND a.user_id = ?`,
+      `SELECT a.id, a.vehicle_id, a.status FROM applications a WHERE ${appCondition} AND a.user_id = ?`,
       [appParam, req.user.id]
     );
 
@@ -250,7 +326,25 @@ export const resubmitApplication = async (req, res) => {
     }
 
     const app = apps[0];
+    const renewingPass = app.status === 'PASS_ISSUED' || Boolean(isRenewal);
     const finalPlate = (plateNumber || plate_number || '').trim().toUpperCase();
+    const normalizedPlate = normalizePlateKey(finalPlate);
+
+    // Prevent changing a plate number during edit/renewal to collide with another registered vehicle
+    if (normalizedPlate) {
+      const [conflictingPlate] = await pool.query(
+        "SELECT id, user_id FROM vehicles WHERE REPLACE(UPPER(plate_number), ' ', '') = ? AND id != ? LIMIT 1",
+        [normalizedPlate, app.vehicle_id]
+      );
+      if (conflictingPlate.length > 0) {
+        return res.status(409).json({
+          code: conflictingPlate[0].user_id === req.user.id ? 'VEHICLE_APPLICATION_ALREADY_EXISTS' : 'PLATE_OWNED_BY_OTHER_USER',
+          message: conflictingPlate[0].user_id === req.user.id
+            ? `Plate number "${finalPlate}" is already registered to another vehicle on your account.`
+            : `Plate number "${finalPlate}" is already registered by another user.`
+        });
+      }
+    }
 
     // Update vehicle
     if (finalPlate || make || model || color) {
@@ -272,11 +366,15 @@ export const resubmitApplication = async (req, res) => {
     const finalCr = crCopy || cr_url || orCr || or_cr_url || null;
     const finalOrCr = finalOr || finalCr || orCr || or_cr_url || null;
 
+    const clearReceiptSql = renewingPass
+      ? ', receipt_or_number = NULL, receipt_photo_url = NULL, receipt_rejection_remark = NULL'
+      : '';
+
     try {
       await pool.query(
         `UPDATE applications 
          SET status = 'PENDING',
-             rejection_reason = NULL,
+             rejection_reason = NULL${clearReceiptSql},
              driver_license_url = COALESCE(?, driver_license_url),
              or_url = COALESCE(?, or_url),
              cr_url = COALESCE(?, cr_url),
@@ -289,7 +387,7 @@ export const resubmitApplication = async (req, res) => {
       await pool.query(
         `UPDATE applications 
          SET status = 'PENDING',
-             rejection_reason = NULL,
+             rejection_reason = NULL${clearReceiptSql},
              driver_license_url = COALESCE(?, driver_license_url),
              or_cr_url = COALESCE(?, or_cr_url),
              applicant_photo = COALESCE(?, applicant_photo)

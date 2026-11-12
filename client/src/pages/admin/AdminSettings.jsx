@@ -44,12 +44,13 @@ export default function AdminSettings() {
   const [savedSuccessMsg, setSavedSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasUnsavedSettingsChanges, setHasUnsavedSettingsChanges] = useState(false);
 
   useEffect(() => {
-    if (systemSettings) {
+    if (systemSettings && !hasUnsavedSettingsChanges) {
       setSettings(systemSettings);
     }
-  }, [systemSettings]);
+  }, [systemSettings, hasUnsavedSettingsChanges]);
 
   useEffect(() => {
     if (user) {
@@ -65,6 +66,7 @@ export default function AdminSettings() {
   }, [user]);
 
   const handleSettingsFieldChange = (key, value) => {
+    setHasUnsavedSettingsChanges(true);
     setSettings((prev) => {
       const next = { ...prev, [key]: value };
       if (key === 'academicYear') {
@@ -103,6 +105,7 @@ export default function AdminSettings() {
     try {
       // 1. Update Academic Year & Expiration Settings in PassContext
       await updateSystemSettings(settings);
+      setHasUnsavedSettingsChanges(false);
 
       // 2. Update Admin Profile & Credentials
       const profilePayload = {
@@ -255,7 +258,7 @@ return (
                   <span>Annual Vehicle Sticker Color Theme (Canva Templates)</span>
                 </h3>
                 <p className="text-[11px] text-slate-500">
-                  Select which color pair will be issued for this Academic Year. Gate guards spot valid vehicles by this color at campus checkpoints.
+                  Select which color pair will be issued for newly registered or renewed passes in this Academic Year. Existing passes from earlier Academic Years retain their original color set until renewed.
                 </p>
               </div>
             </div>
@@ -444,6 +447,28 @@ return (
             </div>
           </div>
         </div>
+        {/* Unsaved Indicator */}
+        {hasUnsavedSettingsChanges && (
+          <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-3 text-xs text-amber-900">
+            <div className="flex items-center space-x-2 font-semibold">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>
+                Unsaved Academic Year / Color Theme changes — click Save below to apply to newly issued and renewed passes.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSettings(systemSettings || DEFAULT_SETTINGS);
+                setHasUnsavedSettingsChanges(false);
+              }}
+              className="px-3 py-1 rounded-lg bg-white border border-amber-300 text-amber-900 font-bold text-[11px] hover:bg-amber-100 cursor-pointer shrink-0"
+            >
+              Discard
+            </button>
+          </div>
+        )}
+
         {/* Submit Bar */}
         <div className="flex items-center justify-end space-x-3 pt-2">
           <button

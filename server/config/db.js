@@ -56,6 +56,24 @@ export const testConnection = async () => {
           INDEX idx_user_otp (school_id, email, otp_code)
         ) ENGINE=InnoDB
       `);
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS system_settings (
+          setting_key VARCHAR(100) PRIMARY KEY,
+          setting_value TEXT NOT NULL,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB
+      `);
+      const [vpCols] = await connection.query('DESCRIBE vehicle_passes');
+      const vpFields = vpCols.map(col => col.Field);
+      if (!vpFields.includes('academic_year')) {
+        await connection.query("ALTER TABLE vehicle_passes ADD COLUMN academic_year VARCHAR(50) DEFAULT '2026-2027' AFTER valid_until");
+        logger.db('Added column academic_year to vehicle_passes table.');
+      }
+      if (!vpFields.includes('template_version')) {
+        await connection.query("ALTER TABLE vehicle_passes ADD COLUMN template_version VARCHAR(20) DEFAULT 'V1' AFTER academic_year");
+        logger.db('Added column template_version to vehicle_passes table.');
+      }
+      await connection.query("UPDATE vehicle_passes SET academic_year = COALESCE(NULLIF(academic_year, ''), '2026-2027'), template_version = COALESCE(NULLIF(template_version, ''), 'V1') WHERE academic_year IS NULL OR academic_year = '' OR template_version IS NULL OR template_version = ''");
     } catch (e) {
       // Ignore if table does not exist yet during initial boot
     }

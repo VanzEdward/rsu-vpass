@@ -1,7 +1,14 @@
 import React, { useState, useRef, useEffect } from "react";
 import jsQR from "jsqr";
 import QRCode from "qrcode";
-import { usePass, isPassExpired } from "../../context/PassContext";
+import {
+  usePass,
+  isPassExpired,
+  resolvePassAcademicYear,
+  resolvePassTemplateVersion,
+  formatPassValidUntil,
+} from "../../context/PassContext";
+import { PASS_TEMPLATES } from "../../components/RsuStickerPass";
 import { formatLogTimestamp, formatExactDateTime } from "../../utils/dateUtils";
 import { apiRequest } from "../../api/client";
 import { isValidImageUrl } from "../../utils/imageCompressor";
@@ -615,6 +622,7 @@ export default function GuardScanner() {
         setTimeout(() => setLogSuccessMessage(""), 3500);
       }
 
+      const matchedAcadYear = resolvePassAcademicYear(matchingApp.pass);
       setVerifiedPass({
         isSpotCheckLogged: isStudent,
         passNumber: matchingApp.pass.passNumber,
@@ -625,7 +633,9 @@ export default function GuardScanner() {
         plateNumber: matchingApp.vehicle?.plateNumber || matchingApp.plate_number || 'N/A',
         vehicleType: matchingApp.vehicle?.type || matchingApp.vehicle_type || 'Vehicle',
         color: matchingApp.vehicle?.color || 'N/A',
-        validUntil: matchingApp.pass.validUntil,
+        academicYear: matchedAcadYear,
+        templateVersion: resolvePassTemplateVersion(matchingApp.pass),
+        validUntil: formatPassValidUntil(matchingApp.pass.validUntil, matchedAcadYear),
         status: isExpired ? "EXPIRED" : matchingApp.pass.status,
         isValid: !isExpired && matchingApp.pass.status === "ACTIVE",
         department:
@@ -682,16 +692,24 @@ export default function GuardScanner() {
       const cloudResults = await apiRequest(`/guard/search?query=${encodeURIComponent(q)}`);
       if (Array.isArray(cloudResults) && cloudResults.length > 0) {
         const found = cloudResults[0];
-        const isExpired = found.status === "EXPIRED" || found.status === "REVOKED" || (found.valid_until && new Date(found.valid_until) < new Date());
+        const isStudent = (found.classification || "").toUpperCase() === "STUDENT";
+        const isVisitor = (found.classification || "").toUpperCase() === "VISITOR";
+        const isEmployee = !isStudent && !isVisitor;
+        const foundAcadYear = isVisitor
+          ? null
+          : resolvePassAcademicYear({
+              academicYear: found.academic_year,
+              validUntil: found.valid_until,
+            });
+        const isExpired = isVisitor
+          ? found.status === "EXPIRED" || found.status === "REVOKED" || (found.valid_until && new Date(found.valid_until) < new Date())
+          : isPassExpired({ status: found.status, validUntil: found.valid_until });
         if (isExpired) {
           playBeep(false);
           triggerHaptic(false);
         } else {
           triggerHaptic(true);
         }
-        const isStudent = (found.classification || "").toUpperCase() === "STUDENT";
-        const isVisitor = (found.classification || "").toUpperCase() === "VISITOR";
-        const isEmployee = !isStudent && !isVisitor;
 
         if (isStudent) {
           addGateLog({
@@ -719,7 +737,22 @@ export default function GuardScanner() {
           plateNumber: found.plate_number,
           vehicleType: found.vehicle_type || "Vehicle",
           color: found.color || "N/A",
-          validUntil: found.valid_until ? new Date(found.valid_until).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Active Clearance",
+          academicYear: foundAcadYear,
+          templateVersion: isVisitor
+            ? null
+            : resolvePassTemplateVersion({
+                templateVersion: found.template_version,
+                academicYear: foundAcadYear,
+              }),
+          validUntil: isVisitor
+            ? found.valid_until
+              ? new Date(found.valid_until).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })
+              : "Active Clearance"
+            : formatPassValidUntil(found.valid_until, foundAcadYear),
           status: isExpired ? "EXPIRED" : (found.status || "ACTIVE"),
           isValid: !isExpired && (found.status || "ACTIVE") === "ACTIVE",
           department: found.department_unit || found.destination || (isStudent ? "College of Engineering and Technology" : "RSU University Personnel"),
@@ -835,6 +868,7 @@ export default function GuardScanner() {
         setTimeout(() => setLogSuccessMessage(""), 3500);
       }
 
+      const scannedAcadYear = resolvePassAcademicYear(matchApp.pass);
       setVerifiedPass({
         isSpotCheckLogged: isStudent,
         passNumber: matchApp.pass.passNumber,
@@ -847,7 +881,9 @@ export default function GuardScanner() {
         plateNumber: matchApp.vehicle?.plateNumber || "N/A",
         vehicleType: matchApp.vehicle?.type || "Vehicle",
         color: matchApp.vehicle?.color || "N/A",
-        validUntil: matchApp.pass.validUntil || "Active Clearance",
+        academicYear: scannedAcadYear,
+        templateVersion: resolvePassTemplateVersion(matchApp.pass),
+        validUntil: formatPassValidUntil(matchApp.pass.validUntil, scannedAcadYear) || "Active Clearance",
         status: isExpired ? "EXPIRED" : (matchApp.pass.status || "ACTIVE"),
         isValid: !isExpired && matchApp.pass.status === "ACTIVE",
         department:
@@ -941,6 +977,12 @@ export default function GuardScanner() {
           setTimeout(() => setLogSuccessMessage(""), 3500);
         }
 
+        const cloudAcadYear = isVisitor
+          ? null
+          : resolvePassAcademicYear({
+              academicYear: p.academic_year,
+              validUntil: p.valid_until,
+            });
         setVerifiedPass({
           isSpotCheckLogged: isStudent,
           passNumber: p.pass_number,
@@ -951,7 +993,18 @@ export default function GuardScanner() {
           plateNumber: p.plate_number,
           vehicleType: p.vehicle_type || p.vehicle_description || "Vehicle",
           color: p.color || "N/A",
-          validUntil: p.valid_until ? new Date(p.valid_until).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : (p.valid_to ? new Date(p.valid_to).toLocaleDateString() : "Active Clearance"),
+          academicYear: cloudAcadYear,
+          templateVersion: isVisitor
+            ? null
+            : resolvePassTemplateVersion({
+                templateVersion: p.template_version,
+                academicYear: cloudAcadYear,
+              }),
+          validUntil: isVisitor
+            ? p.valid_to
+              ? new Date(p.valid_to).toLocaleDateString()
+              : "Active Clearance"
+            : formatPassValidUntil(p.valid_until, cloudAcadYear) || "Active Clearance",
           status: verifyRes.status || "ACTIVE",
           isValid: verifyRes.isValid,
           department: p.department_unit || p.destination || (isStudent ? "College of Engineering and Technology" : "RSU University Personnel"),
@@ -2352,11 +2405,26 @@ export default function GuardScanner() {
             </div>
 
             {/* Pass Validity Record */}
-            <div className="flex items-center justify-between text-[11px] px-3 py-2 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-400">
-              <span>Clearance Validity:</span>
-              <span className={`font-bold ${verifiedPass.status === 'EXPIRED' ? 'text-rose-400' : 'text-slate-200'}`}>
-                {verifiedPass.validUntil}
-              </span>
+            <div className="space-y-1.5 text-[11px] px-3 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-400">
+              {verifiedPass.classification !== "VISITOR" && verifiedPass.academicYear && (
+                <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-slate-800/80">
+                  <span>Sticker & Academic Year:</span>
+                  <span className="font-bold text-emerald-300 text-right">
+                    A.Y. {verifiedPass.academicYear} •{" "}
+                    {(PASS_TEMPLATES[verifiedPass.templateVersion] || PASS_TEMPLATES.V1).name.split(":")[0]} (
+                    {verifiedPass.classification === "EMPLOYEE"
+                      ? (PASS_TEMPLATES[verifiedPass.templateVersion] || PASS_TEMPLATES.V1).employeeColorName
+                      : (PASS_TEMPLATES[verifiedPass.templateVersion] || PASS_TEMPLATES.V1).studentColorName}
+                    )
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-2">
+                <span>Clearance Validity:</span>
+                <span className={`font-bold ${verifiedPass.status === 'EXPIRED' ? 'text-rose-400' : 'text-slate-200'}`}>
+                  {verifiedPass.validUntil}
+                </span>
+              </div>
             </div>
 
             {/* Expired Pass Warning for Guard */}

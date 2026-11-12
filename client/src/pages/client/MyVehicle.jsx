@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { usePass } from '../../context/PassContext';
+import {
+  usePass,
+  resolvePassAcademicYear,
+  resolvePassTemplateVersion,
+  formatPassValidUntil,
+  normalizePlateNumber,
+  pickBestAppForVehicle,
+} from '../../context/PassContext';
+import { PASS_TEMPLATES } from '../../components/RsuStickerPass';
 import { useAuth } from '../../context/AuthContext';
 import CameraCaptureModal from '../../components/CameraCaptureModal';
 import ConfirmModal from '../../components/ConfirmModal';
@@ -53,7 +61,6 @@ export default function MyVehicle() {
     draftApplication, 
     saveDraft, 
     clearDraft,
-    initiatePassRenewal,
     systemSettings,
     isPassExpired
   } = usePass();
@@ -83,6 +90,8 @@ export default function MyVehicle() {
   const [editingAppId, setEditingAppId] = useState(null);
   const [editingRejectionReason, setEditingRejectionReason] = useState('');
   const [renewingAppId, setRenewingAppId] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
   const typeDropdownRef = useRef(null);
 
@@ -317,9 +326,81 @@ export default function MyVehicle() {
     setRenewingAppId(app.id);
     setEditingAppId(null);
     setEditingRejectionReason('');
+    setErrors({});
+    setSubmitError('');
     setCurrentStep(1);
     setShowWizard(true);
   };
+
+  const handleStartCorrection = (appToEdit) => {
+    if (!appToEdit) return;
+    setFormData({
+      classification: appToEdit.classification || user?.classification || 'Student',
+      applicant_name: appToEdit.applicant_name || user?.full_name || '',
+      school_id: appToEdit.school_id || user?.school_id || '',
+      department: appToEdit.department || '',
+      contact_number: appToEdit.contact_number || '',
+      applicant_photo: appToEdit.applicant_photo || null,
+      plateNumber: appToEdit.vehicle?.plateNumber || '',
+      make: appToEdit.vehicle?.make || '',
+      brand: appToEdit.vehicle?.make || '',
+      model: appToEdit.vehicle?.model || '',
+      year: appToEdit.vehicle?.year || '2026',
+      color: appToEdit.vehicle?.color || '',
+      type: appToEdit.vehicle?.type || 'Motorcycle',
+      driverLicense: appToEdit.documents?.driverLicense || null,
+      orCopy: appToEdit.documents?.orCopy || appToEdit.documents?.orCr || null,
+      crCopy: appToEdit.documents?.crCopy || appToEdit.documents?.orCr || null,
+      orCr: appToEdit.documents?.orCr || null,
+      pledgeAgreed: true,
+    });
+    setEditingAppId(appToEdit.id);
+    setRenewingAppId(null);
+    setEditingRejectionReason(appToEdit.rejection_reason || 'Correction requested by PASO');
+    setErrors({});
+    setSubmitError('');
+    setCurrentStep(1);
+    setShowWizard(true);
+  };
+
+  const activeEditId = renewingAppId || editingAppId;
+  const activeTargetApp = activeEditId
+    ? (applications || []).find((a) => a.id === activeEditId)
+    : null;
+  const activeTargetVehicleId = activeTargetApp?.vehicle?.id || null;
+
+  const findDuplicateRegistration = (plateInput) => {
+    const cleanTarget = normalizePlateNumber(plateInput);
+    if (!cleanTarget) return null;
+
+    const matchingApps = (applications || []).filter((app) => {
+      if (activeEditId && app.id === activeEditId) return false;
+      if (activeTargetVehicleId && app.vehicle?.id === activeTargetVehicleId) return false;
+      return normalizePlateNumber(app.vehicle?.plateNumber) === cleanTarget;
+    });
+    if (matchingApps.length > 0) {
+      return {
+        type: 'app',
+        app: pickBestAppForVehicle(matchingApps),
+      };
+    }
+
+    const matchingVeh = (vehicles || []).find((v) => {
+      if (activeEditId && v.appId === activeEditId) return false;
+      if (activeTargetVehicleId && v.id === activeTargetVehicleId) return false;
+      return normalizePlateNumber(v.plateNumber) === cleanTarget;
+    });
+    if (matchingVeh) {
+      return {
+        type: 'vehicle',
+        vehicle: matchingVeh,
+      };
+    }
+
+    return null;
+  };
+
+  const duplicatePlateMatch = showWizard ? findDuplicateRegistration(formData.plateNumber) : null;
 
   const handleFieldChange = (field, value) => {
     setFormData((prev) => {
@@ -336,6 +417,9 @@ export default function MyVehicle() {
     });
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: '' }));
+    }
+    if (submitError) {
+      setSubmitError('');
     }
   };
 
@@ -354,6 +438,8 @@ export default function MyVehicle() {
     }
 
     setShowWizard(false);
+    setSubmitError('');
+    setErrors({});
     if (editingAppId) {
       setEditingAppId(null);
       setEditingRejectionReason('');
@@ -377,6 +463,11 @@ export default function MyVehicle() {
 
   const confirmStartFresh = () => {
     clearDraft();
+    setRenewingAppId(null);
+    setEditingAppId(null);
+    setEditingRejectionReason('');
+    setErrors({});
+    setSubmitError('');
     setFormData(initialFormState);
     setCurrentStep(1);
     setShowWizard(true);
@@ -409,7 +500,14 @@ export default function MyVehicle() {
 
     // Step 1: Vehicle Registration Information
     if (step === 1) {
-      if (!formData.plateNumber.trim()) newErrors.plateNumber = 'Plate Number is required';
+      const dupMatch = findDuplicateRegistration(formData.plateNumber);
+      if (!formData.plateNumber.trim()) {
+        newErrors.plateNumber = 'Plate Number is required';
+      } else if (dupMatch) {
+        newErrors.plateNumber = dupMatch.app
+          ? `Plate "${formData.plateNumber.trim().toUpperCase()}" already has an existing record (${dupMatch.app.id}). Use Renew or track that record instead.`
+          : `Plate "${formData.plateNumber.trim().toUpperCase()}" is already registered on your account.`;
+      }
       if (!formData.make.trim() && !formData.brand.trim()) newErrors.make = 'Brand is required (e.g. Honda, Yamaha, Toyota)';
       if (!formData.model.trim()) newErrors.model = 'Model is required (e.g. Click 125, Vios)';
       if (!formData.color.trim()) newErrors.color = 'Color is required (e.g. Matte Black, Pearl White)';
@@ -436,6 +534,7 @@ export default function MyVehicle() {
   };
 
   const handleNext = () => {
+    setSubmitError('');
     if (validateStep(currentStep)) {
       const nextStep = Math.min(currentStep + 1, 4);
       setCurrentStep(nextStep);
@@ -446,6 +545,7 @@ export default function MyVehicle() {
   };
 
   const handlePrev = () => {
+    setSubmitError('');
     const prevStep = Math.max(currentStep - 1, 1);
     setCurrentStep(prevStep);
     if (!editingAppId && !renewingAppId) {
@@ -453,8 +553,11 @@ export default function MyVehicle() {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    setSubmitError('');
+
     if (!validateStep(1)) {
       setCurrentStep(1);
       return;
@@ -468,33 +571,41 @@ export default function MyVehicle() {
       return;
     }
 
-    // Submit, Re-submit, or Renew application
-    if (renewingAppId && submitRenewalApplication) {
-      submitRenewalApplication(renewingAppId, {
-        ...formData,
-        make: formData.make || formData.brand,
-      });
-      setRenewingAppId(null);
-    } else if (editingAppId && resubmitApplication) {
-      resubmitApplication(editingAppId, {
-        ...formData,
-        make: formData.make || formData.brand,
-      });
-      setEditingAppId(null);
-      setEditingRejectionReason('');
-    } else {
-      submitApplication({
-        ...formData,
-        make: formData.make || formData.brand,
-      });
+    const payload = {
+      ...formData,
+      make: formData.make || formData.brand,
+    };
+
+    setIsSubmitting(true);
+    try {
+      // Submit, Re-submit, or Renew application
+      if (renewingAppId && submitRenewalApplication) {
+        await submitRenewalApplication(renewingAppId, payload);
+        setRenewingAppId(null);
+      } else if (editingAppId && resubmitApplication) {
+        await resubmitApplication(editingAppId, payload);
+        setEditingAppId(null);
+        setEditingRejectionReason('');
+      } else {
+        await submitApplication(payload);
+      }
+
+      // Clear saved draft once successfully persisted
+      clearDraft();
+
+      // Close wizard and redirect to Applications tracker
+      setShowWizard(false);
+      navigate('/client/applications');
+    } catch (err) {
+      const errMsg = err?.message || 'Unable to submit application. Please review your details and try again.';
+      setSubmitError(errMsg);
+      if (err?.status === 409) {
+        setErrors((prev) => ({ ...prev, plateNumber: errMsg }));
+        setCurrentStep(1);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // Clear saved draft once successfully submitted
-    clearDraft();
-
-    // Close wizard and redirect to Applications tracker
-    setShowWizard(false);
-    navigate('/client/applications');
   };
 
   const stepsList = [
@@ -546,6 +657,11 @@ export default function MyVehicle() {
               setShowResumeModal(true);
             } else {
               if (isDuplicate) clearDraft();
+              setRenewingAppId(null);
+              setEditingAppId(null);
+              setEditingRejectionReason('');
+              setErrors({});
+              setSubmitError('');
               setFormData(initialFormState);
               setCurrentStep(1);
               setShowWizard(true);
@@ -574,6 +690,11 @@ export default function MyVehicle() {
             <button
               type="button"
               onClick={() => {
+                setRenewingAppId(null);
+                setEditingAppId(null);
+                setEditingRejectionReason('');
+                setErrors({});
+                setSubmitError('');
                 setFormData(initialFormState);
                 setCurrentStep(1);
                 setShowWizard(true);
@@ -586,25 +707,40 @@ export default function MyVehicle() {
           </div>
         ) : (
           vehicles.map((v) => {
-            const app = (applications || []).find(
+            const vPlateClean = normalizePlateNumber(v.plateNumber);
+            const matchingApps = (applications || []).filter(
               (a) =>
                 (v.appId && a.id === v.appId) ||
-                (a.vehicle?.plateNumber || "").replace(/\s+/g, "").toUpperCase() ===
-                (v.plateNumber || "").replace(/\s+/g, "").toUpperCase()
+                (vPlateClean && normalizePlateNumber(a.vehicle?.plateNumber) === vPlateClean)
             );
+            const app = pickBestAppForVehicle(matchingApps);
             const hasPass = Boolean(app?.status === "PASS_ISSUED" && app?.pass);
-            const isExpired = hasPass && isPassExpired(app.pass);
-            const isRenewalPending = app ? Boolean(app.renewalPending) : v.status === "Renewal Awaiting Payment";
+            const hasIssuedCredential = Boolean(app?.pass);
+            const isExpired = hasIssuedCredential && isPassExpired(app.pass);
+            const isRenewalInFlight = Boolean(
+              app && (app.isRenewal || app.renewalPending) && app.status !== "PASS_ISSUED"
+            );
             const isPaymentPending = app ? app.status === "APPROVED" : v.status === "Payment Pending";
             const isUnderVerification = app ? app.status === "RECEIPT_SUBMITTED" : v.status === "Receipt Under Verification";
             const isCorrectionRequired = app ? app.status === "REJECTED" : v.status === "Correction Required";
+            const isRenewalAwaitingReview = isRenewalInFlight && app.status === "PENDING";
+            const passAcadYear = hasIssuedCredential ? resolvePassAcademicYear(app.pass) : null;
+            const passTemplateVer = hasIssuedCredential ? resolvePassTemplateVersion(app.pass) : "V1";
+            const passTemplateInfo = PASS_TEMPLATES[passTemplateVer] || PASS_TEMPLATES.V1;
+            const passValidUntil = hasIssuedCredential
+              ? formatPassValidUntil(app.pass.validUntil, passAcadYear)
+              : null;
+            const activeSystemAcadYear = systemSettings?.academicYear || "2026-2027";
+            const isOlderAcademicYearPass = Boolean(
+              hasIssuedCredential && !isExpired && passAcadYear && passAcadYear !== activeSystemAcadYear
+            );
 
             return (
               <div key={v.id} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center space-x-3 min-w-0 flex-1">
                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
-                      isExpired ? 'bg-rose-50 text-rose-600' : hasPass ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-600'
+                      isExpired ? 'bg-rose-50 text-rose-600' : (hasPass || (hasIssuedCredential && !isExpired)) ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-600'
                     }`}>
                       <Car className="w-6 h-6" />
                     </div>
@@ -614,10 +750,14 @@ export default function MyVehicle() {
                     </div>
                   </div>
                   <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
-                    isExpired
+                    isExpired && !isRenewalInFlight
                       ? 'bg-rose-100 text-rose-800 border-rose-300'
-                      : isRenewalPending
-                      ? 'bg-amber-100 text-amber-900 border-amber-300'
+                      : isRenewalInFlight
+                      ? isUnderVerification
+                        ? 'bg-blue-100 text-blue-800 border-blue-200'
+                        : isCorrectionRequired
+                        ? 'bg-rose-100 text-rose-800 border-rose-300'
+                        : 'bg-amber-100 text-amber-900 border-amber-300'
                       : hasPass
                       ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
                       : isUnderVerification
@@ -628,16 +768,22 @@ export default function MyVehicle() {
                       ? 'bg-rose-100 text-rose-800 border-rose-300'
                       : 'bg-slate-100 text-slate-700 border-slate-200'
                   }`}>
-                    {isExpired 
-                      ? 'Pass Expired' 
-                      : isRenewalPending 
-                      ? 'Renewal Pending' 
-                      : hasPass 
-                      ? 'Active Pass' 
-                      : isUnderVerification 
-                      ? 'Verifying Receipt' 
-                      : isPaymentPending 
-                      ? 'Payment Pending' 
+                    {isExpired && !isRenewalInFlight
+                      ? 'Pass Expired'
+                      : isRenewalInFlight
+                      ? isUnderVerification
+                        ? 'Renewal Verifying'
+                        : isPaymentPending
+                        ? 'Renewal Payment'
+                        : isCorrectionRequired
+                        ? 'Renewal Correction'
+                        : 'Renewal Pending Review'
+                      : hasPass
+                      ? 'Active Pass'
+                      : isUnderVerification
+                      ? 'Verifying Receipt'
+                      : isPaymentPending
+                      ? 'Payment Pending'
                       : isCorrectionRequired
                       ? 'Correction Required'
                       : (v.status && v.status !== 'Active Pass' ? v.status : 'Pending Review')}
@@ -649,15 +795,26 @@ export default function MyVehicle() {
                   <span className="font-mono font-black text-slate-900 text-sm tracking-wider truncate">{v.plateNumber}</span>
                 </div>
 
+                {hasIssuedCredential && (
+                  <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                    <span className="font-mono font-bold text-emerald-700">
+                      {app.pass.passNumber} • A.Y. {passAcadYear}
+                    </span>
+                    <span className="text-slate-500 font-medium">
+                      {passTemplateInfo.name.split(':')[0]} • Valid until {passValidUntil}
+                    </span>
+                  </div>
+                )}
+
                 {/* Automatic Renewal Notice (Applied ONLY to this specific expired vehicle) */}
-                {isExpired && app && (
+                {isExpired && !isRenewalInFlight && app && (
                   <div className="mt-3.5 p-3.5 rounded-2xl bg-amber-50/90 border border-amber-300 text-amber-950 text-xs space-y-2">
                     <div className="flex items-center space-x-1.5 font-bold text-amber-900">
                       <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span>1-Year Vehicle Pass Expired ({app.pass?.validUntil})</span>
+                      <span>1-Year Vehicle Pass Expired ({passValidUntil})</span>
                     </div>
                     <p className="text-[11px] text-amber-900 leading-relaxed">
-                      The 1-year gate pass for this specific <strong>{v.make} {v.model}</strong> has expired. Campus gate scanners will flag this vehicle until renewed for Academic Year {systemSettings?.academicYear || '2026-2027'}.
+                      The gate pass for this specific <strong>{v.make} {v.model}</strong> (A.Y. {passAcadYear}) has expired. Campus gate scanners will flag this vehicle until renewed for Academic Year {activeSystemAcadYear}.
                     </p>
                     <button
                       type="button"
@@ -670,18 +827,74 @@ export default function MyVehicle() {
                   </div>
                 )}
 
-                {isRenewalPending && !isExpired && app && (
-                  <div className="mt-3.5 p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-950 text-xs flex items-center justify-between">
-                    <div>
-                      <span className="font-bold block text-blue-900">Renewal In Progress</span>
-                      <span className="text-[11px] text-blue-800">Proceed to payment to re-activate your 1-year pass.</span>
+                {isRenewalInFlight && app && (
+                  <div className="mt-3.5 p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-950 text-xs flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="font-bold block text-blue-900">
+                        {isPaymentPending
+                          ? 'Renewal Approved — Ready for Payment'
+                          : isUnderVerification
+                          ? 'Renewal Receipt Under Verification'
+                          : isCorrectionRequired
+                          ? 'Renewal Form Needs Correction'
+                          : 'Renewal Submitted — Pending PASO Review'}
+                      </span>
+                      <span className="text-[11px] text-blue-800 block mt-0.5">
+                        {isPaymentPending
+                          ? `Pay at Cashier and upload your receipt to transition into A.Y. ${activeSystemAcadYear}.`
+                          : isUnderVerification
+                          ? 'PASO Admin is verifying your Cashier receipt.'
+                          : isCorrectionRequired
+                          ? 'Update your renewal submission so PASO can re-evaluate.'
+                          : isRenewalAwaitingReview && hasIssuedCredential && !isExpired
+                          ? `Your A.Y. ${passAcadYear} pass stays active while PASO reviews your renewal.`
+                          : 'Awaiting PASO Admin approval before Cashier payment.'}
+                      </span>
+                    </div>
+                    {isPaymentPending ? (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/client/payments?appId=${app.id}`)}
+                        className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-bold text-[11px] hover:bg-blue-700 cursor-pointer shrink-0"
+                      >
+                        Pay Renewal
+                      </button>
+                    ) : isCorrectionRequired ? (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/client/my-vehicle?editAppId=${app.id}`)}
+                        className="px-3 py-1.5 rounded-lg bg-rose-600 text-white font-bold text-[11px] hover:bg-rose-700 cursor-pointer shrink-0"
+                      >
+                        Fix Form
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => navigate('/client/applications')}
+                        className="px-3 py-1.5 rounded-lg bg-white border border-blue-200 text-blue-700 font-bold text-[11px] hover:bg-blue-100/50 cursor-pointer shrink-0"
+                      >
+                        View Status
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {isOlderAcademicYearPass && !isRenewalInFlight && app && (
+                  <div className="mt-3.5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="min-w-0">
+                      <span className="font-bold block text-slate-900">
+                        Active on A.Y. {passAcadYear} ({passTemplateInfo.name.split(':')[0]})
+                      </span>
+                      <span className="text-[11px] text-slate-600 block mt-0.5">
+                        Valid until {passValidUntil}. Keeps its color set unless renewed to A.Y. {activeSystemAcadYear}.
+                      </span>
                     </div>
                     <button
                       type="button"
-                      onClick={() => navigate(`/client/payments?appId=${app.id}`)}
-                      className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-bold text-[11px] hover:bg-blue-700 cursor-pointer"
+                      onClick={() => handleStartRenewal(app)}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[11px] hover:bg-emerald-700 cursor-pointer shrink-0 whitespace-nowrap"
                     >
-                      Pay Renewal
+                      Renew for A.Y. {activeSystemAcadYear}
                     </button>
                   </div>
                 )}
@@ -742,7 +955,7 @@ export default function MyVehicle() {
                       <span>Sticker & S-Number Preserved</span>
                     </p>
                     <p className="text-[11px] text-purple-800 mt-0.5">
-                      Your existing QR sticker on this vehicle and assigned pass number will remain unchanged in the database. A fresh live photo is required below.
+                      Your assigned Pass Number remains preserved while Academic Year, expiration date, and sticker color set update to A.Y. {systemSettings?.academicYear || '2026-2027'} once PASO verifies your renewal. A fresh live photo is required below.
                     </p>
                   </div>
                 )}
@@ -915,6 +1128,94 @@ export default function MyVehicle() {
                         </div>
                       )}
                     </div>
+
+                    {duplicatePlateMatch && (() => {
+                      const dupApp = duplicatePlateMatch.app;
+                      const dupHasPass = Boolean(dupApp && (dupApp.status === 'PASS_ISSUED' || dupApp.pass));
+                      const dupRenewalInFlight = Boolean(dupApp && (dupApp.isRenewal || dupApp.renewalPending) && dupApp.status !== 'PASS_ISSUED');
+                      const dupAcadYear = dupHasPass ? resolvePassAcademicYear(dupApp.pass) : null;
+
+                      let title = 'Duplicate Plate Number Detected';
+                      let desc = `Plate "${formData.plateNumber.trim().toUpperCase()}" is already registered on your account.`;
+                      let actionLabel = null;
+                      let onAction = null;
+
+                      if (dupHasPass && !dupRenewalInFlight) {
+                        title = `Existing VPASS Found (${dupApp.pass?.passNumber || 'Active'} • A.Y. ${dupAcadYear})`;
+                        desc = `This plate already has an issued Vehicle Pass under your account. Renew it in-place instead of submitting a duplicate registration.`;
+                        actionLabel = 'Switch to Renew Existing Pass';
+                        onAction = () => {
+                          clearDraft();
+                          handleStartRenewal(dupApp);
+                        };
+                      } else if (dupHasPass && dupRenewalInFlight) {
+                        title = `Renewal Already In Progress (${dupApp.id})`;
+                        desc = `This vehicle already has an active pass renewal in the PASO queue.`;
+                        actionLabel = 'Track Renewal Status';
+                        onAction = () => {
+                          clearDraft();
+                          setShowWizard(false);
+                          setRenewingAppId(null);
+                          setEditingAppId(null);
+                          setSubmitError('');
+                          navigate('/client/applications');
+                        };
+                      } else if (dupApp?.status === 'REJECTED') {
+                        title = `Returned Application Found (${dupApp.id})`;
+                        desc = `Update your returned application for this vehicle rather than creating a duplicate entry.`;
+                        actionLabel = 'Fix Existing Application';
+                        onAction = () => {
+                          clearDraft();
+                          handleStartCorrection(dupApp);
+                        };
+                      } else if (dupApp?.status === 'APPROVED') {
+                        title = `Approved & Ready for Payment (${dupApp.id})`;
+                        desc = `Your registration for this plate is already approved and waiting for your Cashier receipt.`;
+                        actionLabel = 'Proceed to Cashier Payment';
+                        onAction = () => {
+                          clearDraft();
+                          setShowWizard(false);
+                          setRenewingAppId(null);
+                          setEditingAppId(null);
+                          setSubmitError('');
+                          navigate(`/client/payments?appId=${dupApp.id}`);
+                        };
+                      } else if (dupApp) {
+                        title = `Active Application Already Exists (${dupApp.id})`;
+                        desc = `This plate already has a pending application currently being processed by PASO.`;
+                        actionLabel = 'View Application Status';
+                        onAction = () => {
+                          clearDraft();
+                          setShowWizard(false);
+                          setRenewingAppId(null);
+                          setEditingAppId(null);
+                          setSubmitError('');
+                          navigate('/client/applications');
+                        };
+                      }
+
+                      return (
+                        <div className="sm:col-span-2 p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-start space-x-2.5 min-w-0">
+                            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                            <div className="min-w-0">
+                              <p className="font-bold text-amber-950 text-xs">{title}</p>
+                              <p className="text-[11px] text-amber-900 mt-0.5 leading-relaxed">{desc}</p>
+                            </div>
+                          </div>
+                          {actionLabel && onAction && (
+                            <button
+                              type="button"
+                              onClick={onAction}
+                              className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] inline-flex items-center space-x-1.5 shrink-0 cursor-pointer shadow-xs transition-colors"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                              <span>{actionLabel}</span>
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* Brand */}
                     <div>
@@ -1436,6 +1737,16 @@ export default function MyVehicle() {
               )}
             </div>
 
+            {submitError && (
+              <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-300 text-rose-900 text-xs flex items-start space-x-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-rose-950">Submission Blocked</p>
+                  <p className="text-[11px] text-rose-800 mt-0.5">{submitError}</p>
+                </div>
+              </div>
+            )}
+
             {/* Stepper Footer Controls (Balanced Button Sizing & Guaranteed Spacing) */}
             <div className="border-t border-slate-100 pt-4 flex items-center justify-between gap-3">
               {currentStep > 1 ? (
@@ -1470,10 +1781,21 @@ export default function MyVehicle() {
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  className="px-4 sm:px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center space-x-1.5 cursor-pointer shadow-md transition-all active:scale-95 shrink-0"
+                  disabled={isSubmitting}
+                  className={`px-4 sm:px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center space-x-1.5 shadow-md transition-all active:scale-95 shrink-0 ${
+                    isSubmitting ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                  }`}
                 >
                   <Sparkles className="w-4 h-4 text-emerald-200" />
-                  <span>{renewingAppId ? 'Submit Pass Renewal' : editingAppId ? 'Re-submit Application' : 'Submit to PASO'}</span>
+                  <span>
+                    {isSubmitting
+                      ? 'Submitting...'
+                      : renewingAppId
+                      ? 'Submit Pass Renewal'
+                      : editingAppId
+                      ? 'Re-submit Application'
+                      : 'Submit to PASO'}
+                  </span>
                 </button>
               )}
             </div>
@@ -1500,6 +1822,11 @@ export default function MyVehicle() {
                 type="button"
                 onClick={() => {
                   setShowResumeModal(false);
+                  setRenewingAppId(null);
+                  setEditingAppId(null);
+                  setEditingRejectionReason('');
+                  setErrors({});
+                  setSubmitError('');
                   setFormData(draftApplication.data || initialFormState);
                   setCurrentStep(draftApplication.step || 1);
                   setShowWizard(true);

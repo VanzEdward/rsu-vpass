@@ -1,5 +1,12 @@
 import React, { useState } from "react";
-import { usePass } from "../../context/PassContext";
+import {
+  usePass,
+  resolvePassAcademicYear,
+  resolvePassTemplateVersion,
+  formatPassValidUntil,
+  isPassExpired,
+  getUniquePassApplications,
+} from "../../context/PassContext";
 import {
   Layers,
   Search,
@@ -14,7 +21,7 @@ import {
   Printer,
   Ban,
 } from "lucide-react";
-import RsuStickerPass from "../../components/RsuStickerPass";
+import RsuStickerPass, { PASS_TEMPLATES } from "../../components/RsuStickerPass";
 
 export default function AdminPasses() {
   const { applications } = usePass();
@@ -23,10 +30,8 @@ export default function AdminPasses() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPassModal, setSelectedPassModal] = useState(null);
 
-  // Active or approved applications with passes
-  const passesList = (applications || []).filter(
-    (a) => a.status === "PASS_ISSUED" || a.pass,
-  );
+  // Active or approved applications with passes (deduplicated to 1 pass per vehicle)
+  const passesList = getUniquePassApplications(applications);
 
   const filteredPasses = passesList.filter((app) => {
     // Classification filter
@@ -150,58 +155,90 @@ export default function AdminPasses() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {filteredPasses.map((app) => (
-                  <tr key={app.id} className="hover:bg-slate-50/80">
-                    <td className="py-3 px-3 font-mono font-bold text-emerald-700">
-                      {app.pass?.passNumber}
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="font-bold text-slate-900">
-                        {app.applicant_name}
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-mono">
-                        ID: {app.school_id}
-                      </div>
-                    </td>
-                    <td className="py-3 px-3">
-                      <span
-                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border ${
-                          (app.classification || "").toLowerCase() ===
-                          "employee"
-                            ? "bg-blue-50 text-blue-800 border-blue-200"
-                            : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                        }`}
-                      >
-                        {app.classification || "Student"}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 font-mono font-black text-slate-900">
-                      {app.vehicle?.plateNumber}
-                    </td>
-                    <td className="py-3 px-3">
-                      {app.vehicle?.make} {app.vehicle?.model} (
-                      {app.vehicle?.color})
-                    </td>
-                    <td className="py-3 px-3 text-slate-600 font-medium">
-                      {app.pass?.validUntil || "Dec 31, 2026"}
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
-                        ACTIVE
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedPassModal(app)}
-                        className="inline-flex items-center space-x-1 px-3 py-1 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold cursor-pointer shadow-xs"
-                      >
-                        <Eye className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Inspect Pass</span>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredPasses.map((app) => {
+                  const passAcadYear = resolvePassAcademicYear(app.pass);
+                  const passTemplateVer = resolvePassTemplateVersion(app.pass);
+                  const passTemplateInfo =
+                    PASS_TEMPLATES[passTemplateVer] || PASS_TEMPLATES.V1;
+                  const passValidUntil = formatPassValidUntil(
+                    app.pass?.validUntil,
+                    passAcadYear,
+                  );
+                  const expired = isPassExpired(app.pass);
+                  const isEmp = (app.classification || "")
+                    .toLowerCase()
+                    .includes("employee");
+
+                  return (
+                    <tr key={app.id} className="hover:bg-slate-50/80">
+                      <td className="py-3 px-3">
+                        <div className="font-mono font-bold text-emerald-700">
+                          {app.pass?.passNumber}
+                        </div>
+                        <span
+                          className={`inline-block mt-1 text-[9px] font-bold px-1.5 py-0.2 rounded border ${
+                            isEmp
+                              ? passTemplateInfo.employeeBadgeBg
+                              : passTemplateInfo.studentBadgeBg
+                          }`}
+                        >
+                          {passTemplateInfo.name.split(":")[0]} • A.Y.{" "}
+                          {passAcadYear}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="font-bold text-slate-900">
+                          {app.applicant_name}
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-mono">
+                          ID: {app.school_id}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span
+                          className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border ${
+                            isEmp
+                              ? "bg-blue-50 text-blue-800 border-blue-200"
+                              : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                          }`}
+                        >
+                          {app.classification || "Student"}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 font-mono font-black text-slate-900">
+                        {app.vehicle?.plateNumber}
+                      </td>
+                      <td className="py-3 px-3">
+                        {app.vehicle?.make} {app.vehicle?.model} (
+                        {app.vehicle?.color})
+                      </td>
+                      <td className="py-3 px-3 text-slate-600 font-medium">
+                        {passValidUntil}
+                      </td>
+                      <td className="py-3 px-3">
+                        <span
+                          className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                            expired
+                              ? "bg-rose-100 text-rose-800"
+                              : "bg-emerald-100 text-emerald-800"
+                          }`}
+                        >
+                          {expired ? "EXPIRED" : "ACTIVE"}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPassModal(app)}
+                          className="inline-flex items-center space-x-1 px-3 py-1 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold cursor-pointer shadow-xs"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Inspect Pass</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -209,17 +246,46 @@ export default function AdminPasses() {
       </div>
 
       {/* Inspect Pass & Sticker Modal */}
-      {selectedPassModal && (
+      {selectedPassModal && (() => {
+        const modalAcadYear = resolvePassAcademicYear(selectedPassModal.pass);
+        const modalTemplateVer = resolvePassTemplateVersion(
+          selectedPassModal.pass,
+        );
+        const modalTemplateInfo =
+          PASS_TEMPLATES[modalTemplateVer] || PASS_TEMPLATES.V1;
+        const modalValidUntil = formatPassValidUntil(
+          selectedPassModal.pass?.validUntil,
+          modalAcadYear,
+        );
+        const isModalEmp = (selectedPassModal.classification || "")
+          .toLowerCase()
+          .includes("employee");
+
+        return (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                  Official Gate Sticker
-                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                    Official Gate Sticker
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                      isModalEmp
+                        ? modalTemplateInfo.employeeBadgeBg
+                        : modalTemplateInfo.studentBadgeBg
+                    }`}
+                  >
+                    {modalTemplateInfo.name}
+                  </span>
+                </div>
                 <h3 className="text-base font-black text-slate-900 mt-1">
-                  {selectedPassModal.pass?.passNumber}
+                  {selectedPassModal.pass?.passNumber} • A.Y. {modalAcadYear}
                 </h3>
+                <p className="text-[11px] text-slate-500">
+                  Valid until {modalValidUntil}
+                </p>
               </div>
               <button
                 onClick={() => setSelectedPassModal(null)}
@@ -236,6 +302,7 @@ export default function AdminPasses() {
                 passNumber={selectedPassModal.pass?.passNumber || "S-001"}
                 plateNumber={selectedPassModal.vehicle?.plateNumber || "RSU 2026"}
                 qrPayload={selectedPassModal.pass?.qrData || `RSU-VPASS:${selectedPassModal.pass?.passNumber}:${selectedPassModal.vehicle?.plateNumber}:${selectedPassModal.school_id}`}
+                templateVersion={modalTemplateVer}
                 showDownloadButton={true}
               />
             </div>
@@ -262,7 +329,8 @@ export default function AdminPasses() {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

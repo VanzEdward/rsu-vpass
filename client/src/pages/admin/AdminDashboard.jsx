@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { usePass } from '../../context/PassContext';
+import { usePass, getUniquePassApplications } from '../../context/PassContext';
 import { formatLogTimestamp, formatExactDateTime } from '../../utils/dateUtils';
 import { 
   Users, 
@@ -22,7 +22,7 @@ export default function AdminDashboard() {
   const pendingForms = (applications || []).filter((a) => a.status === 'PENDING');
   const pendingReceipts = (applications || []).filter((a) => a.status === 'RECEIPT_SUBMITTED');
   const pendingApps = [...pendingReceipts, ...pendingForms];
-  const activePasses = (applications || []).filter((a) => a.status === 'PASS_ISSUED' || a.pass);
+  const activePasses = getUniquePassApplications(applications);
   const activeVisitors = (visitorPasses || []).filter((v) => v.status === 'INSIDE');
   const recentLogs = (gateLogs || []).slice(0, 5);
 

@@ -23,7 +23,7 @@ import {
 export default function Payments() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { applications, submitReceiptPayment } = usePass();
+  const { applications, submitReceiptPayment, systemSettings } = usePass();
 
   const approvedApps = applications.filter((a) => a.status === 'APPROVED' || a.receiptRejectionRemark);
   const queryAppId = searchParams.get('appId');
@@ -69,10 +69,12 @@ export default function Payments() {
   }, [queryAppId, targetApps, selectedAppId]);
 
   useEffect(() => {
-    if (selectedApp?.receipt?.orNumber && !orNumber) {
+    if (selectedApp?.receipt?.orNumber) {
       setOrNumber(selectedApp.receipt.orNumber);
+    } else {
+      setOrNumber('');
     }
-  }, [selectedAppId, selectedApp]);
+  }, [selectedAppId, selectedApp?.receipt?.orNumber]);
 
   const handleReceiptPhotoCaptured = async (photoDataUrl) => {
     const compressed = await compressImage(photoDataUrl, 1200, 1200, 0.75);
@@ -254,7 +256,7 @@ export default function Payments() {
                     </span>
                     <p className="text-[11px] text-purple-800 leading-relaxed">
                       You are submitting Cashier proof for <strong>{selectedApp.vehicle?.make} {selectedApp.vehicle?.model} ({selectedApp.vehicle?.plateNumber})</strong>. 
-                      Your existing Pass Number (<strong>{selectedApp.pass?.passNumber || selectedApp.assignedPassNumber}</strong>) and physical QR sticker remain active upon verification.
+                      Your existing Pass Number (<strong>{selectedApp.pass?.passNumber || selectedApp.assignedPassNumber}</strong>) stays preserved, and once verified your pass updates to A.Y. <strong>{systemSettings?.academicYear || '2026-2027'}</strong>.
                     </p>
                   </div>
                 </div>
