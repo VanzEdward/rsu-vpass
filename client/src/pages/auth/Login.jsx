@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiRequest } from '../../api/client';
+import webLogo from '../../assets/weblogo.png';
 import { ShieldCheck, ArrowRight, ShieldAlert, KeyRound, UserPlus, MapPin, Lock, Check, X, CheckCircle2, Eye, EyeOff, Mail, RefreshCw, AlertCircle, Sparkles } from 'lucide-react';
 import { usePass, CAMPUS_GATES } from '../../context/PassContext';
 
@@ -160,8 +161,8 @@ export default function Login() {
       <div className="max-w-md w-full">
         {/* Brand Card */}
         <div className="text-center mb-6">
-          <div className="inline-flex w-16 h-16 rounded-2xl bg-emerald-600 items-center justify-center text-white shadow-md ring-4 ring-emerald-100 mb-3">
-            <ShieldCheck className="w-9 h-9 text-white" />
+          <div className="inline-flex items-center justify-center mb-3">
+            <img src={webLogo} alt="Romblon State University Seal" className="w-20 h-20 object-contain drop-shadow-md" />
           </div>
           <h1 className="text-2xl font-black tracking-tight text-slate-900">
             RSU <span className="text-emerald-600">VPASS</span>

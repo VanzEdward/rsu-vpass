@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usePass } from '../context/PassContext';
+import webLogo from '../assets/weblogo.png';
 import { 
-  ShieldCheck, 
   LogOut, 
   User, 
   Bell, 
@@ -94,8 +94,12 @@ export default function Navbar({ hideLogout = false }) {
       <div className="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Brand (Static display - clicking does nothing) */}
         <div className="flex items-center space-x-3 cursor-default select-none">
-          <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-sm ring-2 ring-emerald-100">
-            <ShieldCheck className="w-6 h-6 text-white" />
+          <div className="w-10 h-10 flex items-center justify-center shrink-0">
+            <img 
+              src={webLogo} 
+              alt="Romblon State University Logo" 
+              className="w-10 h-10 object-contain drop-shadow-xs" 
+            />
           </div>
           <div>
             <div className="flex items-center space-x-2">

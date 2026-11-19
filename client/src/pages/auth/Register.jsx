@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiRequest } from '../../api/client';
 import { RSU_MAIN_COURSES, RSU_YEAR_LEVELS, RSU_COLLEGES } from '../../data/rsuCourses';
+import webLogo from '../../assets/weblogo.png';
 import { 
   ShieldCheck, 
   ArrowRight, 
@@ -722,8 +723,8 @@ export default function Register() {
         {/* Official University Header */}
         <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-teal-900 text-white px-5 sm:px-10 py-6 border-b border-emerald-950">
           <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shrink-0 shadow-inner">
-              <ShieldCheck className="w-10 h-10 text-emerald-300" />
+            <div className="w-16 h-16 flex items-center justify-center shrink-0">
+              <img src={webLogo} alt="RSU Seal" className="w-16 h-16 object-contain drop-shadow-md" />
             </div>
             <div className="space-y-1.5 flex-1 w-full">
               <div>
