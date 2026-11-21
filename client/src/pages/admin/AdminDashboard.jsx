@@ -184,6 +184,7 @@ export default function AdminDashboard() {
                 <th className="py-2.5 px-3 font-bold">Plate Number</th>
                 <th className="py-2.5 px-3 font-bold">Owner / Driver</th>
                 <th className="py-2.5 px-3 font-bold">Classification</th>
+                <th className="py-2.5 px-3 font-bold">Duty Guard</th>
                 <th className="py-2.5 px-3 font-bold">Timestamp</th>
                 <th className="py-2.5 px-3 font-bold">Status</th>
               </tr>
@@ -227,6 +228,16 @@ export default function AdminDashboard() {
                     }`}>
                       {log.classification}
                     </span>
+                  </td>
+                  <td className="py-3 px-3">
+                    <div className="flex items-center space-x-1 font-medium text-slate-800">
+                      <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[9px] shrink-0">
+                        👮
+                      </span>
+                      <span className="truncate max-w-[110px] font-semibold text-slate-800 text-[11px]" title={log.guard_name || log.guardName || 'Duty Guard'}>
+                        {log.guard_name || log.guardName || 'Duty Guard'}
+                      </span>
+                    </div>
                   </td>
                   <td className="py-3 px-3 text-slate-500 font-medium whitespace-nowrap" title={formatExactDateTime(log.timestamp, log.date, log.time)}>
                     {formatLogTimestamp(log.timestamp, log.date, log.time)}

@@ -38,7 +38,6 @@ import {
   SwitchCamera,
   ZoomIn,
   ChevronDown,
-  ChevronUp,
   AlertTriangle,
   ArrowRight,
   Zap,
@@ -225,9 +224,6 @@ export default function GuardScanner() {
   const [scanSuccessFlash, setScanSuccessFlash] = useState(false);
   const [hasTorch, setHasTorch] = useState(false);
   const [isTorchOn, setIsTorchOn] = useState(false);
-
-  // Simulator drawer toggle (keeps main screen 100% clean for guards)
-  const [showDemoSimulator, setShowDemoSimulator] = useState(false);
 
   // Visitor Hub State
   const [visitorSubTab, setVisitorSubTab] = useState("active"); // 'active' | 'new' | 'past'
@@ -466,115 +462,6 @@ export default function GuardScanner() {
     };
   }, []);
 
-  // Simulator / Demo presets handler
-  const handleSimulatePass = (passType) => {
-    if (passType === "VALID_EMPLOYEE") {
-      triggerHaptic(true);
-      setVerifiedPass({
-        passNumber: "E-081",
-        client: "Prof. Juan Dela Cruz",
-        schoolId: "2019-00124",
-        classification: "EMPLOYEE",
-        vehicle: "Honda Click 125i",
-        plateNumber: "XYZ 5678",
-        vehicleType: "Motorcycle",
-        color: "Matte Black",
-        validUntil: "June 30, 2026",
-        status: "ACTIVE",
-        isValid: true,
-        department: "College of Engineering & Technology (Faculty)",
-        yearCourse: "",
-        photo:
-          "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80",
-      });
-    } else if (passType === "VALID_STUDENT") {
-      triggerHaptic(true);
-      addGateLog({
-        passNumber: "S-396",
-        plateNumber: "RSU 2026",
-        owner: "Althea Marie Cuenco",
-        classification: "STUDENT",
-        type: "CHECK",
-        gate: activeGate || "Gate 1",
-        status: "VALID",
-      });
-      setLogSuccessMessage(
-        `Student Spot-Check automatically recorded at ${activeGate || "Gate 1"} for RSU 2026!`
-      );
-      setTimeout(() => setLogSuccessMessage(""), 3500);
-
-      setVerifiedPass({
-        isSpotCheckLogged: true,
-        passNumber: "S-396",
-        client: "Althea Marie Cuenco",
-        schoolId: "2023-10492",
-        classification: "STUDENT",
-        vehicle: "Yamaha Aerox 155",
-        plateNumber: "RSU 2026",
-        vehicleType: "Motorcycle",
-        color: "Racing Blue",
-        validUntil: "July 15, 2026",
-        status: "ACTIVE",
-        isValid: true,
-        department: "College of Engineering and Technology",
-        yearCourse: "4th Year • BS Information Technology",
-        photo:
-          "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80",
-      });
-    } else if (passType === "VISITOR_PASS") {
-      triggerHaptic(true);
-      setVerifiedPass({
-        passNumber: "TMP-2026-0042",
-        client: "Dr. Maria Santos",
-        schoolId: "VISITOR (PRC #0129841)",
-        classification: "VISITOR",
-        vehicle: "Toyota Vios",
-        plateNumber: "NBM 9012",
-        vehicleType: "Sedan",
-        color: "Silver",
-        validUntil: "Today • 11:59 PM (1 Day)",
-        status: "INSIDE",
-        isValid: true,
-        department: "Destination: Office of the President",
-        yearCourse: "",
-        photo:
-          "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80",
-      });
-    } else if (passType === "TROLL_QR") {
-      playBeep(false);
-      triggerHaptic(false);
-      setVerifiedPass(null);
-      setInvalidScanAlert({
-        rawText: "https://www.youtube.com/watch?v=dQw4w9WgXcQ (Rickroll Meme Video)",
-        reason: "External Media / Meme QR Detected (Troll Code)",
-        details: "The scanned QR code links to an external image, video, or social media page instead of a verified campus vehicle pass.",
-        isTroll: true,
-        isUrl: true,
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      });
-    } else {
-      playBeep(false);
-      triggerHaptic(false);
-      setVerifiedPass({
-        passNumber: "VP-2025-0819",
-        client: "Pedro Penduko",
-        schoolId: "2023-99999",
-        classification: "STUDENT",
-        vehicle: "Yamaha Mio",
-        plateNumber: "ABC 1234",
-        vehicleType: "Motorcycle",
-        color: "Red",
-        validUntil: "August 15, 2025",
-        status: "EXPIRED",
-        isValid: false,
-        department: "Expired Pass Clearance",
-        yearCourse: "3rd Year • BS Criminology",
-        photo:
-          "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&auto=format&fit=crop&q=80",
-      });
-    }
-  };
-
   // Manual search lookup (Unified under Scanner)
   const handleManualSearch = async (query) => {
     const q = (query || quickSearchQuery).trim().toLowerCase();
@@ -765,29 +652,16 @@ export default function GuardScanner() {
       console.warn("Backend manual search error:", err);
     }
 
-    // Fallback demo matching
-    if (
-      q.includes("nbm") ||
-      q.includes("santos") ||
-      q.includes("visitor") ||
-      q.includes("tmp")
-    ) {
-      handleSimulatePass("VISITOR_PASS");
-    } else if (q.includes("xyz") || q.includes("juan") || q.includes("emp")) {
-      handleSimulatePass("VALID_EMPLOYEE");
-    } else if (q.includes("rsu") || q.includes("cuenco")) {
-      handleSimulatePass("VALID_STUDENT");
-    } else {
-      playBeep(false);
-      triggerHaptic(false);
-      setInvalidScanAlert({
-        rawText: query || quickSearchQuery,
-        reason: "No Pass Found in Database",
-        details: `No active student, employee, or visitor pass found matching "${query || quickSearchQuery}".`,
-        isManualSearch: true,
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      });
-    }
+    // No matching pass found in database or active temporary passes
+    playBeep(false);
+    triggerHaptic(false);
+    setInvalidScanAlert({
+      rawText: query || quickSearchQuery,
+      reason: "No Pass Found in Database",
+      details: `No active student, employee, or visitor pass found matching "${query || quickSearchQuery}".`,
+      isManualSearch: true,
+      timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }),
+    });
   };
 
   // Decode scanned QR text
@@ -1046,7 +920,7 @@ export default function GuardScanner() {
       details,
       isTroll: isMemeOrMedia,
       isUrl,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }),
     });
   };
 
@@ -1660,66 +1534,7 @@ export default function GuardScanner() {
               </div>
             </div>
           </div>
-
-          {/* Discreet Collapsible Test / Simulation Bar */}
-          <div className="bg-slate-900/60 rounded-2xl border border-slate-800/80 overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setShowDemoSimulator(!showDemoSimulator)}
-              className="w-full px-3.5 py-2 flex items-center justify-between text-slate-400 hover:text-slate-200 text-xs font-semibold cursor-pointer"
-            >
-              <div className="flex items-center space-x-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>Quick Test Simulator</span>
-              </div>
-              {showDemoSimulator ? (
-                <ChevronUp className="w-4 h-4" />
-              ) : (
-                <ChevronDown className="w-4 h-4" />
-              )}
-            </button>
-
-            {showDemoSimulator && (
-              <div className="p-3 pt-0 border-t border-slate-800/60 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() => handleSimulatePass("VALID_EMPLOYEE")}
-                  className="py-2 px-2.5 rounded-xl bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-300 font-bold text-center cursor-pointer transition-colors"
-                >
-                  Employee (XYZ 5678)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSimulatePass("VALID_STUDENT")}
-                  className="py-2 px-2.5 rounded-xl bg-teal-500/15 hover:bg-teal-500/25 border border-teal-500/30 text-teal-300 font-bold text-center cursor-pointer transition-colors"
-                >
-                  Student (RSU 2026)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSimulatePass("VISITOR_PASS")}
-                  className="py-2 px-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 font-bold text-center cursor-pointer transition-colors"
-                >
-                  Visitor (NBM 9012)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSimulatePass("EXPIRED")}
-                  className="py-2 px-2.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-bold text-center cursor-pointer transition-colors"
-                >
-                  Expired (ABC 1234)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSimulatePass("TROLL_QR")}
-                  className="col-span-2 sm:col-span-4 py-2 px-2.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 font-bold text-center cursor-pointer transition-colors flex items-center justify-center space-x-1.5"
-                >
-                  <span>🎭 Test Fake / Meme Troll QR</span>
-                </button>
-              </div>
-            )}
-          </div>
-      </div>
+        </div>
 
       {/* ======================================================== */}
       {/* 2. STREAMLINED VISITOR MANAGEMENT DESK                   */}
@@ -2214,6 +2029,10 @@ export default function GuardScanner() {
                       <span className="shrink-0">{log.gate || "Gate 1"}</span>
                       <span className="text-slate-600">•</span>
                       <span className="text-slate-400 truncate" title={formatExactDateTime(log.timestamp, log.date, log.time)}>{formatLogTimestamp(log.timestamp, log.date, log.time)}</span>
+                      <span className="text-slate-600">•</span>
+                      <span className="text-emerald-400 font-sans font-medium shrink-0" title={`Verified by ${log.guard_name || "Duty Guard"}`}>
+                        👮 {log.guard_name || "Duty Guard"}
+                      </span>
                     </div>
                   </div>
 

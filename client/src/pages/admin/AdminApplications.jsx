@@ -288,12 +288,12 @@ export default function AdminApplications() {
             >
               <span>{tab.label}</span>
               <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold transition-colors ${
                   filterStatus === tab.id
                     ? "bg-emerald-700/60 text-white"
                     : tab.isHighlight
                       ? "bg-amber-500 text-white"
-                      : "bg-slate-200 text-slate-700"
+                      : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:border dark:border-slate-700"
                 }`}
               >
                 {tab.count}

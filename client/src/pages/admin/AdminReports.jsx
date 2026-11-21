@@ -63,7 +63,8 @@ export default function AdminReports() {
       const matchOwner = log.owner?.toLowerCase().includes(q);
       const matchPass = log.passNumber?.toLowerCase().includes(q);
       const matchGate = log.gate?.toLowerCase().includes(q);
-      return matchPlate || matchOwner || matchPass || matchGate;
+      const matchGuard = (log.guard_name || log.guardName || '').toLowerCase().includes(q);
+      return matchPlate || matchOwner || matchPass || matchGate || matchGuard;
     }
     return true;
   });
@@ -76,7 +77,8 @@ export default function AdminReports() {
       const matchName = v.name?.toLowerCase().includes(q);
       const matchDest = v.destination?.toLowerCase().includes(q);
       const matchGate = (v.entryGate || '').toLowerCase().includes(q) || (v.exitGate || '').toLowerCase().includes(q);
-      return matchPlate || matchName || matchDest || matchGate;
+      const matchGuard = (v.issued_by_guard || '').toLowerCase().includes(q);
+      return matchPlate || matchName || matchDest || matchGate || matchGuard;
     }
     return true;
   });
@@ -489,6 +491,7 @@ export default function AdminReports() {
                     <th className="py-2.5 px-3 font-bold">Classification</th>
                     <th className="py-2.5 px-3 font-bold">Pass Reference</th>
                     <th className="py-2.5 px-3 font-bold">Date & Time</th>
+                    <th className="py-2.5 px-3 font-bold">Verified By Guard</th>
                     <th className="py-2.5 px-3 font-bold">Security Status</th>
                   </tr>
                 </thead>
@@ -545,6 +548,16 @@ export default function AdminReports() {
                         </div>
                       </td>
                       <td className="py-3 px-3">
+                        <div className="flex items-center space-x-1.5 font-medium text-slate-800">
+                          <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[10px] font-black shrink-0">
+                            👮
+                          </span>
+                          <span className="truncate max-w-[130px] font-semibold text-slate-800" title={log.guard_name || log.guardName || 'Duty Guard'}>
+                            {log.guard_name || log.guardName || 'Duty Guard'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3">
                         <span className="text-[10px] font-bold text-emerald-700 flex items-center space-x-1">
                           <CheckCircle className="w-3.5 h-3.5" />
                           <span>{log.status}</span>
@@ -582,6 +595,7 @@ export default function AdminReports() {
                   <th className="py-2.5 px-3 font-bold">Destination & Purpose</th>
                   <th className="py-2.5 px-3 font-bold">Entry (Gate & Time)</th>
                   <th className="py-2.5 px-3 font-bold">Exit (Gate & Time)</th>
+                  <th className="py-2.5 px-3 font-bold">Issued By Guard</th>
                   <th className="py-2.5 px-3 font-bold">Current Status</th>
                 </tr>
               </thead>
@@ -639,6 +653,16 @@ export default function AdminReports() {
                           <span>Still on Campus</span>
                         </span>
                       )}
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="flex items-center space-x-1.5 font-medium text-slate-800">
+                        <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center text-[10px] font-black shrink-0">
+                          👮
+                        </span>
+                        <span className="truncate max-w-[130px] font-semibold text-slate-800" title={v.issued_by_guard || 'Gate Security'}>
+                          {v.issued_by_guard || 'Gate Security'}
+                        </span>
+                      </div>
                     </td>
                     <td className="py-3 px-3">
                       <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${

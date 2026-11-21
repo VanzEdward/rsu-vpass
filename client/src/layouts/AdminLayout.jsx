@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import SignOutConfirmModal from '../components/SignOutConfirmModal';
@@ -8,6 +8,19 @@ import { LayoutDashboard, FileCheck, Layers, BarChart3, Sliders, ShieldCheck, Lo
 export default function AdminLayout() {
   const { user, logout } = useAuth();
   const [isSignOutModalOpen, setIsSignOutModalOpen] = useState(false);
+
+  // Synchronize admin theme from localStorage
+  useEffect(() => {
+    const isDark = localStorage.getItem('vpass_admin_theme') === 'dark';
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+    return () => {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.removeAttribute('data-theme');
+    };
+  }, []);
 
   const navs = [
     { name: 'Dashboard Overview', path: '/admin/dashboard', icon: LayoutDashboard },

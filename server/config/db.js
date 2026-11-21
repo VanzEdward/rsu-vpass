@@ -18,6 +18,7 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
+  timezone: 'Z',
   // SSL only if DB_SSL === 'true' (e.g., Aiven Cloud)
   ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined
 });

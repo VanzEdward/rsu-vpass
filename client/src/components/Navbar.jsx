@@ -15,7 +15,9 @@ import {
   RotateCcw,
   Check,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Moon,
+  Sun
 } from 'lucide-react';
 import SignOutConfirmModal from './SignOutConfirmModal';
 import { formatNotificationTime, getFullNotificationTimestamp } from '../utils/dateUtils';
@@ -34,6 +36,38 @@ export default function Navbar({ hideLogout = false }) {
   const [isSignOutModalOpen, setIsSignOutModalOpen] = useState(false);
 
   const unreadCount = (notifications || []).filter((n) => !n.read).length;
+
+  // Admin Dark / Night Mode state with localStorage persistence
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    return localStorage.getItem('vpass_admin_theme') === 'dark';
+  });
+
+  useEffect(() => {
+    if (user?.role === 'PASO_ADMIN') {
+      const isDark = localStorage.getItem('vpass_admin_theme') === 'dark';
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+        document.documentElement.setAttribute('data-theme', 'dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.documentElement.removeAttribute('data-theme');
+      }
+    }
+  }, [user?.role]);
+
+  const toggleDarkMode = () => {
+    const nextDark = !isDarkMode;
+    setIsDarkMode(nextDark);
+    if (nextDark) {
+      document.documentElement.classList.add('dark');
+      document.documentElement.setAttribute('data-theme', 'dark');
+      localStorage.setItem('vpass_admin_theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('vpass_admin_theme', 'light');
+    }
+  };
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -259,6 +293,30 @@ export default function Navbar({ hideLogout = false }) {
                   </>
                 )}
                 </div>
+              )}
+
+              {/* Night Mode Toggle Button (Admin only) */}
+              {user.role === 'PASO_ADMIN' && (
+                <button
+                  type="button"
+                  onClick={toggleDarkMode}
+                  title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Night Mode'}
+                  className={`relative p-2 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center space-x-1.5 ${
+                    isDarkMode
+                      ? 'bg-slate-800 text-amber-300 hover:bg-slate-700 hover:text-amber-200 border border-slate-700 shadow-xs ring-1 ring-amber-400/20'
+                      : 'bg-slate-100 text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 border border-slate-200'
+                  }`}
+                  aria-label={isDarkMode ? 'Activate Light Mode' : 'Activate Night Mode'}
+                >
+                  {isDarkMode ? (
+                    <Sun className="w-5 h-5 transition-transform duration-300 hover:rotate-45" />
+                  ) : (
+                    <Moon className="w-5 h-5 transition-transform duration-300 hover:-rotate-12" />
+                  )}
+                  <span className="text-xs font-bold hidden sm:inline">
+                    {isDarkMode ? 'Light' : 'Night'}
+                  </span>
+                </button>
               )}
 
               {/* Profile Avatar Icon */}

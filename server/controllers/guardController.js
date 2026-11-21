@@ -338,10 +338,10 @@ export const createTemporaryPass = async (req, res) => {
       validDays: durationDays,
       validUntil: durationDays === 1 ? 'Today • 11:59 PM (1 Day)' : `${validTo.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} (${durationDays} Days)`,
       entryGate: gateStation,
-      entryTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      entryTime: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Manila' }),
       timestamp: new Date().toISOString(),
       created_at: new Date().toISOString(),
-      entryDate: new Date().toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }),
+      entryDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' }),
       status: 'INSIDE',
       exitGate: null,
       exitTime: null,
@@ -399,10 +399,10 @@ export const getTemporaryPasses = async (req, res) => {
         valid_from: tp.valid_from,
         valid_to: tp.valid_to,
         entryGate: tp.entry_gate || 'Gate 1',
-        entryTime: `${entryDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
-        entryDate: entryDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }),
-        timestamp: tp.created_at || tp.valid_from,
-        created_at: tp.created_at,
+        entryTime: entryDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Manila' }),
+        entryDate: entryDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' }),
+        timestamp: entryDate.toISOString(),
+        created_at: entryDate.toISOString(),
         status: isExited ? 'EXITED' : (isExpired ? 'EXPIRED' : 'INSIDE'),
         exitGate: tp.exit_gate,
         exitTime: tp.exit_gate ? 'Exited' : null,
@@ -561,6 +561,8 @@ export const logVerification = async (req, res) => {
       });
     }
 
+    const assignedGuardId = req.user ? req.user.id : (req.body.guard_id || req.body.guardId || null);
+
     const [result] = await pool.query(`
       INSERT INTO verification_logs 
       (pass_number, plate_number, owner_name, guard_id, verification_type, verification_method, verification_status, gate_station, classification)
@@ -569,7 +571,7 @@ export const logVerification = async (req, res) => {
       passNum,
       plate,
       ownerName,
-      req.user ? req.user.id : null,
+      assignedGuardId,
       vType,
       vMethod,
       vStatus,
@@ -591,7 +593,7 @@ export const getRecentLogs = async (req, res) => {
   try {
     const fetchAll = req.query?.all === 'true';
     const [logs] = await pool.query(`
-      SELECT vl.*, u.full_name as guard_name
+      SELECT vl.*, COALESCE(u.full_name, 'Duty Guard') as guard_name
       FROM verification_logs vl
       LEFT JOIN users u ON vl.guard_id = u.id
       ORDER BY vl.timestamp DESC
@@ -600,8 +602,18 @@ export const getRecentLogs = async (req, res) => {
 
     const formatted = logs.map(l => {
       const ts = new Date(l.timestamp);
-      const timeStr = ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const dateStr = ts.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+      const timeStr = ts.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'Asia/Manila'
+      });
+      const dateStr = ts.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: 'Asia/Manila'
+      });
 
       return {
         id: l.id,
@@ -618,11 +630,12 @@ export const getRecentLogs = async (req, res) => {
         gate_station: l.gate_station || 'Gate 1',
         time: timeStr,
         date: dateStr,
-        timestamp: l.timestamp,
+        timestamp: ts.toISOString(),
         status: l.verification_status,
         verification_status: l.verification_status,
         method: l.verification_method,
-        guard_name: l.guard_name
+        guard_name: l.guard_name || 'Duty Guard',
+        guardName: l.guard_name || 'Duty Guard'
       };
     });
 

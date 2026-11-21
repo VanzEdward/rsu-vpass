@@ -2197,16 +2197,19 @@ export const PassProvider = ({ children }) => {
       return null;
     }
     lastGateLogRef.current = { identifier, timestamp: now, type: logType };
-    const timeStr = new Date().toLocaleTimeString([], {
-      hour: "2-digit",
+    const nowObj = new Date();
+    const timeStr = nowObj.toLocaleTimeString([], {
+      hour: "numeric",
       minute: "2-digit",
+      hour12: true,
     });
-    const dateStr = new Date().toLocaleDateString([], {
+    const dateStr = nowObj.toLocaleDateString([], {
       month: "short",
       day: "numeric",
       year: "numeric",
     });
     const gateStation = logData.gate || activeGate || "Gate 1";
+    const dutyGuardName = logData.guard_name || logData.guardName || user?.full_name || user?.name || "Duty Guard";
 
     const newLog = {
       id: Date.now(),
@@ -2217,9 +2220,11 @@ export const PassProvider = ({ children }) => {
       type: logData.type || "ENTRY",
       gate: gateStation,
       time: timeStr,
-      timestamp: new Date().toISOString(),
+      timestamp: nowObj.toISOString(),
       date: dateStr,
       status: logData.status || "VALID",
+      guard_name: dutyGuardName,
+      guardName: dutyGuardName,
     };
     setGateLogs((prev) => [newLog, ...prev]);
 
@@ -2234,6 +2239,8 @@ export const PassProvider = ({ children }) => {
         type: logData.type || "ENTRY",
         gate: gateStation,
         status: logData.status || "VALID",
+        guard_id: user?.id || null,
+        guard_name: dutyGuardName,
       }),
     }).catch((err) => {
       console.warn("[Aiven Cloud Sync] Gate verification log warning:", err);
